@@ -8,10 +8,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:flutter_application_1/main.dart';
-import 'package:flutter_application_1/services/storage_service.dart';
-import 'package:flutter_application_1/services/export_service.dart';
-import 'package:flutter_application_1/repositories/transaction_repository_impl.dart';
+import 'package:qlct/main.dart';
+import 'package:qlct/services/storage_service.dart';
+import 'package:qlct/services/export_service.dart';
+import 'package:qlct/repositories/transaction_repository_impl.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
