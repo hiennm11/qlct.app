@@ -1,0 +1,108 @@
+/// Utility class for parsing Vietnamese numbers from voice input
+class VietnameseNumberParser {
+  /// Number words mapping
+  static const Map<String, int> _numberMap = {
+    'không': 0,
+    'một': 1,
+    'hai': 2,
+    'ba': 3,
+    'bốn': 4,
+    'năm': 5,
+    'sáu': 6,
+    'bảy': 7,
+    'tám': 8,
+    'chín': 9,
+    'mười': 10,
+    'mươi': 10,
+    'mấy': 10,
+  };
+
+  /// Unit multipliers
+  static const Map<String, int> _units = {'trăm': 100, 'mươi': 10, 'mười': 10};
+
+  /// Scale multipliers
+  static const Map<String, int> _scales = {
+    'ngàn': 1000,
+    'nghìn': 1000,
+    'triệu': 1000000,
+    'tỷ': 1000000000,
+  };
+
+  /// Parse Vietnamese number from text
+  /// Supports both words and numeric formats
+  /// Examples:
+  /// - "50 ngàn" -> 50000
+  /// - "năm mươi nghìn" -> 50000
+  /// - "một triệu" -> 1000000
+  /// - "50000" -> 50000
+  /// - "50.000" -> 50000
+  static int? parse(String text) {
+    if (text.isEmpty) return null;
+
+    final lowerText = text.toLowerCase().trim();
+
+    // Try to parse as numeric first
+    final numericValue = _parseNumeric(lowerText);
+    if (numericValue != null) return numericValue;
+
+    // Parse as Vietnamese words
+    return _parseVietnameseWords(lowerText);
+  }
+
+  /// Parse numeric formats: 50000, 50.000, 50,000
+  static int? _parseNumeric(String text) {
+    final words = text.split(RegExp(r'\s+'));
+
+    for (final word in words) {
+      // Clean up formatting characters
+      final cleaned = word.replaceAll(RegExp(r'[.,]'), '');
+      final num = int.tryParse(cleaned);
+
+      if (num != null && num > 0) {
+        return num;
+      }
+    }
+
+    return null;
+  }
+
+  /// Parse Vietnamese number words
+  static int? _parseVietnameseWords(String text) {
+    int result = 0;
+    int current = 0;
+
+    final words = text.split(RegExp(r'\s+'));
+
+    for (final word in words) {
+      if (_numberMap.containsKey(word)) {
+        current += _numberMap[word]!;
+      } else if (_units.containsKey(word)) {
+        if (current == 0) current = 1;
+        current *= _units[word]!;
+      } else if (_scales.containsKey(word)) {
+        if (current == 0) current = 1;
+        result = (result + current) * _scales[word]!;
+        current = 0;
+      }
+    }
+
+    result += current;
+    return result > 0 ? result : null;
+  }
+
+  /// Extract the first valid number from text
+  /// Example: "ăn cơm 50 ngàn" -> 50000
+  static int? extractAmount(String text) {
+    final lowerText = text.toLowerCase().trim();
+
+    // Try to find numeric value first
+    final numericValue = _parseNumeric(lowerText);
+    if (numericValue != null) return numericValue;
+
+    // Try to parse the whole text as Vietnamese words
+    final vietnameseValue = _parseVietnameseWords(lowerText);
+    if (vietnameseValue != null) return vietnameseValue;
+
+    return null;
+  }
+}

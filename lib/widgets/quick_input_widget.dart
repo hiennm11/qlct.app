@@ -4,6 +4,9 @@ import '../viewmodels/expense_viewmodel.dart';
 import '../models/category.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
+import '../services/voice_input_service.dart';
+import '../core/vietnamese_number_parser.dart';
+import 'voice_input_modal.dart';
 
 /// Widget for quick transaction input with category sliders
 class QuickInputWidget extends StatefulWidget {
@@ -74,6 +77,38 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                       ),
                     );
                   },
+                  onVoiceInput: (transcript) {
+                    final amount = VietnameseNumberParser.extractAmount(
+                      transcript,
+                    );
+                    if (amount != null) {
+                      setState(() {
+                        _amounts[category.name] = amount.toDouble();
+                      });
+                      viewModel.addTransaction(
+                        amount: amount,
+                        category: category.name,
+                        emoji: category.emoji,
+                        note: transcript,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Đã thêm ${CurrencyFormatter.format(amount)} - ${category.name}',
+                          ),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Không thể nhận diện số tiền từ giọng nói',
+                          ),
+                        ),
+                      );
+                    }
+                  },
                 );
               },
             ),
@@ -84,18 +119,101 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
   }
 }
 
-class _CategoryCard extends StatelessWidget {
+class _CategoryCard extends StatefulWidget {
   final Category category;
   final double amount;
   final ValueChanged<double> onAmountChanged;
   final VoidCallback onAdd;
+  final ValueChanged<String> onVoiceInput;
 
   const _CategoryCard({
     required this.category,
     required this.amount,
     required this.onAmountChanged,
     required this.onAdd,
+    required this.onVoiceInput,
   });
+
+  @override
+  State<_CategoryCard> createState() => _CategoryCardState();
+}
+
+class _CategoryCardState extends State<_CategoryCard> {
+  final _voiceService = VoiceInputService();
+  bool _isListening = false;
+  String _transcript = '';
+
+  @override
+  void dispose() {
+    _voiceService.dispose();
+    super.dispose();
+  }
+
+  void _startVoiceInput() async {
+    setState(() {
+      _isListening = true;
+      _transcript = '';
+    });
+
+    _showVoiceModal();
+
+    await _voiceService.startListening(
+      onResult: (transcript) {
+        setState(() {
+          _transcript = transcript;
+          _isListening = false;
+        });
+        // Rebuild modal to show input field with recognized text
+        Navigator.of(context).pop();
+        _showVoiceModal();
+      },
+      onError: (error) {
+        setState(() {
+          _isListening = false;
+          _transcript = 'Lỗi: $error';
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error)));
+      },
+    );
+  }
+
+  void _showVoiceModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => VoiceInputModal(
+        isListening: _isListening,
+        transcript: _transcript,
+        onClose: () {
+          _voiceService.stopListening();
+          setState(() => _isListening = false);
+          Navigator.of(context).pop();
+        },
+        onCancel: () {
+          _voiceService.cancel();
+          setState(() {
+            _isListening = false;
+            _transcript = '';
+          });
+          Navigator.of(context).pop();
+        },
+        onConfirm: (editedTranscript) {
+          final amount = VietnameseNumberParser.extractAmount(editedTranscript);
+          if (amount != null) {
+            widget.onVoiceInput(editedTranscript);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Không thể nhận diện số tiền từ giọng nói'),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,13 +232,13 @@ class _CategoryCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  category.emoji,
+                  widget.category.emoji,
                   style: const TextStyle(fontSize: 24),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    category.name,
+                    widget.category.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 12,
@@ -138,19 +256,19 @@ class _CategoryCard extends StatelessWidget {
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
               ),
               child: Slider(
-                value: amount,
-                min: category.minAmount.toDouble(),
-                max: category.maxAmount.toDouble(),
+                value: widget.amount,
+                min: widget.category.minAmount.toDouble(),
+                max: widget.category.maxAmount.toDouble(),
                 onChanged: (value) {
                   // Round to nearest 1000
                   final rounded = (value / 1000).round() * 1000.0;
-                  onAmountChanged(rounded);
+                  widget.onAmountChanged(rounded);
                 },
                 activeColor: AppColors.primary,
               ),
             ),
             Text(
-              CurrencyFormatter.format(amount.toInt()),
+              CurrencyFormatter.format(widget.amount.toInt()),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
@@ -158,16 +276,33 @@ class _CategoryCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: onAdd,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  textStyle: const TextStyle(fontSize: 11),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: widget.onAdd,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      textStyle: const TextStyle(fontSize: 11),
+                    ),
+                    child: const Text('Thêm'),
+                  ),
                 ),
-                child: const Text('Thêm'),
-              ),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: IconButton(
+                    onPressed: _startVoiceInput,
+                    icon: const Icon(Icons.mic, size: 16),
+                    padding: EdgeInsets.zero,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
