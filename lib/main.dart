@@ -1,0 +1,100 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'core/theme.dart';
+import 'services/storage_service.dart';
+import 'services/export_service.dart';
+import 'repositories/transaction_repository_impl.dart';
+import 'viewmodels/expense_viewmodel.dart';
+import 'views/home_screen.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    debugPrint('🚀 Initializing app...');
+    
+    // Initialize dependencies
+    debugPrint('📦 Getting SharedPreferences...');
+    final prefs = await SharedPreferences.getInstance();
+    debugPrint('✅ SharedPreferences initialized');
+    
+    debugPrint('🔧 Setting up storage service...');
+    final storageService = StorageService(prefs);
+    debugPrint('✅ Storage service ready');
+    
+    debugPrint('📤 Setting up export service...');
+    final exportService = ExportService();
+    debugPrint('✅ Export service ready');
+    
+    debugPrint('💾 Setting up repository...');
+    final repository = TransactionRepositoryImpl(storageService);
+    debugPrint('✅ Repository ready');
+
+    debugPrint('🎯 Starting app...');
+    runApp(MyApp(
+      repository: repository,
+      exportService: exportService,
+    ));
+  } catch (e, stackTrace) {
+    debugPrint('❌ Error during initialization: $e');
+    debugPrint('📍 Stack trace: $stackTrace');
+    
+    // Fallback if initialization fails
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    '❌ Error Initializing App',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    e.toString(),
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Stack: $stackTrace',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MyApp extends StatelessWidget {
+  final TransactionRepositoryImpl repository;
+  final ExportService exportService;
+
+  const MyApp({
+    super.key,
+    required this.repository,
+    required this.exportService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => ExpenseViewModel(repository, exportService),
+      child: MaterialApp(
+        title: 'Quản Lý Chi Tiêu',
+        theme: AppTheme.lightTheme,
+        home: const HomeScreen(),
+        debugShowCheckedModeBanner: false,
+      ),
+    );
+  }
+}

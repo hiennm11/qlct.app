@@ -1,0 +1,177 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:fl_chart/fl_chart.dart';
+import '../viewmodels/expense_viewmodel.dart';
+import '../core/theme.dart';
+import '../core/formatters.dart';
+
+/// Widget displaying expense chart by category
+class ChartWidget extends StatelessWidget {
+  const ChartWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ExpenseViewModel>(
+      builder: (context, viewModel, child) {
+        final stats = viewModel.stats;
+        final categoryTotals = stats.categoryTotals;
+
+        if (categoryTotals.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(
+                child: Text(
+                  'Chưa có dữ liệu để hiển thị',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '📊 Thống kê theo danh mục (tháng này)',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 250,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: PieChart(
+                          PieChartData(
+                            sections: _createSections(categoryTotals),
+                            centerSpaceRadius: 40,
+                            sectionsSpace: 2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _Legend(categoryTotals: categoryTotals),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<PieChartSectionData> _createSections(Map<String, int> categoryTotals) {
+    final total = categoryTotals.values.fold(0, (sum, val) => sum + val);
+    final colors = [
+      AppColors.primary,
+      AppColors.secondary,
+      AppColors.success,
+      AppColors.warning,
+      AppColors.error,
+      const Color(0xFF9C27B0),
+      const Color(0xFF673AB7),
+      const Color(0xFF3F51B5),
+      const Color(0xFF03A9F4),
+      const Color(0xFF009688),
+      const Color(0xFFFFC107),
+    ];
+
+    int colorIndex = 0;
+    return categoryTotals.entries.map((entry) {
+      final percentage = (entry.value / total * 100).toStringAsFixed(1);
+      final color = colors[colorIndex % colors.length];
+      colorIndex++;
+
+      return PieChartSectionData(
+        value: entry.value.toDouble(),
+        title: '$percentage%',
+        color: color,
+        radius: 80,
+        titleStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      );
+    }).toList();
+  }
+}
+
+class _Legend extends StatelessWidget {
+  final Map<String, int> categoryTotals;
+
+  const _Legend({required this.categoryTotals});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = [
+      AppColors.primary,
+      AppColors.secondary,
+      AppColors.success,
+      AppColors.warning,
+      AppColors.error,
+      const Color(0xFF9C27B0),
+      const Color(0xFF673AB7),
+      const Color(0xFF3F51B5),
+      const Color(0xFF03A9F4),
+      const Color(0xFF009688),
+      const Color(0xFFFFC107),
+    ];
+
+    int colorIndex = 0;
+    return ListView(
+      shrinkWrap: true,
+      children: categoryTotals.entries.map((entry) {
+        final color = colors[colorIndex % colors.length];
+        colorIndex++;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.key,
+                      style: const TextStyle(fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      CurrencyFormatter.format(entry.value),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
