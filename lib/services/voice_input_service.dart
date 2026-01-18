@@ -41,6 +41,8 @@ class VoiceInputService {
         onResult: (result) {
           if (result.finalResult) {
             onResult(result.recognizedWords);
+            // Stop listening immediately for faster response
+            stopListening();
           }
         },
         localeId: 'vi_VN',

@@ -38,9 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
             const StatsWidget(),
             const SizedBox(height: 16),
 
-            // Chart
-            const ChartWidget(),
-
             // Quick input
             const QuickInputWidget(),
             const SizedBox(height: 16),
@@ -52,6 +49,9 @@ class _HomeScreenState extends State<HomeScreen> {
             // Transactions list
             const TransactionListWidget(),
             const SizedBox(height: 16),
+
+            // Chart
+            const ChartWidget(),
           ],
         ),
       ),
