@@ -18,6 +18,7 @@ class QuickInputWidget extends StatefulWidget {
 
 class _QuickInputWidgetState extends State<QuickInputWidget> {
   final Map<String, double> _amounts = {};
+  bool _isExpanded = false;
 
   @override
   void initState() {
@@ -37,81 +38,96 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '⚡ Ghi chép nhanh',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.88,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+            // Expandable header
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                });
+              },
+              child: Row(
+                children: [
+                  Icon(
+                    _isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '⚡ Ghi chép nhanh',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ],
               ),
-              itemCount: Category.predefined.length,
-              itemBuilder: (context, index) {
-                final category = Category.predefined[index];
-                return _CategoryCard(
-                  category: category,
-                  amount: _amounts[category.name]!,
-                  onAmountChanged: (value) {
-                    setState(() {
-                      _amounts[category.name] = value;
-                    });
-                  },
-                  onAdd: () {
-                    viewModel.addTransaction(
-                      amount: _amounts[category.name]!.toInt(),
-                      category: category.name,
-                      emoji: category.emoji,
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Đã thêm ${CurrencyFormatter.format(_amounts[category.name]!.toInt())} - ${category.name}',
-                        ),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  onVoiceInput: (transcript) {
-                    final amount = VietnameseNumberParser.extractAmount(
-                      transcript,
-                    );
-                    if (amount != null) {
+            ),
+            // Expandable content
+            if (_isExpanded) ...[
+              const SizedBox(height: 16),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: Category.predefined.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final category = Category.predefined[index];
+                  return _CategoryCard(
+                    category: category,
+                    amount: _amounts[category.name]!,
+                    onAmountChanged: (value) {
                       setState(() {
-                        _amounts[category.name] = amount.toDouble();
+                        _amounts[category.name] = value;
                       });
+                    },
+                    onAdd: () {
                       viewModel.addTransaction(
-                        amount: amount,
+                        amount: _amounts[category.name]!.toInt(),
                         category: category.name,
                         emoji: category.emoji,
-                        note: transcript,
                       );
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            'Đã thêm ${CurrencyFormatter.format(amount)} - ${category.name}',
+                            'Đã thêm ${CurrencyFormatter.format(_amounts[category.name]!.toInt())} - ${category.name}',
                           ),
                           duration: const Duration(seconds: 2),
                         ),
                       );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Không thể nhận diện số tiền từ giọng nói',
-                          ),
-                        ),
+                    },
+                    onVoiceInput: (transcript) {
+                      final amount = VietnameseNumberParser.extractAmount(
+                        transcript,
                       );
-                    }
-                  },
-                );
-              },
-            ),
+                      if (amount != null) {
+                        setState(() {
+                          _amounts[category.name] = amount.toDouble();
+                        });
+                        viewModel.addTransaction(
+                          amount: amount,
+                          category: category.name,
+                          emoji: category.emoji,
+                          note: transcript,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Đã thêm ${CurrencyFormatter.format(amount)} - ${category.name}',
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Không thể nhận diện số tiền từ giọng nói',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -221,7 +237,6 @@ class _CategoryCardState extends State<_CategoryCard> {
       decoration: BoxDecoration(
         color: AppColors.gray200,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.transparent, width: 2),
       ),
       child: Padding(
         padding: const EdgeInsets.all(8),
