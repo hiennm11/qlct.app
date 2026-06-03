@@ -5,6 +5,7 @@ import '../models/budget_status.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
 import 'budget_edit_dialog.dart';
+import 'budget_bulk_edit_dialog.dart';
 
 /// Widget displaying budget overview with cards
 class BudgetOverviewWidget extends StatelessWidget {
@@ -14,7 +15,7 @@ class BudgetOverviewWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<BudgetViewModel>(
       builder: (context, viewModel, child) {
-        if (viewModel.isLoading && viewModel.budgets.isEmpty) {
+        if (viewModel.isLoading && viewModel.budgets.isEmpty && viewModel.totalBudget == null) {
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -40,11 +41,21 @@ class BudgetOverviewWidget extends StatelessWidget {
                       'Ngân sách tháng',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.settings),
+                      tooltip: 'Thiết lập ngân sách',
+                      onPressed: () => showBudgetBulkEditDialog(context),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                if (viewModel.budgetStatuses.isEmpty)
-                  _EmptyState()
+                if (viewModel.totalBudget != null) ...[
+                  _TotalBudgetBar(status: viewModel.totalBudgetStatus!),
+                  const SizedBox(height: 16),
+                ],
+                if (viewModel.budgetStatuses.isEmpty && viewModel.totalBudget == null)
+                  const _EmptyState()
                 else
                   ...viewModel.budgetStatuses.map((status) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -59,7 +70,90 @@ class BudgetOverviewWidget extends StatelessWidget {
   }
 }
 
+class _TotalBudgetBar extends StatelessWidget {
+  final TotalBudgetStatus status;
+
+  const _TotalBudgetBar({required this.status});
+
+  Color _getProgressColor() {
+    switch (status.alertLevel) {
+      case AlertLevel.normal:
+        return AppColors.success;
+      case AlertLevel.warning:
+        return AppColors.warning;
+      case AlertLevel.exceeded:
+        return AppColors.error;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = status.limit > 0 ? status.spent / status.limit : 0.0;
+    final progressClamped = progress.clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.gray100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('💰', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Text(
+                'Tổng: ${CurrencyFormatter.format(status.limit)}',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const Spacer(),
+              Text(
+                '${status.percentUsed}%',
+                style: TextStyle(
+                  color: _getProgressColor(),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progressClamped,
+            backgroundColor: AppColors.gray300,
+            valueColor: AlwaysStoppedAnimation<Color>(_getProgressColor()),
+            minHeight: 6,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Đã tiêu: ${CurrencyFormatter.format(status.spent)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              Text(
+                'Còn: ${CurrencyFormatter.format(status.remaining)}',
+                style: TextStyle(
+                  color: _getProgressColor(),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -70,9 +164,9 @@ class _EmptyState extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         ElevatedButton.icon(
-          onPressed: () => showBudgetEditDialog(context),
+          onPressed: () => showBudgetBulkEditDialog(context),
           icon: const Icon(Icons.add),
-          label: const Text('Thêm ngân sách'),
+          label: const Text('Thiết lập ngân sách'),
         ),
       ],
     );

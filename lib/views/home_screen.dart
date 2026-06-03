@@ -38,25 +38,26 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Stats section
             const StatsWidget(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Budget overview
             const BudgetOverviewWidget(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             const QuickVoiceButton(),
+            const SizedBox(height: 12),
 
             // Quick input
             const QuickInputWidget(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Custom input
             const CustomInputWidget(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Transactions list
             const TransactionListWidget(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Chart
             const ChartWidget(),

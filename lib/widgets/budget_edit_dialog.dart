@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/budget_viewmodel.dart';
 import '../models/category.dart';
@@ -50,7 +49,8 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
     _selectedCategory = widget.categoryName;
     _threshold = widget.currentThreshold ?? 80;
     if (widget.currentLimit != null && widget.currentLimit! > 0) {
-      _limitController.text = widget.currentLimit.toString();
+      // Format with thousand separators (e.g. 10000000 → 10.000.000)
+      _limitController.text = _formatNumber(widget.currentLimit!);
     }
   }
 
@@ -69,7 +69,7 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
       return;
     }
 
-    final limit = int.tryParse(_limitController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    final limit = _parseNumber(_limitController.text);
     if (limit <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Hạn mức phải lớn hơn 0')),
@@ -84,6 +84,22 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
         );
 
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Format raw number with thousand separators (e.g. 10000000 → 10.000.000)
+  String _formatNumber(int number) {
+    final digits = number.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
+
+  /// Parse formatted text back to int (e.g. "10.000.000" → 10000000)
+  int _parseNumber(String text) {
+    return int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
   }
 
   @override
@@ -157,27 +173,14 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
               TextFormField(
                 controller: _limitController,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [ThousandSeparatorFormatter()],
                 decoration: InputDecoration(
                   hintText: 'Nhập số tiền',
                   suffixText: 'đ',
                 ),
-                onChanged: (value) {
-                  // Format the displayed text as user types
-                  final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-                  if (digits.isNotEmpty) {
-                    final formatted = CurrencyFormatter.format(int.parse(digits));
-                    if (formatted != _limitController.text) {
-                      _limitController.value = TextEditingValue(
-                        text: digits,
-                        selection: TextSelection.collapsed(offset: digits.length),
-                      );
-                    }
-                  }
-                },
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Vui lòng nhập hạn mức';
-                  final limit = int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+                  final limit = _parseNumber(value);
                   if (limit <= 0) return 'Hạn mức phải lớn hơn 0';
                   return null;
                 },

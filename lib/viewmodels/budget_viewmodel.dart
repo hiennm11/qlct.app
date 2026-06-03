@@ -5,17 +5,21 @@ import '../models/budget_status.dart';
 import '../models/category.dart';
 import '../models/expense_stats.dart';
 import '../repositories/budget_repository.dart';
+import '../services/storage_service.dart';
 
 /// ViewModel for managing budget state and operations
 class BudgetViewModel extends ChangeNotifier {
   final BudgetRepository _budgetRepository;
+  final StorageService _storageService;
 
   List<Budget> _budgets = [];
   ExpenseStats? _stats;
   bool _isLoading = false;
   String? _errorMessage;
+  int? _totalBudget;
 
-  BudgetViewModel(this._budgetRepository) {
+  BudgetViewModel(this._budgetRepository, this._storageService) {
+    _totalBudget = _storageService.loadValue<int>('total_budget');
     Future.microtask(() => _loadBudgets());
   }
 
@@ -23,14 +27,49 @@ class BudgetViewModel extends ChangeNotifier {
   List<Budget> get budgets => _budgets;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  int? get totalBudget => _totalBudget;
 
   /// Calculate budget statuses from budgets and stats
   List<BudgetStatus> get budgetStatuses => _calculateStatuses();
+
+  /// Get total budget status for display
+  TotalBudgetStatus? get totalBudgetStatus {
+    if (_totalBudget == null || _stats == null) return null;
+    return TotalBudgetStatus.fromTotalBudget(_totalBudget!, _stats!.monthExpense);
+  }
 
   /// Update stats from ExpenseViewModel (called by ProxyProvider)
   void updateStats(ExpenseStats stats) {
     _stats = stats;
     notifyListeners();
+  }
+
+  /// Save total budget to SharedPreferences
+  Future<void> setTotalBudget(int amount) async {
+    await _storageService.saveValue('total_budget', amount);
+    _totalBudget = amount;
+    notifyListeners();
+  }
+
+  /// Batch upsert budgets — returns list, upserts all, reloads once
+  Future<void> setAllBudgets(List<Budget> budgets) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      for (final budget in budgets) {
+        final existing = await _budgetRepository.getByCategory(budget.categoryName);
+        final upserted = existing != null
+            ? budget.copyWith(id: existing.id, createdAt: existing.createdAt)
+            : budget;
+        await _budgetRepository.upsert(upserted);
+      }
+      await _loadBudgets();
+    } catch (e) {
+      _errorMessage = 'Lỗi khi lưu ngân sách: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// Set or update budget for a category

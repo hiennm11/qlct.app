@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'constants.dart';
 
@@ -64,5 +65,48 @@ class DateFormatter {
     } else {
       return formatDate(date);
     }
+  }
+}
+
+/// TextInputFormatter that formats digits with `.` thousand separators (vi_VN).
+/// e.g. "10000000" → "10.000.000"
+class ThousandSeparatorFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+
+    // Strip everything except digits
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return newValue.copyWith(text: '');
+
+    // Format with thousand separators
+    final formatted = _format(digits);
+
+    // Place cursor at end
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
+  /// Format raw digits string with `.` every 3 digits from right
+  static String _format(String digits) {
+    final buffer = StringBuffer();
+    final length = digits.length;
+    for (int i = 0; i < length; i++) {
+      if (i > 0 && (length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
+
+  /// Parse a formatted string back to raw digits
+  static String strip(String formatted) {
+    return formatted.replaceAll(RegExp(r'[^0-9]'), '');
   }
 }

@@ -29,8 +29,7 @@ Future<void> main() async {
     final prefs = await SharedPreferences.getInstance();
     debugPrint('✅ SharedPreferences initialized');
 
-    // Keep StorageService for future settings use
-    // ignore: unused_local_variable
+    // Initialize StorageService for SharedPreferences
     final storageService = StorageService(prefs);
 
     debugPrint('💾 Setting up database...');
@@ -56,11 +55,12 @@ Future<void> main() async {
     final BudgetRepository budgetRepository = BudgetRepositoryImpl(budgetDataSource);
     debugPrint('✅ Budget repository ready');
 
-    debugPrint('🎯 Starting app...');
+    debugPrint('Starting app...');
     runApp(MyApp(
       repository: repository,
       budgetRepository: budgetRepository,
       exportService: exportService,
+      storageService: storageService,
     ));
   } catch (e, stackTrace) {
     debugPrint('❌ Error during initialization: $e');
@@ -104,12 +104,14 @@ class MyApp extends StatelessWidget {
   final TransactionRepository repository;
   final BudgetRepository budgetRepository;
   final ExportService exportService;
+  final StorageService storageService;
 
   const MyApp({
     super.key,
     required this.repository,
     required this.budgetRepository,
     required this.exportService,
+    required this.storageService,
   });
 
   @override
@@ -120,16 +122,16 @@ class MyApp extends StatelessWidget {
           create: (_) => ExpenseViewModel(repository, exportService),
         ),
         ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
-          create: (_) => BudgetViewModel(budgetRepository),
+          create: (_) => BudgetViewModel(budgetRepository, storageService),
           update: (_, expenseVM, budgetVM) => budgetVM!..updateStats(expenseVM.stats),
         ),
       ],
       child: MaterialApp(
-        title: 'Quản Lý Chi Tiêu',
+        title: 'Quan Ly Chi Tieu',
         theme: AppTheme.lightTheme,
         home: const HomeScreen(),
         debugShowCheckedModeBanner: false,
       ),
-    );
+);
   }
 }
