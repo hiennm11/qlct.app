@@ -12,9 +12,9 @@ class VietnameseNumberParser {
     'bảy': 7,
     'tám': 8,
     'chín': 9,
-    'mười': 10,
-    'mươi': 10,
-    'mấy': 10,
+    'lăm': 5,
+    'nhăm': 5,
+    'tư': 4,
   };
 
   /// Unit multipliers
@@ -70,19 +70,28 @@ class VietnameseNumberParser {
   static int? _parseVietnameseWords(String text) {
     int result = 0;
     int current = 0;
+    int lastDigitValue = 0;
 
     final words = text.split(RegExp(r'\s+'));
 
     for (final word in words) {
       if (_numberMap.containsKey(word)) {
-        current += _numberMap[word]!;
+        int digitVal = _numberMap[word]!;
+        current += digitVal;
+        lastDigitValue = digitVal;
       } else if (_units.containsKey(word)) {
         if (current == 0) current = 1;
-        current *= _units[word]!;
+        if (lastDigitValue > 0 && (word == 'mươi' || word == 'mười')) {
+          current = current - lastDigitValue + (lastDigitValue * _units[word]!);
+        } else {
+          current *= _units[word]!;
+        }
+        lastDigitValue = 0;
       } else if (_scales.containsKey(word)) {
         if (current == 0) current = 1;
         result = (result + current) * _scales[word]!;
         current = 0;
+        lastDigitValue = 0;
       }
     }
 
@@ -95,14 +104,36 @@ class VietnameseNumberParser {
   static int? extractAmount(String text) {
     final lowerText = text.toLowerCase().trim();
 
-    // Try to find numeric value first
-    final numericValue = _parseNumeric(lowerText);
-    if (numericValue != null) return numericValue;
+    // Try numeric + scale word first: "50 ngàn", "2 triệu"
+    final numericWithScale = _parseNumericWithScales(lowerText);
+    if (numericWithScale != null) return numericWithScale;
 
-    // Try to parse the whole text as Vietnamese words
+    // Try Vietnamese words: "năm mươi nghìn", "một trăm"
     final vietnameseValue = _parseVietnameseWords(lowerText);
     if (vietnameseValue != null) return vietnameseValue;
 
-    return null;
+    // Fallback: pure numeric
+    return _parseNumeric(lowerText);
+  }
+
+  /// Parse numeric digit + optional scale word: "50 ngàn" → 50000, "2 triệu" → 2000000
+  static int? _parseNumericWithScales(String text) {
+    final words = text.split(RegExp(r'\s+'));
+
+    int? numericValue;
+    int scaleMultiplier = 1;
+
+    for (final word in words) {
+      final cleaned = word.replaceAll(RegExp(r'[.,]'), '');
+      final num = int.tryParse(cleaned);
+
+      if (num != null && num > 0) {
+        numericValue = num;
+      } else if (_scales.containsKey(word)) {
+        scaleMultiplier *= _scales[word]!;
+      }
+    }
+
+    return numericValue != null ? numericValue * scaleMultiplier : null;
   }
 }
