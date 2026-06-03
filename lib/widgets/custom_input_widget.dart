@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../models/category.dart';
 import '../services/voice_input_service.dart';
+import '../core/formatters.dart';
 import '../core/vietnamese_number_parser.dart';
 import 'voice_input_modal.dart';
 
@@ -93,7 +93,8 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
     // Extract amount
     final amount = VietnameseNumberParser.extractAmount(transcript);
     if (amount != null) {
-      _amountController.text = amount.toString();
+      // Format with thousand separators (e.g. 100000 → 100.000)
+      _amountController.text = _formatNumber(amount);
     }
 
     // Try to match category
@@ -119,7 +120,9 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
   }
 
   void _addTransaction() {
-    final amount = int.tryParse(_amountController.text);
+    final amount = int.tryParse(
+      _amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+    );
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập số tiền hợp lệ')),
@@ -159,6 +162,17 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
     );
   }
 
+  /// Format raw number with thousand separators (e.g. 100000 → 100.000)
+  String _formatNumber(int number) {
+    final digits = number.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -180,7 +194,7 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
                 prefixText: '₫ ',
               ),
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: [ThousandSeparatorFormatter()],
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
