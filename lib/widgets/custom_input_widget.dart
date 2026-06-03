@@ -199,7 +199,12 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
                         style: const TextStyle(fontSize: 20),
                       ),
                       const SizedBox(width: 8),
-                      Text(category.name),
+                      Flexible(
+                        child: Text(
+                          category.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
                 );

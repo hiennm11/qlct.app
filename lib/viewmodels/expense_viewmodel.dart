@@ -18,7 +18,7 @@ class ExpenseViewModel extends ChangeNotifier {
   String? _errorMessage;
 
   ExpenseViewModel(this._repository, this._exportService) {
-    _loadTransactions();
+    Future.microtask(() => _loadTransactions());
   }
 
   // Getters

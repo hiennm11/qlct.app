@@ -63,8 +63,9 @@ Widget (display) ← ExpenseViewModel.stats / .transactions (getters)
 6. **CSV via package:csv** — Not manual string join. Uses `ListToCsvConverter`.
 7. **Chart via fl_chart** — PieChart (`PieChart`) with legend. Only month-to-date category breakdown.
 8. **No DI framework** — Manual constructor injection in `main()`. No get_it, no riverpod.
-9. **QuickVoiceButton on HomeScreen** — Present in code but commented out in `home_screen.dart` line 42. `QuickVoiceButton` has hardcoded detection strings ("ăn", "cơm", "xe", "xăng") that don't match actual categories.
-10. **Voice per-category vs standalone** — `QuickInputWidget._CategoryCard` has its own voice flow (mic icon per card). `CustomInputWidget` has separate mic FAB. Both use `VoiceInputModal`.
+9. **Deferred initial load** — `ExpenseViewModel` uses `Future.microtask` to defer `_loadTransactions`. Prevents `notifyListeners` during widget build phase.
+10. **Voice per-category vs standalone** — `QuickInputWidget._CategoryCard` has its own voice flow (mic icon per card). `CustomInputWidget` has separate mic FAB. `QuickVoiceButton` provides standalone voice input via `ElevatedButton.icon` on HomeScreen. All three use `VoiceInputModal`.
+11. **Unified voice category detection** — ADR-0002: Both `QuickVoiceButton` and `CustomInputWidget` detect category by iterating `Category.predefined` and matching against `cat.phrases`.
 
 ## Dependencies
 
@@ -83,11 +84,13 @@ Widget (display) ← ExpenseViewModel.stats / .transactions (getters)
 
 ## Known Issues
 
-- `QuickVoiceButton` commented out (`// const QuickVoiceButton(),`). Detection logic uses wrong category names.
-- `transaction_list_widget.dart:190` has `Row` inside `DropdownMenuItem` without width constraint → runtime layout error.
-- `transaction_list_widget.dart:228` — `List transactions` uses dynamic type, not `List<Transaction>`.
-- Only 1 test file (`widget_test.dart`). Zero unit/integration tests for VM, repo, services.
-- `CustomInputWidget` uses deprecated `DropdownButtonFormField` with `initialValue` — may not rebuild on external state change.
+- ~~`QuickVoiceButton` commented out (`// const QuickVoiceButton(),`). Detection logic uses wrong category names.~~ ✅ Fixed ADR-0002 — unified voice detection uses `Category.phrases`, widget uncommented, changed from FAB to `ElevatedButton.icon`.
+- ~~`transaction_list_widget.dart:190` has `Row` inside `DropdownMenuItem` without width constraint → runtime layout error.~~ ✅ Verified: no Row at that location. Row overflow risk in `custom_input_widget.dart:195` fixed with `Flexible` + `TextOverflow.ellipsis`.
+- ~~`transaction_list_widget.dart:228` — `List transactions` uses dynamic type, not `List<Transaction>`.~~ ✅ Fixed — typed as `List<Transaction>`.
+- ~~Only 1 test file (`widget_test.dart`). Zero unit/integration tests for VM, repo, services.~~ ✅ Fixed — 49 tests total: 4 unit test files (Category, ExpenseViewModel, TransactionRepositoryImpl, VietnameseNumberParser) + 1 widget smoke test.
+- `CustomInputWidget` uses `DropdownButtonFormField` with `initialValue` — Flutter 3.38 deprecated `value` (not `initialValue`). No action needed.
+- `VietnameseNumberParser` has known bugs: "mươi" treated as digit 10 instead of ×10 multiplier; `extractAmount` doesn't combine numeric + scale words (e.g. "50 ngàn" → 50 not 50000). Documented in parser tests.
+- `ExpenseViewModel` uses `Future.microtask` for initial load to avoid mid-build `notifyListeners`. Slight UX delay on cold start (sub-frame, invisible).
 
 ## Build
 

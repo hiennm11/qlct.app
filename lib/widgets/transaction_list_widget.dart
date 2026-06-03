@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/transaction.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
@@ -225,7 +226,7 @@ class _FilterRow extends StatelessWidget {
 }
 
 class _TransactionList extends StatelessWidget {
-  final List transactions;
+  final List<Transaction> transactions;
 
   const _TransactionList({required this.transactions});
 

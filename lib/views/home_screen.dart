@@ -39,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const StatsWidget(),
             const SizedBox(height: 16),
 
-            // const QuickVoiceButton(),
+            const QuickVoiceButton(),
 
             // Quick input
             const QuickInputWidget(),

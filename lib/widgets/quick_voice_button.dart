@@ -79,26 +79,29 @@ class _QuickVoiceButtonState extends State<QuickVoiceButton> {
           final amount = VietnameseNumberParser.extractAmount(editedTranscript);
 
           if (amount != null) {
-            // Auto-detect category if mentioned
-            String? detectedCategory;
+            // Match category using predefined phrases
+            String matchedCategory = 'Khác';
             final lowerTranscript = editedTranscript.toLowerCase();
-            // Simple category detection - can be enhanced
-            if (lowerTranscript.contains('ăn') ||
-                lowerTranscript.contains('cơm')) {
-              detectedCategory = 'Ăn uống';
-            } else if (lowerTranscript.contains('xe') ||
-                lowerTranscript.contains('xăng')) {
-              detectedCategory = 'Giao thông';
-            } else if (lowerTranscript.contains('sách') ||
-                lowerTranscript.contains('học')) {
-              detectedCategory = 'Giáo dục';
+
+            for (final cat in viewModel.categories) {
+              for (final phrase in cat.phrases) {
+                if (lowerTranscript.contains(phrase.toLowerCase())) {
+                  matchedCategory = cat.name;
+                  break;
+                }
+              }
+              if (matchedCategory != 'Khác') break;
             }
+
+            final category = viewModel.categories.firstWhere(
+              (c) => c.name == matchedCategory,
+            );
 
             viewModel.addTransaction(
               amount: amount,
-              category: detectedCategory ?? 'Khác',
+              category: category.name,
               note: editedTranscript,
-              emoji: ""
+              emoji: category.emoji,
             );
 
             ScaffoldMessenger.of(context).showSnackBar(
@@ -121,10 +124,13 @@ class _QuickVoiceButtonState extends State<QuickVoiceButton> {
 
   @override
   Widget build(BuildContext context) {
-    return FloatingActionButton(
+    return ElevatedButton.icon(
       onPressed: _startVoiceInput,
-      tooltip: 'Ghi chú bằng giọng nói',
-      child: const Icon(Icons.mic),
+      icon: const Icon(Icons.mic),
+      label: const Text('Ghi chép bằng giọng nói'),
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 48),
+      ),
     );
   }
 }
