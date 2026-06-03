@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qlct/widgets/quick_voice_button.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../widgets/stats_widget.dart';
 import '../widgets/quick_input_widget.dart';
@@ -37,6 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
             // Stats section
             const StatsWidget(),
             const SizedBox(height: 16),
+
+            // const QuickVoiceButton(),
 
             // Quick input
             const QuickInputWidget(),

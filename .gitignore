@@ -118,4 +118,7 @@ app.*.symbols
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
 
-docs
+# Build output txt
+build_log.txt
+debug_output.txt
+debug_run.txt
