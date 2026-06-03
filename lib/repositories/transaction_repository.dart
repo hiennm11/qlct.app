@@ -9,7 +9,7 @@ abstract class TransactionRepository {
   Future<void> add(Transaction transaction);
 
   /// Delete a transaction by ID
-  Future<void> delete(int id);
+  Future<void> delete(String id);
 
   /// Clear all transactions
   Future<void> clearAll();

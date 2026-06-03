@@ -1,17 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:qlct/models/transaction.dart';
-import 'package:qlct/services/storage_service.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/repositories/transaction_repository_impl.dart';
 
-class MockStorageService extends Mock implements StorageService {}
+class MockTransactionLocalDataSource extends Mock implements TransactionLocalDataSource {}
 
 void main() {
-  late MockStorageService mockStorage;
+  late MockTransactionLocalDataSource mockDataSource;
   late TransactionRepositoryImpl repository;
 
   final sampleTransaction = Transaction(
-    id: 1,
+    id: 'test-id-1',
     amount: 50000,
     category: 'Ăn ngoài',
     emoji: '🍜',
@@ -19,38 +19,30 @@ void main() {
     note: 'ăn trưa',
   );
 
-  final sampleJson = sampleTransaction.toJson();
+  setUpAll(() {
+    registerFallbackValue(sampleTransaction);
+    registerFallbackValue(DateTime(2026, 6, 3));
+    registerFallbackValue('test-category');
+  });
 
   setUp(() {
-    mockStorage = MockStorageService();
-    repository = TransactionRepositoryImpl(mockStorage);
-    registerFallbackValue(<Map<String, dynamic>>[]);
-    registerFallbackValue('transactions');
+    mockDataSource = MockTransactionLocalDataSource();
+    repository = TransactionRepositoryImpl(mockDataSource);
   });
 
   group('getAll', () {
-    test('loads from storage and caches on first call', () {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
+    test('delegates to dataSource.getAll', () {
+      when(() => mockDataSource.getAll())
+          .thenAnswer((_) async => [sampleTransaction]);
 
       final result = repository.getAll();
 
       expect(result, completion([sampleTransaction]));
-      verify(() => mockStorage.loadList('transactions')).called(1);
+      verify(() => mockDataSource.getAll()).called(1);
     });
 
-    test('returns cached data without storage call on second access', () async {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
-
-      await repository.getAll(); // first call
-      await repository.getAll(); // second call
-
-      verify(() => mockStorage.loadList('transactions')).called(1);
-    });
-
-    test('returns empty list when storage is empty', () {
-      when(() => mockStorage.loadList('transactions')).thenReturn([]);
+    test('returns empty list when dataSource is empty', () {
+      when(() => mockDataSource.getAll()).thenAnswer((_) async => []);
 
       final result = repository.getAll();
 
@@ -59,53 +51,47 @@ void main() {
   });
 
   group('add', () {
-    test('adds transaction and persists to storage', () async {
-      when(() => mockStorage.loadList('transactions')).thenReturn([]);
-      when(() => mockStorage.saveList('transactions', any()))
-          .thenAnswer((_) async {});
+    test('delegates to dataSource.add', () async {
+      when(() => mockDataSource.add(any())).thenAnswer((_) async {});
 
       await repository.add(sampleTransaction);
 
-      verify(() => mockStorage.saveList('transactions', any())).called(1);
+      verify(() => mockDataSource.add(sampleTransaction)).called(1);
     });
   });
 
   group('delete', () {
-    test('removes transaction by id and persists', () async {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
-      when(() => mockStorage.saveList('transactions', any()))
-          .thenAnswer((_) async {});
+    test('delegates to dataSource.delete with string id', () async {
+      when(() => mockDataSource.delete(any())).thenAnswer((_) async {});
 
-      await repository.delete(1);
+      await repository.delete('test-id-1');
 
-      verify(() => mockStorage.saveList('transactions', any())).called(1);
+      verify(() => mockDataSource.delete('test-id-1')).called(1);
     });
   });
 
   group('clearAll', () {
-    test('empties cache and removes storage key', () async {
-      when(() => mockStorage.remove('transactions')).thenAnswer((_) async {});
+    test('delegates to dataSource.clearAll', () async {
+      when(() => mockDataSource.clearAll()).thenAnswer((_) async {});
 
       await repository.clearAll();
 
-      verify(() => mockStorage.remove('transactions')).called(1);
+      verify(() => mockDataSource.clearAll()).called(1);
     });
   });
 
   group('getByDate', () {
-    test('filters transactions by date', () async {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
+    test('delegates to dataSource.getByDate', () async {
+      when(() => mockDataSource.getByDate(any())).thenAnswer((_) async => [sampleTransaction]);
 
       final result = await repository.getByDate(DateTime(2026, 6, 3));
 
       expect(result.length, 1);
+      verify(() => mockDataSource.getByDate(any())).called(1);
     });
 
     test('returns empty for non-matching date', () async {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
+      when(() => mockDataSource.getByDate(any())).thenAnswer((_) async => []);
 
       final result = await repository.getByDate(DateTime(2026, 6, 4));
 
@@ -114,18 +100,17 @@ void main() {
   });
 
   group('getByCategory', () {
-    test('filters by matching category', () async {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
+    test('delegates to dataSource.getByCategory', () async {
+      when(() => mockDataSource.getByCategory(any())).thenAnswer((_) async => [sampleTransaction]);
 
       final result = await repository.getByCategory('Ăn ngoài');
 
       expect(result.length, 1);
+      verify(() => mockDataSource.getByCategory('Ăn ngoài')).called(1);
     });
 
     test('returns empty for non-matching category', () async {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
+      when(() => mockDataSource.getByCategory(any())).thenAnswer((_) async => []);
 
       final result = await repository.getByCategory('Cà phê');
 
@@ -134,9 +119,8 @@ void main() {
   });
 
   group('getByDateRange', () {
-    test('returns transactions within date range', () async {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
+    test('delegates to dataSource.getByDateRange', () async {
+      when(() => mockDataSource.getByDateRange(any(), any())).thenAnswer((_) async => [sampleTransaction]);
 
       final result = await repository.getByDateRange(
         DateTime(2026, 6, 1),
@@ -144,11 +128,11 @@ void main() {
       );
 
       expect(result.length, 1);
+      verify(() => mockDataSource.getByDateRange(any(), any())).called(1);
     });
 
-    test('excludes transactions outside range', () async {
-      when(() => mockStorage.loadList('transactions'))
-          .thenReturn([sampleJson]);
+    test('returns empty for date range with no matches', () async {
+      when(() => mockDataSource.getByDateRange(any(), any())).thenAnswer((_) async => []);
 
       final result = await repository.getByDateRange(
         DateTime(2026, 7, 1),

@@ -21,7 +21,7 @@ Transaction _$TransactionFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$Transaction {
-  int get id => throw _privateConstructorUsedError;
+  String get id => throw _privateConstructorUsedError;
   int get amount => throw _privateConstructorUsedError;
   String get category => throw _privateConstructorUsedError;
   String get emoji => throw _privateConstructorUsedError;
@@ -46,7 +46,7 @@ abstract class $TransactionCopyWith<$Res> {
   ) = _$TransactionCopyWithImpl<$Res, Transaction>;
   @useResult
   $Res call({
-    int id,
+    String id,
     int amount,
     String category,
     String emoji,
@@ -82,7 +82,7 @@ class _$TransactionCopyWithImpl<$Res, $Val extends Transaction>
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
-                      as int,
+                      as String,
             amount: null == amount
                 ? _value.amount
                 : amount // ignore: cast_nullable_to_non_nullable
@@ -119,7 +119,7 @@ abstract class _$$TransactionImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
-    int id,
+    String id,
     int amount,
     String category,
     String emoji,
@@ -154,7 +154,7 @@ class __$$TransactionImplCopyWithImpl<$Res>
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
-                  as int,
+                  as String,
         amount: null == amount
             ? _value.amount
             : amount // ignore: cast_nullable_to_non_nullable
@@ -196,7 +196,7 @@ class _$TransactionImpl implements _Transaction {
       _$$TransactionImplFromJson(json);
 
   @override
-  final int id;
+  final String id;
   @override
   final int amount;
   @override
@@ -249,7 +249,7 @@ class _$TransactionImpl implements _Transaction {
 
 abstract class _Transaction implements Transaction {
   const factory _Transaction({
-    required final int id,
+    required final String id,
     required final int amount,
     required final String category,
     required final String emoji,
@@ -261,7 +261,7 @@ abstract class _Transaction implements Transaction {
       _$TransactionImpl.fromJson;
 
   @override
-  int get id;
+  String get id;
   @override
   int get amount;
   @override

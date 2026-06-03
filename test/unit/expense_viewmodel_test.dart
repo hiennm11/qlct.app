@@ -17,7 +17,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(Transaction(
-      id: 0,
+      id: '0',
       amount: 0,
       category: '',
       emoji: '',
@@ -28,7 +28,7 @@ void main() {
 
   final sampleCategory = Category.predefined.firstWhere((c) => c.name == 'Ăn ngoài');
 
-  Transaction makeTransaction({int id = 1, int amount = 50000, DateTime? date}) {
+  Transaction makeTransaction({String id = '1', int amount = 50000, DateTime? date}) {
     return Transaction(
       id: id,
       amount: amount,
@@ -57,9 +57,9 @@ void main() {
     });
 
     test('returns transactions sorted by date descending', () async {
-      final t1 = makeTransaction(id: 1, date: DateTime(2026, 6, 1));
-      final t2 = makeTransaction(id: 2, date: DateTime(2026, 6, 5));
-      final t3 = makeTransaction(id: 3, date: DateTime(2026, 6, 3));
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 5));
+      final t3 = makeTransaction(id: '3', date: DateTime(2026, 6, 3));
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2, t3]);
 
@@ -68,9 +68,9 @@ void main() {
       await Future.delayed(Duration.zero);
 
       final transactions = viewModel.transactions;
-      expect(transactions[0].id, 2); // newest first
-      expect(transactions[1].id, 3);
-      expect(transactions[2].id, 1); // oldest last
+      expect(transactions[0].id, '2'); // newest first
+      expect(transactions[1].id, '3');
+      expect(transactions[2].id, '1'); // oldest last
     });
   });
 
@@ -94,19 +94,19 @@ void main() {
 
   group('deleteTransaction', () {
     test('calls repository.delete and removes from local list', () async {
-      final t1 = makeTransaction(id: 1);
+      final t1 = makeTransaction(id: '1');
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
-      when(() => mockRepo.delete(1)).thenAnswer((_) async {});
+      when(() => mockRepo.delete('1')).thenAnswer((_) async {});
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.transactions.length, 1);
 
-      await viewModel.deleteTransaction(1);
+      await viewModel.deleteTransaction('1');
 
       expect(viewModel.transactions.length, 0);
-      verify(() => mockRepo.delete(1)).called(1);
+      verify(() => mockRepo.delete('1')).called(1);
     });
   });
 
@@ -129,8 +129,8 @@ void main() {
 
   group('filters', () {
     test('setDateFilter filters transactions by date', () async {
-      final t1 = makeTransaction(id: 1, date: DateTime(2026, 6, 3));
-      final t2 = makeTransaction(id: 2, date: DateTime(2026, 6, 4));
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 3));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 4));
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
 
@@ -141,12 +141,12 @@ void main() {
 
       final filtered = viewModel.transactions;
       expect(filtered.length, 1);
-      expect(filtered.first.id, 1);
+      expect(filtered.first.id, '1');
     });
 
     test('setCategoryFilter filters by category', () async {
       when(() => mockRepo.getAll())
-          .thenAnswer((_) async => [makeTransaction(id: 1)]);
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -159,7 +159,7 @@ void main() {
 
     test('setCategoryFilter returns empty for non-matching category', () async {
       when(() => mockRepo.getAll())
-          .thenAnswer((_) async => [makeTransaction(id: 1)]);
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -170,8 +170,8 @@ void main() {
     });
 
     test('clearFilters resets date and category filters', () async {
-      final t1 = makeTransaction(id: 1, date: DateTime(2026, 6, 3));
-      final t2 = makeTransaction(id: 2, date: DateTime(2026, 6, 4));
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 3));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 4));
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
 
@@ -193,7 +193,7 @@ void main() {
     test('calculates todayExpense correctly', () async {
       final today = DateTime.now();
       final t1 = Transaction(
-        id: 1,
+        id: '1',
         amount: 30000,
         category: 'Ăn ngoài',
         emoji: '🍜',
@@ -201,7 +201,7 @@ void main() {
         note: '',
       );
       final t2 = Transaction(
-        id: 2,
+        id: '2',
         amount: 20000,
         category: 'Cà phê',
         emoji: '☕',
@@ -220,11 +220,11 @@ void main() {
     test('calculates monthExpense including all transactions this month', () async {
       final now = DateTime.now();
       final t1 = Transaction(
-        id: 1, amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
         date: DateTime(now.year, now.month, 1), note: '',
       );
       final t2 = Transaction(
-        id: 2, amount: 30000, category: 'Cà phê', emoji: '☕',
+        id: '2', amount: 30000, category: 'Cà phê', emoji: '☕',
         date: DateTime(now.year, now.month, 15), note: '',
       );
 
@@ -239,11 +239,11 @@ void main() {
     test('categoryTotals groups amounts correctly', () async {
       final now = DateTime.now();
       final t1 = Transaction(
-        id: 1, amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
         date: DateTime(now.year, now.month, 5), note: '',
       );
       final t2 = Transaction(
-        id: 2, amount: 30000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '2', amount: 30000, category: 'Ăn ngoài', emoji: '🍜',
         date: DateTime(now.year, now.month, 10), note: '',
       );
 

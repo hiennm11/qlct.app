@@ -3,8 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/theme.dart';
+import 'data/database/database_helper.dart';
+import 'data/datasources/sqlite_transaction_datasource.dart';
+import 'data/migrations/shared_prefs_to_sqlite.dart';
 import 'services/storage_service.dart';
 import 'services/export_service.dart';
+import 'repositories/transaction_repository.dart';
 import 'repositories/transaction_repository_impl.dart';
 import 'viewmodels/expense_viewmodel.dart';
 import 'views/home_screen.dart';
@@ -14,22 +18,32 @@ Future<void> main() async {
 
   try {
     debugPrint('🚀 Initializing app...');
-    
+
     // Initialize dependencies
     debugPrint('📦 Getting SharedPreferences...');
     final prefs = await SharedPreferences.getInstance();
     debugPrint('✅ SharedPreferences initialized');
-    
-    debugPrint('🔧 Setting up storage service...');
+
+    // Keep StorageService for future settings use
+    // ignore: unused_local_variable
     final storageService = StorageService(prefs);
-    debugPrint('✅ Storage service ready');
-    
+
+    debugPrint('💾 Setting up database...');
+    final dbHelper = DatabaseHelper();
+    final dataSource = SqliteTransactionDataSource(dbHelper);
+    debugPrint('✅ Database ready');
+
+    debugPrint('🔄 Running migration...');
+    final migrationService = MigrationService(dataSource);
+    await migrationService.migrate();
+    debugPrint('✅ Migration done');
+
     debugPrint('📤 Setting up export service...');
     final exportService = ExportService();
     debugPrint('✅ Export service ready');
-    
+
     debugPrint('💾 Setting up repository...');
-    final repository = TransactionRepositoryImpl(storageService);
+    final TransactionRepository repository = TransactionRepositoryImpl(dataSource);
     debugPrint('✅ Repository ready');
 
     debugPrint('🎯 Starting app...');
@@ -76,7 +90,7 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  final TransactionRepositoryImpl repository;
+  final TransactionRepository repository;
   final ExportService exportService;
 
   const MyApp({

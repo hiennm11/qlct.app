@@ -14,14 +14,16 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 | **Thống kê** | `ExpenseStats` | Aggregated values: todayExpense, weekExpense, monthExpense, categoryTotals |
 | **Xuất dữ liệu** | Export | CSV or JSON file export of all transactions |
 | **Đầu tư** | Investment Category | Special `isInvestment=true` category with larger amounts (1M–20M VND) |
+| **Nguồn dữ liệu** | `DataSource` | Abstraction layer between Repository and concrete storage (SQLite, future: API) |
+| **Kho dữ liệu cục bộ** | `DatabaseHelper` | Manages SQLite connection, version, and schema migrations |
 
 ## Architecture
 
 ```
-Pattern: MVVM + Repository
+Pattern: MVVM + Repository + DataSource
 State:   Provider + ChangeNotifier
 Models:  Freezed (immutable, code-gen)
-Storage: SharedPreferences (JSON-encoded list)
+Storage: SQLite (sqflite) — transactions table. SharedPreferences for settings only.
 ```
 
 ### Layer Map
@@ -29,15 +31,19 @@ Storage: SharedPreferences (JSON-encoded list)
 ```
 lib/
 ├── core/           — Constants, theme, formatters, Vietnamese number parser
+├── data/
+│   ├── database/   — DatabaseHelper (SQLite connection, version, migration)
+│   ├── datasources/— TransactionLocalDataSource (abstract), SqliteTransactionDataSource (sqflite)
+│   └── migrations/ — One-time SharedPreferences → SQLite data import
 ├── models/         — Transaction, Category, ExpenseStats (Freezed)
-├── services/       — StorageService, ExportService, VoiceInputService
+├── services/       — StorageService (settings only), ExportService, VoiceInputService
 ├── repositories/   — TransactionRepository (abstract) + TransactionRepositoryImpl
 ├── viewmodels/     — ExpenseViewModel (ChangeNotifier, single VM for entire app)
 ├── views/          — HomeScreen (only screen)
 ├── widgets/        — StatsWidget, QuickInputWidget, CustomInputWidget,
 │                     TransactionListWidget, ChartWidget, VoiceInputModal,
 │                     QuickVoiceButton
-└── main.dart       — DI wiring: SharedPreferences → StorageService →
+└── main.dart       — DI wiring: DatabaseHelper → SqliteTransactionDataSource →
                       TransactionRepositoryImpl → ExpenseViewModel → Provider → HomeScreen
 ```
 
@@ -46,33 +52,38 @@ lib/
 ```
 Widget (tap/voice) → ExpenseViewModel.addTransaction()
   → TransactionRepositoryImpl.add()
-    → StorageService.saveList() → SharedPreferences.setString()
+    → SqliteTransactionDataSource.insert() → sqflite INSERT
 
 Widget (display) ← ExpenseViewModel.stats / .transactions (getters)
-  ← TransactionRepositoryImpl.getAll() → cached List<Transaction>
-    ← StorageService.loadList() → SharedPreferences.getString() → JSON decode
+  ← TransactionRepositoryImpl.getAll()
+    ← SqliteTransactionDataSource.getAll() → sqflite SELECT
 ```
 
 ## Key Design Decisions
 
 1. **Single ViewModel** — 1 `ExpenseViewModel` manages all state. No feature-scoped VMs. Simple app, low complexity acceptable.
-2. **In-memory cache** — `TransactionRepositoryImpl._cachedTransactions`. Avoids re-parsing JSON on every read.
-3. **ID generation** — `DateTime.now().millisecondsSinceEpoch`. Not UUID. Fine for single-user local app.
-4. **Predefined categories** — `Category.predefined` static list. Not user-customizable. 11 categories hardcoded.
-5. **Voice → number parser** — `VietnameseNumberParser` handles "năm mươi nghìn" → 50000, plus numeric "50.000" format.
-6. **CSV via package:csv** — Not manual string join. Uses `ListToCsvConverter`.
-7. **Chart via fl_chart** — PieChart (`PieChart`) with legend. Only month-to-date category breakdown.
-8. **No DI framework** — Manual constructor injection in `main()`. No get_it, no riverpod.
-9. **Deferred initial load** — `ExpenseViewModel` uses `Future.microtask` to defer `_loadTransactions`. Prevents `notifyListeners` during widget build phase.
-10. **Voice per-category vs standalone** — `QuickInputWidget._CategoryCard` has its own voice flow (mic icon per card). `CustomInputWidget` has separate mic FAB. `QuickVoiceButton` provides standalone voice input via `ElevatedButton.icon` on HomeScreen. All three use `VoiceInputModal`.
-11. **Unified voice category detection** — ADR-0002: Both `QuickVoiceButton` and `CustomInputWidget` detect category by iterating `Category.predefined` and matching against `cat.phrases`.
+2. **SQLite storage via DataSource** — `SqliteTransactionDataSource` handles all CRUD. `TransactionRepositoryImpl` delegates queries. See ADR-0004.
+3. **UUID primary keys** — `Transaction.id` is `String` (UUID v4). Rationale: future-proof for multi-device sync, no collision risk. See ADR-0004.
+4. **Server-side query filtering** — `getByDate`, `getByCategory`, `getByDateRange` use SQL WHERE clauses, not in-memory filtering. Only `getAll()` loads full list (for ViewModel stats calculation).
+5. **Predefined categories** — `Category.predefined` static list. Not user-customizable. 11 categories hardcoded.
+6. **Voice → number parser** — `VietnameseNumberParser` handles "năm mươi nghìn" → 50000, plus numeric "50.000" format.
+7. **CSV via package:csv** — Not manual string join. Uses `ListToCsvConverter`.
+8. **Chart via fl_chart** — PieChart (`PieChart`) with legend. Only month-to-date category breakdown.
+9. **No DI framework** — Manual constructor injection in `main()`. No get_it, no riverpod.
+10. **Deferred initial load** — `ExpenseViewModel` uses `Future.microtask` to defer `_loadTransactions`. Prevents `notifyListeners` during widget build phase.
+11. **Voice per-category vs standalone** — `QuickInputWidget._CategoryCard` has its own voice flow (mic icon per card). `CustomInputWidget` has separate mic FAB. `QuickVoiceButton` provides standalone voice input via `ElevatedButton.icon` on HomeScreen. All three use `VoiceInputModal`.
+12. **Unified voice category detection** — ADR-0002: Both `QuickVoiceButton` and `CustomInputWidget` detect category by iterating `Category.predefined` and matching against `cat.phrases`.
+13. **One-time SharedPreferences migration** — ADR-0004: On first launch after upgrade, existing transactions migrate from SharedPreferences JSON to SQLite. Flag `migrated_to_sqlite_v1` prevents re-run.
 
 ## Dependencies
 
 | Package | Purpose |
 |---------|---------|
 | `provider: ^6.1.1` | State management |
-| `shared_preferences: ^2.2.2` | Local JSON storage |
+| `sqflite: ^2.3.0` | SQLite local database for transactions |
+| `shared_preferences: ^2.2.2` | Key-value storage for app settings only |
+| `uuid: ^4.0.0` | UUID v4 generation for transaction IDs |
+| `path: ^1.8.0` | Path utilities for database file location |
 | `intl: ^0.19.0` | Currency/date formatting (`vi_VN`) |
 | `fl_chart: ^0.66.0` | Pie chart |
 | `speech_to_text: ^7.0.0` | Voice recognition |

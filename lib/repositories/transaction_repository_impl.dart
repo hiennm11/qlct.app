@@ -1,75 +1,34 @@
 import '../models/transaction.dart';
-import '../services/storage_service.dart';
-import '../core/constants.dart';
+import '../data/datasources/transaction_local_datasource.dart';
 import 'transaction_repository.dart';
 
-/// Implementation of TransactionRepository using local storage
+/// Implementation of TransactionRepository using SQLite via local data source
 class TransactionRepositoryImpl implements TransactionRepository {
-  final StorageService _storageService;
-  List<Transaction>? _cachedTransactions;
+  final TransactionLocalDataSource _dataSource;
 
-  TransactionRepositoryImpl(this._storageService);
-
-  @override
-  Future<List<Transaction>> getAll() async {
-    if (_cachedTransactions != null) {
-      return _cachedTransactions!;
-    }
-
-    final data = _storageService.loadList(AppConstants.transactionsKey);
-    _cachedTransactions = data.map((json) => Transaction.fromJson(json)).toList();
-    return _cachedTransactions!;
-  }
+  TransactionRepositoryImpl(this._dataSource);
 
   @override
-  Future<void> add(Transaction transaction) async {
-    final transactions = await getAll();
-    transactions.add(transaction);
-    await _saveTransactions(transactions);
-  }
+  Future<List<Transaction>> getAll() => _dataSource.getAll();
 
   @override
-  Future<void> delete(int id) async {
-    final transactions = await getAll();
-    transactions.removeWhere((t) => t.id == id);
-    await _saveTransactions(transactions);
-  }
+  Future<void> add(Transaction transaction) => _dataSource.add(transaction);
 
   @override
-  Future<void> clearAll() async {
-    _cachedTransactions = [];
-    await _storageService.remove(AppConstants.transactionsKey);
-  }
+  Future<void> delete(String id) => _dataSource.delete(id);
 
   @override
-  Future<List<Transaction>> getByDate(DateTime date) async {
-    final transactions = await getAll();
-    final dateOnly = DateTime(date.year, date.month, date.day);
-
-    return transactions.where((t) {
-      final tDate = DateTime(t.date.year, t.date.month, t.date.day);
-      return tDate == dateOnly;
-    }).toList();
-  }
+  Future<void> clearAll() => _dataSource.clearAll();
 
   @override
-  Future<List<Transaction>> getByCategory(String category) async {
-    final transactions = await getAll();
-    return transactions.where((t) => t.category == category).toList();
-  }
+  Future<List<Transaction>> getByDate(DateTime date) =>
+      _dataSource.getByDate(date);
 
   @override
-  Future<List<Transaction>> getByDateRange(DateTime start, DateTime end) async {
-    final transactions = await getAll();
-    return transactions.where((t) {
-      return t.date.isAfter(start.subtract(const Duration(seconds: 1))) &&
-          t.date.isBefore(end.add(const Duration(days: 1)));
-    }).toList();
-  }
+  Future<List<Transaction>> getByCategory(String category) =>
+      _dataSource.getByCategory(category);
 
-  Future<void> _saveTransactions(List<Transaction> transactions) async {
-    _cachedTransactions = transactions;
-    final data = transactions.map((t) => t.toJson()).toList();
-    await _storageService.saveList(AppConstants.transactionsKey, data);
-  }
+  @override
+  Future<List<Transaction>> getByDateRange(DateTime start, DateTime end) =>
+      _dataSource.getByDateRange(start, end);
 }

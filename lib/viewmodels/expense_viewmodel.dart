@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' hide Category;
+import 'package:uuid/uuid.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/expense_stats.dart';
@@ -60,7 +61,7 @@ class ExpenseViewModel extends ChangeNotifier {
 
     try {
       final transaction = Transaction(
-        id: DateTime.now().millisecondsSinceEpoch,
+        id: const Uuid().v4(),
         amount: amount,
         category: category,
         emoji: emoji,
@@ -80,7 +81,7 @@ class ExpenseViewModel extends ChangeNotifier {
   }
 
   /// Delete a transaction
-  Future<void> deleteTransaction(int id) async {
+  Future<void> deleteTransaction(String id) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
