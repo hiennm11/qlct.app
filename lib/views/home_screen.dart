@@ -7,6 +7,7 @@ import '../widgets/quick_input_widget.dart';
 import '../widgets/custom_input_widget.dart';
 import '../widgets/transaction_list_widget.dart';
 import '../widgets/chart_widget.dart';
+import '../widgets/budget_overview_widget.dart';
 
 /// Main home screen for the expense tracking app
 class HomeScreen extends StatefulWidget {
@@ -37,6 +38,10 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Stats section
             const StatsWidget(),
+            const SizedBox(height: 16),
+
+            // Budget overview
+            const BudgetOverviewWidget(),
             const SizedBox(height: 16),
 
             const QuickVoiceButton(),

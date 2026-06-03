@@ -5,12 +5,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme.dart';
 import 'data/database/database_helper.dart';
 import 'data/datasources/sqlite_transaction_datasource.dart';
+import 'data/datasources/budget_local_datasource.dart';
+import 'data/datasources/sqlite_budget_datasource.dart';
 import 'data/migrations/shared_prefs_to_sqlite.dart';
 import 'services/storage_service.dart';
 import 'services/export_service.dart';
 import 'repositories/transaction_repository.dart';
 import 'repositories/transaction_repository_impl.dart';
+import 'repositories/budget_repository.dart';
+import 'repositories/budget_repository_impl.dart';
 import 'viewmodels/expense_viewmodel.dart';
+import 'viewmodels/budget_viewmodel.dart';
 import 'views/home_screen.dart';
 
 Future<void> main() async {
@@ -46,9 +51,15 @@ Future<void> main() async {
     final TransactionRepository repository = TransactionRepositoryImpl(dataSource);
     debugPrint('✅ Repository ready');
 
+    debugPrint('💰 Setting up budget repository...');
+    final BudgetLocalDataSource budgetDataSource = SqliteBudgetDataSource(dbHelper);
+    final BudgetRepository budgetRepository = BudgetRepositoryImpl(budgetDataSource);
+    debugPrint('✅ Budget repository ready');
+
     debugPrint('🎯 Starting app...');
     runApp(MyApp(
       repository: repository,
+      budgetRepository: budgetRepository,
       exportService: exportService,
     ));
   } catch (e, stackTrace) {
@@ -91,18 +102,28 @@ Future<void> main() async {
 
 class MyApp extends StatelessWidget {
   final TransactionRepository repository;
+  final BudgetRepository budgetRepository;
   final ExportService exportService;
 
   const MyApp({
     super.key,
     required this.repository,
+    required this.budgetRepository,
     required this.exportService,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => ExpenseViewModel(repository, exportService),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => ExpenseViewModel(repository, exportService),
+        ),
+        ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
+          create: (_) => BudgetViewModel(budgetRepository),
+          update: (_, expenseVM, budgetVM) => budgetVM!..updateStats(expenseVM.stats),
+        ),
+      ],
       child: MaterialApp(
         title: 'Quản Lý Chi Tiêu',
         theme: AppTheme.lightTheme,

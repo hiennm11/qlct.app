@@ -16,6 +16,8 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 | **Đầu tư** | Investment Category | Special `isInvestment=true` category with larger amounts (1M–20M VND) |
 | **Nguồn dữ liệu** | `DataSource` | Abstraction layer between Repository and concrete storage (SQLite, future: API) |
 | **Kho dữ liệu cục bộ** | `DatabaseHelper` | Manages SQLite connection, version, and schema migrations |
+| **Ngân sách** | `Budget` | Monthly spending limit per category: limit amount + alert threshold % |
+| **Tình trạng ngân sách** | `BudgetStatus` | Computed per category: spent vs limit → normal/warning/exceeded with progress % |
 
 ## Architecture
 
@@ -74,6 +76,7 @@ Widget (display) ← ExpenseViewModel.stats / .transactions (getters)
 11. **Voice per-category vs standalone** — `QuickInputWidget._CategoryCard` has its own voice flow (mic icon per card). `CustomInputWidget` has separate mic FAB. `QuickVoiceButton` provides standalone voice input via `ElevatedButton.icon` on HomeScreen. All three use `VoiceInputModal`.
 12. **Unified voice category detection** — ADR-0002: Both `QuickVoiceButton` and `CustomInputWidget` detect category by iterating `Category.predefined` and matching against `cat.phrases`.
 13. **One-time SharedPreferences migration** — ADR-0004: On first launch after upgrade, existing transactions migrate from SharedPreferences JSON to SQLite. Flag `migrated_to_sqlite_v1` prevents re-run.
+14. **Multi-ViewModel with ProxyProvider** — ADR-0005: `BudgetViewModel` tách riêng khỏi `ExpenseViewModel`. Giao tiếp cross-VM qua `ProxyProvider<ExpenseViewModel, BudgetViewModel>` để tự động sync `categoryTotals` → budget status.
 
 ## Dependencies
 

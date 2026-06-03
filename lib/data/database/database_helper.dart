@@ -4,7 +4,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 2;
 
   Database? _database;
 
@@ -21,6 +21,7 @@ class DatabaseHelper {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -38,6 +39,31 @@ class DatabaseHelper {
     ''');
     await db.execute('CREATE INDEX idx_transactions_date ON transactions(date)');
     await db.execute('CREATE INDEX idx_transactions_category ON transactions(category)');
+    await db.execute('''
+      CREATE TABLE budgets (
+        id              TEXT PRIMARY KEY,
+        category_name   TEXT NOT NULL,
+        monthly_limit   INTEGER NOT NULL,
+        alert_threshold INTEGER NOT NULL DEFAULT 80,
+        created_at      INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE budgets (
+          id              TEXT PRIMARY KEY,
+          category_name   TEXT NOT NULL,
+          monthly_limit   INTEGER NOT NULL,
+          alert_threshold INTEGER NOT NULL DEFAULT 80,
+          created_at      INTEGER NOT NULL
+        )
+      ''');
+      await db.execute('CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+    }
   }
 
   /// Test-only: inject an already-opened database
