@@ -4,7 +4,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 2;
+  static const _databaseVersion = 3;
 
   Database? _database;
 
@@ -28,13 +28,14 @@ class DatabaseHelper {
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE transactions (
-        id         TEXT PRIMARY KEY,
-        amount     INTEGER NOT NULL,
-        category   TEXT NOT NULL,
-        emoji      TEXT NOT NULL DEFAULT '',
-        date       TEXT NOT NULL,
-        note       TEXT NOT NULL DEFAULT '',
-        created_at INTEGER NOT NULL
+        id                  TEXT PRIMARY KEY,
+        amount              INTEGER NOT NULL,
+        category            TEXT NOT NULL,
+        emoji               TEXT NOT NULL DEFAULT '',
+        date                TEXT NOT NULL,
+        note                TEXT NOT NULL DEFAULT '',
+        source_recurring_id TEXT,
+        created_at          INTEGER NOT NULL
       )
     ''');
     await db.execute('CREATE INDEX idx_transactions_date ON transactions(date)');
@@ -49,6 +50,19 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+    await db.execute('''
+      CREATE TABLE recurring_transactions (
+        id            TEXT PRIMARY KEY,
+        category_name TEXT NOT NULL,
+        amount        INTEGER NOT NULL,
+        note          TEXT NOT NULL DEFAULT '',
+        frequency     TEXT NOT NULL,
+        next_run_at   TEXT NOT NULL,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX idx_recurring_next_run ON recurring_transactions(is_active, next_run_at)');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -63,6 +77,22 @@ class DatabaseHelper {
         )
       ''');
       await db.execute('CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+    }
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE recurring_transactions (
+          id            TEXT PRIMARY KEY,
+          category_name TEXT NOT NULL,
+          amount        INTEGER NOT NULL,
+          note          TEXT NOT NULL DEFAULT '',
+          frequency     TEXT NOT NULL,
+          next_run_at   TEXT NOT NULL,
+          is_active     INTEGER NOT NULL DEFAULT 1,
+          created_at    TEXT NOT NULL
+        )
+      ''');
+      await db.execute('CREATE INDEX idx_recurring_next_run ON recurring_transactions(is_active, next_run_at)');
+      await db.execute('ALTER TABLE transactions ADD COLUMN source_recurring_id TEXT');
     }
   }
 

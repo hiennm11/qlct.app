@@ -14,6 +14,7 @@ _$TransactionImpl _$$TransactionImplFromJson(Map<String, dynamic> json) =>
       emoji: json['emoji'] as String,
       date: DateTime.parse(json['date'] as String),
       note: json['note'] as String? ?? '',
+      sourceRecurringId: json['sourceRecurringId'] as String? ?? null,
     );
 
 Map<String, dynamic> _$$TransactionImplToJson(_$TransactionImpl instance) =>
@@ -24,4 +25,5 @@ Map<String, dynamic> _$$TransactionImplToJson(_$TransactionImpl instance) =>
       'emoji': instance.emoji,
       'date': instance.date.toIso8601String(),
       'note': instance.note,
+      'sourceRecurringId': instance.sourceRecurringId,
     };

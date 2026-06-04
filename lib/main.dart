@@ -7,6 +7,8 @@ import 'data/database/database_helper.dart';
 import 'data/datasources/sqlite_transaction_datasource.dart';
 import 'data/datasources/budget_local_datasource.dart';
 import 'data/datasources/sqlite_budget_datasource.dart';
+import 'data/datasources/recurring_local_datasource.dart';
+import 'data/datasources/sqlite_recurring_datasource.dart';
 import 'data/migrations/shared_prefs_to_sqlite.dart';
 import 'services/storage_service.dart';
 import 'services/export_service.dart';
@@ -14,8 +16,11 @@ import 'repositories/transaction_repository.dart';
 import 'repositories/transaction_repository_impl.dart';
 import 'repositories/budget_repository.dart';
 import 'repositories/budget_repository_impl.dart';
+import 'repositories/recurring_repository.dart';
+import 'repositories/recurring_repository_impl.dart';
 import 'viewmodels/expense_viewmodel.dart';
 import 'viewmodels/budget_viewmodel.dart';
+import 'viewmodels/recurring_viewmodel.dart';
 import 'views/home_screen.dart';
 
 Future<void> main() async {
@@ -55,10 +60,16 @@ Future<void> main() async {
     final BudgetRepository budgetRepository = BudgetRepositoryImpl(budgetDataSource);
     debugPrint('✅ Budget repository ready');
 
+    debugPrint('🔄 Setting up recurring repository...');
+    final RecurringLocalDataSource recurringDataSource = SqliteRecurringDataSource(dbHelper);
+    final RecurringRepository recurringRepository = RecurringRepositoryImpl(recurringDataSource);
+    debugPrint('✅ Recurring repository ready');
+
     debugPrint('Starting app...');
     runApp(MyApp(
       repository: repository,
       budgetRepository: budgetRepository,
+      recurringRepository: recurringRepository,
       exportService: exportService,
       storageService: storageService,
     ));
@@ -103,6 +114,7 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   final TransactionRepository repository;
   final BudgetRepository budgetRepository;
+  final RecurringRepository recurringRepository;
   final ExportService exportService;
   final StorageService storageService;
 
@@ -110,6 +122,7 @@ class MyApp extends StatelessWidget {
     super.key,
     required this.repository,
     required this.budgetRepository,
+    required this.recurringRepository,
     required this.exportService,
     required this.storageService,
   });
@@ -124,6 +137,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
           create: (_) => BudgetViewModel(budgetRepository, storageService),
           update: (_, expenseVM, budgetVM) => budgetVM!..updateStats(expenseVM.stats),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => RecurringTransactionViewModel(recurringRepository, repository),
         ),
       ],
       child: MaterialApp(

@@ -19,14 +19,17 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 | **Ngân sách** | `Budget` | Monthly spending limit per category: limit amount + alert threshold % |
 | **Tình trạng ngân sách** | `BudgetStatus` | Computed per category: spent vs limit → normal/warning/exceeded with progress % |
 | **Định dạng số** | `ThousandSeparatorFormatter` | `TextInputFormatter` tự động chèn `.` phân cách hàng nghìn khi nhập số (vd: `10000000` → `10.000.000`) |
+| **Giao dịch định kỳ** | `RecurringTransaction` | Rule sinh giao dịch tự động: category + amount + note + frequency (daily/weekly/monthly) + nextRunAt + isActive |
+| **Nguồn gốc giao dịch** | `sourceRecurringId` | Cột trên `transactions`: NULL cho giao dịch thường, UUID của `RecurringTransaction` cho giao dịch sinh tự động |
+| **Lần chạy kế tiếp** | `nextRunAt` | Thời điểm `RecurringTransaction` sẽ sinh giao dịch tiếp theo. Luôn tiến về tương lai → chống duplicate tự nhiên |
 
 ## Architecture
 
 ```
-Pattern: MVVM + Repository + DataSource
-State:   Provider + ChangeNotifier
+Pattern: MVVM + Repository + DataSource (multi-VM)
+State:   Provider + ChangeNotifier (+ ProxyProvider for cross-VM)
 Models:  Freezed (immutable, code-gen)
-Storage: SQLite (sqflite) — transactions table. SharedPreferences for settings only.
+Storage: SQLite (sqflite) — transactions, budgets, recurring_transactions tables. SharedPreferences for settings only.
 ```
 
 ### Layer Map
@@ -35,19 +38,23 @@ Storage: SQLite (sqflite) — transactions table. SharedPreferences for settings
 lib/
 ├── core/           — Constants, theme, formatters, Vietnamese number parser
 ├── data/
-│   ├── database/   — DatabaseHelper (SQLite connection, version, migration)
-│   ├── datasources/— TransactionLocalDataSource (abstract), SqliteTransactionDataSource (sqflite)
+│   ├── database/   — DatabaseHelper (SQLite connection, version 3, migration)
+│   ├── datasources/— TransactionLocalDataSource, BudgetLocalDataSource,
+│   │                 RecurringLocalDataSource (abstract); sqlite impls
 │   └── migrations/ — One-time SharedPreferences → SQLite data import
-├── models/         — Transaction, Category, ExpenseStats (Freezed)
+├── models/         — Transaction, Category, ExpenseStats, Budget,
+│                     BudgetStatus, RecurringTransaction (Freezed)
 ├── services/       — StorageService (settings only), ExportService, VoiceInputService
-├── repositories/   — TransactionRepository (abstract) + TransactionRepositoryImpl
-├── viewmodels/     — ExpenseViewModel (ChangeNotifier, single VM for entire app)
+├── repositories/   — TransactionRepository, BudgetRepository,
+│                     RecurringRepository (abstract + impl)
+├── viewmodels/     — ExpenseViewModel, BudgetViewModel,
+│                     RecurringTransactionViewModel (multi-VM)
 ├── views/          — HomeScreen (only screen)
 ├── widgets/        — StatsWidget, QuickInputWidget, CustomInputWidget,
 │                     TransactionListWidget, ChartWidget, VoiceInputModal,
-│                     QuickVoiceButton
-└── main.dart       — DI wiring: DatabaseHelper → SqliteTransactionDataSource →
-                      TransactionRepositoryImpl → ExpenseViewModel → Provider → HomeScreen
+│                     QuickVoiceButton, BudgetOverviewWidget,
+│                     RecurringOverviewWidget, RecurringEditDialog
+└── main.dart       — DI wiring: 3 Provider + 1 ProxyProvider
 ```
 
 ### Data Flow
@@ -60,11 +67,17 @@ Widget (tap/voice) → ExpenseViewModel.addTransaction()
 Widget (display) ← ExpenseViewModel.stats / .transactions (getters)
   ← TransactionRepositoryImpl.getAll()
     ← SqliteTransactionDataSource.getAll() → sqflite SELECT
+
+Recurring (cold start) → RecurringTransactionViewModel.checkAndGenerate()
+  → query active due rules via RecurringRepository
+  → TransactionRepository.add() (each due rule)
+  → RecurringRepository.updateNextRunAt()
+  → ExpenseViewModel.refresh() → UI updates
 ```
 
 ## Key Design Decisions
 
-1. **Single ViewModel** — 1 `ExpenseViewModel` manages all state. No feature-scoped VMs. Simple app, low complexity acceptable.
+1. **Multi-ViewModel** — ADR-0005 tách `BudgetViewModel`, ADR-0006 tách `RecurringTransactionViewModel` khỏi `ExpenseViewModel`. Mỗi VM quản lý 1 domain. Giao tiếp cross-VM: BudgetVM dùng `ProxyProvider`, RecurringVM tự query `TransactionRepository` trực tiếp (tránh circular notification loop).
 2. **SQLite storage via DataSource** — `SqliteTransactionDataSource` handles all CRUD. `TransactionRepositoryImpl` delegates queries. See ADR-0004.
 3. **UUID primary keys** — `Transaction.id` is `String` (UUID v4). Rationale: future-proof for multi-device sync, no collision risk. See ADR-0004.
 4. **Server-side query filtering** — `getByDate`, `getByCategory`, `getByDateRange` use SQL WHERE clauses, not in-memory filtering. Only `getAll()` loads full list (for ViewModel stats calculation).
@@ -78,7 +91,8 @@ Widget (display) ← ExpenseViewModel.stats / .transactions (getters)
 12. **Unified voice category detection** — ADR-0002: Both `QuickVoiceButton` and `CustomInputWidget` detect category by iterating `Category.predefined` and matching against `cat.phrases`.
 13. **One-time SharedPreferences migration** — ADR-0004: On first launch after upgrade, existing transactions migrate from SharedPreferences JSON to SQLite. Flag `migrated_to_sqlite_v1` prevents re-run.
 14. **Multi-ViewModel with ProxyProvider** — ADR-0005: `BudgetViewModel` tách riêng khỏi `ExpenseViewModel`. Giao tiếp cross-VM qua `ProxyProvider<ExpenseViewModel, BudgetViewModel>` để tự động sync `categoryTotals` → budget status.
-15. **Number formatting on input** — `ThousandSeparatorFormatter` (custom `TextInputFormatter`) formats digits with `.` thousand separators in real-time. Applied to all budget dialogs. Raw digits stored in DB, formatting is UI-only.
+15. **Number formatting on input** — `ThousandSeparatorFormatter` (custom `TextInputFormatter`) formats digits with `.` thousand separators in real-time. Applied to all dialogs (BudgetEdit, BudgetBulkEdit, RecurringEdit) and `CustomInputWidget` amount field. Raw digits stored in DB, formatting is UI-only.
+16. **Recurring transactions** — ADR-0006: `RecurringTransaction` model + `RecurringTransactionViewModel`. Generate trigger: cold start (`HomeScreen.initState`). Duplicate prevention: 2-layer (primary: `nextRunAt` always advances; safety net: `sourceRecurringId` on transaction). Catch-up: only 1 transaction generated, no backfill. Frequency: daily/weekly/monthly via Duration-based calculation. No ProxyProvider cross-VM (VM queries `TransactionRepository` directly to avoid circular loop).
 
 ## Dependencies
 
@@ -103,7 +117,7 @@ Widget (display) ← ExpenseViewModel.stats / .transactions (getters)
 - ~~`QuickVoiceButton` commented out (`// const QuickVoiceButton(),`). Detection logic uses wrong category names.~~ ✅ Fixed ADR-0002 — unified voice detection uses `Category.phrases`, widget uncommented, changed from FAB to `ElevatedButton.icon`.
 - ~~`transaction_list_widget.dart:190` has `Row` inside `DropdownMenuItem` without width constraint → runtime layout error.~~ ✅ Verified: no Row at that location. Row overflow risk in `custom_input_widget.dart:195` fixed with `Flexible` + `TextOverflow.ellipsis`.
 - ~~`transaction_list_widget.dart:228` — `List transactions` uses dynamic type, not `List<Transaction>`.~~ ✅ Fixed — typed as `List<Transaction>`.
-- ~~Only 1 test file (`widget_test.dart`). Zero unit/integration tests for VM, repo, services.~~ ✅ Fixed — 129 tests total: 9 unit test files (Category, ExpenseViewModel, TransactionRepositoryImpl, VietnameseNumberParser, Budget model, Budget datasource, Budget repository, Budget status, BudgetViewModel) + 1 widget smoke test.
+- ~~Only 1 test file (`widget_test.dart`). Zero unit/integration tests for VM, repo, services.~~ ✅ Fixed — 221 tests total: model tests (Transaction, Category, Budget, BudgetStatus, RecurringTransaction), datasource tests (SQLite Transaction, Budget, Recurring), repository tests (Transaction, Budget, Recurring impl), ViewModel tests (Expense, Budget, Recurring), service tests (VietnameseNumberParser), widget tests (App, BudgetEdit, RecurringEdit, RecurringOverview, VoiceInputModal), integration tests (Recurring).
 - `CustomInputWidget` uses `DropdownButtonFormField` with `initialValue` — Flutter 3.38 deprecated `value` (not `initialValue`). No action needed.
 - `VietnameseNumberParser` has known bugs: "mươi" treated as digit 10 instead of ×10 multiplier; `extractAmount` doesn't combine numeric + scale words (e.g. "50 ngàn" → 50 not 50000). ~~Documented in parser tests.~~ ✅ Fixed ADR-0003 — "mươi"/"mười" removed from `_numberMap`, lastDigit tracking added, `_parseNumericWithScales` for numeric+scale combination. Added dialect variants (lăm, nhăm, tư). 20 tests pass.
 - `ExpenseViewModel` uses `Future.microtask` for initial load to avoid mid-build `notifyListeners`. Slight UX delay on cold start (sub-frame, invisible).

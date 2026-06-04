@@ -13,6 +13,7 @@ class Transaction with _$Transaction {
     required String emoji,
     required DateTime date,
     @Default('') String note,
+    @Default(null) String? sourceRecurringId,
   }) = _Transaction;
 
   factory Transaction.fromJson(Map<String, dynamic> json) =>

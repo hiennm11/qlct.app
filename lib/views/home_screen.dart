@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/widgets/quick_voice_button.dart';
 import '../viewmodels/expense_viewmodel.dart';
+import '../viewmodels/recurring_viewmodel.dart';
 import '../widgets/stats_widget.dart';
 import '../widgets/quick_input_widget.dart';
 import '../widgets/custom_input_widget.dart';
 import '../widgets/transaction_list_widget.dart';
 import '../widgets/chart_widget.dart';
 import '../widgets/budget_overview_widget.dart';
+import '../widgets/recurring_overview_widget.dart';
 
 /// Main home screen for the expense tracking app
 class HomeScreen extends StatefulWidget {
@@ -18,6 +20,21 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Trigger recurring check after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<RecurringTransactionViewModel>().checkAndGenerate().then((_) {
+          if (mounted) {
+            context.read<ExpenseViewModel>().refresh();
+          }
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -42,6 +59,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // Budget overview
             const BudgetOverviewWidget(),
+            const SizedBox(height: 20),
+
+            // Recurring transactions
+            const RecurringOverviewWidget(),
             const SizedBox(height: 20),
 
             const QuickVoiceButton(),

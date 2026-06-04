@@ -27,6 +27,7 @@ mixin _$Transaction {
   String get emoji => throw _privateConstructorUsedError;
   DateTime get date => throw _privateConstructorUsedError;
   String get note => throw _privateConstructorUsedError;
+  String? get sourceRecurringId => throw _privateConstructorUsedError;
 
   /// Serializes this Transaction to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -52,6 +53,7 @@ abstract class $TransactionCopyWith<$Res> {
     String emoji,
     DateTime date,
     String note,
+    String? sourceRecurringId,
   });
 }
 
@@ -76,6 +78,7 @@ class _$TransactionCopyWithImpl<$Res, $Val extends Transaction>
     Object? emoji = null,
     Object? date = null,
     Object? note = null,
+    Object? sourceRecurringId = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -103,6 +106,10 @@ class _$TransactionCopyWithImpl<$Res, $Val extends Transaction>
                 ? _value.note
                 : note // ignore: cast_nullable_to_non_nullable
                       as String,
+            sourceRecurringId: freezed == sourceRecurringId
+                ? _value.sourceRecurringId
+                : sourceRecurringId // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -125,6 +132,7 @@ abstract class _$$TransactionImplCopyWith<$Res>
     String emoji,
     DateTime date,
     String note,
+    String? sourceRecurringId,
   });
 }
 
@@ -148,6 +156,7 @@ class __$$TransactionImplCopyWithImpl<$Res>
     Object? emoji = null,
     Object? date = null,
     Object? note = null,
+    Object? sourceRecurringId = freezed,
   }) {
     return _then(
       _$TransactionImpl(
@@ -175,6 +184,10 @@ class __$$TransactionImplCopyWithImpl<$Res>
             ? _value.note
             : note // ignore: cast_nullable_to_non_nullable
                   as String,
+        sourceRecurringId: freezed == sourceRecurringId
+            ? _value.sourceRecurringId
+            : sourceRecurringId // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -190,6 +203,7 @@ class _$TransactionImpl implements _Transaction {
     required this.emoji,
     required this.date,
     this.note = '',
+    this.sourceRecurringId = null,
   });
 
   factory _$TransactionImpl.fromJson(Map<String, dynamic> json) =>
@@ -208,10 +222,13 @@ class _$TransactionImpl implements _Transaction {
   @override
   @JsonKey()
   final String note;
+  @override
+  @JsonKey()
+  final String? sourceRecurringId;
 
   @override
   String toString() {
-    return 'Transaction(id: $id, amount: $amount, category: $category, emoji: $emoji, date: $date, note: $note)';
+    return 'Transaction(id: $id, amount: $amount, category: $category, emoji: $emoji, date: $date, note: $note, sourceRecurringId: $sourceRecurringId)';
   }
 
   @override
@@ -225,13 +242,23 @@ class _$TransactionImpl implements _Transaction {
                 other.category == category) &&
             (identical(other.emoji, emoji) || other.emoji == emoji) &&
             (identical(other.date, date) || other.date == date) &&
-            (identical(other.note, note) || other.note == note));
+            (identical(other.note, note) || other.note == note) &&
+            (identical(other.sourceRecurringId, sourceRecurringId) ||
+                other.sourceRecurringId == sourceRecurringId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, amount, category, emoji, date, note);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    amount,
+    category,
+    emoji,
+    date,
+    note,
+    sourceRecurringId,
+  );
 
   /// Create a copy of Transaction
   /// with the given fields replaced by the non-null parameter values.
@@ -255,6 +282,7 @@ abstract class _Transaction implements Transaction {
     required final String emoji,
     required final DateTime date,
     final String note,
+    final String? sourceRecurringId,
   }) = _$TransactionImpl;
 
   factory _Transaction.fromJson(Map<String, dynamic> json) =
@@ -272,6 +300,8 @@ abstract class _Transaction implements Transaction {
   DateTime get date;
   @override
   String get note;
+  @override
+  String? get sourceRecurringId;
 
   /// Create a copy of Transaction
   /// with the given fields replaced by the non-null parameter values.

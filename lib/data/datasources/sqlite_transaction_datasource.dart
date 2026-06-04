@@ -16,6 +16,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       emoji: map['emoji'] as String,
       date: DateTime.parse(map['date'] as String),
       note: map['note'] as String,
+      sourceRecurringId: map['source_recurring_id'] as String?,
     );
   }
 
@@ -41,6 +42,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
         'emoji': transaction.emoji,
         'date': transaction.date.toIso8601String(),
         'note': transaction.note,
+        'source_recurring_id': transaction.sourceRecurringId,
         'created_at': DateTime.now().millisecondsSinceEpoch,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
