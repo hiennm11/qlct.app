@@ -1,25 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/formatters.dart';
-import '../viewmodels/recurring_viewmodel.dart';
-import '../models/recurring_transaction.dart';
 import '../models/category.dart';
+import '../models/recurring_transaction.dart';
+import '../viewmodels/recurring_viewmodel.dart';
 import 'recurring_edit_dialog.dart';
+import 'recurring_list_sheet.dart';
 
 class RecurringOverviewWidget extends StatelessWidget {
   const RecurringOverviewWidget({super.key});
 
   String _frequencyLabel(String frequency) {
     switch (frequency) {
-      case 'daily': return 'Hàng ngày';
-      case 'weekly': return 'Hàng tuần';
+      case 'daily':   return 'Hàng ngày';
+      case 'weekly':  return 'Hàng tuần';
       case 'monthly': return 'Hàng tháng';
-      default: return frequency;
+      default:        return frequency;
     }
   }
 
   String _formatAmount(int amount) {
     return '${CurrencyFormatter.format(amount)} ₫';
+  }
+
+  String _formatNextRun(DateTime date) {
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    return '$d/$m';
   }
 
   @override
@@ -32,7 +39,10 @@ class RecurringOverviewWidget extends StatelessWidget {
         final hasMore = rules.length > maxDisplay;
 
         if (vm.isLoading && rules.isEmpty) {
-          return const SizedBox.shrink();
+          return const SizedBox(
+            height: 100,
+            child: Center(child: CircularProgressIndicator()),
+          );
         }
 
         return Column(
@@ -66,11 +76,7 @@ class RecurringOverviewWidget extends StatelessWidget {
               ...displayRules.map((rule) => _buildRuleCard(context, rule)),
               if (hasMore)
                 TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${rules.length - maxDisplay} mục nữa...')),
-                    );
-                  },
+                  onPressed: () => RecurringListSheet.show(context),
                   child: Text('Xem thêm ${rules.length - maxDisplay} mục'),
                 ),
             ],
@@ -102,8 +108,14 @@ class RecurringOverviewWidget extends StatelessWidget {
             title: const Text('Xóa định kỳ?'),
             content: Text('Xóa "${category.emoji} ${category.name}"?'),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Xóa')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Huỷ'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Xóa'),
+              ),
             ],
           ),
         );
@@ -117,7 +129,7 @@ class RecurringOverviewWidget extends StatelessWidget {
           leading: Text(category.emoji, style: const TextStyle(fontSize: 24)),
           title: Text(category.name),
           subtitle: Text(
-            '${_formatAmount(rule.amount)} • ${_frequencyLabel(rule.frequency)}',
+            '${_formatAmount(rule.amount)} • ${_frequencyLabel(rule.frequency)} • Tiếp: ${_formatNextRun(rule.nextRunAt)}',
           ),
           trailing: Switch(
             value: rule.isActive,
@@ -133,32 +145,32 @@ class RecurringOverviewWidget extends StatelessWidget {
 
   Future<void> _showAddDialog(BuildContext context) async {
     final result = await RecurringEditDialog.show(context);
-    if (result != null && context.mounted) {
-      final vm = context.read<RecurringTransactionViewModel>();
-      await vm.addRecurring(
-        categoryName: result.categoryName,
-        amount: result.amount,
-        note: result.note,
-        frequency: result.frequency,
-        startDate: result.startDate,
-      );
-    }
+    if (result == null) return;
+    if (!context.mounted) return;
+    final vm = context.read<RecurringTransactionViewModel>();
+    await vm.addRecurring(
+      categoryName: result.categoryName,
+      amount: result.amount,
+      note: result.note,
+      frequency: result.frequency,
+      startDate: result.startDate,
+    );
   }
 
   Future<void> _showEditDialog(BuildContext context, RecurringTransaction rule) async {
     final result = await RecurringEditDialog.show(context, existing: rule);
-    if (result != null && context.mounted) {
-      final vm = context.read<RecurringTransactionViewModel>();
-      if (result.id != null) {
-        final updated = rule.copyWith(
-          categoryName: result.categoryName,
-          amount: result.amount,
-          note: result.note,
-          frequency: result.frequency,
-          nextRunAt: result.startDate,
-        );
-        await vm.updateRecurring(updated);
-      }
+    if (result == null) return;
+    if (!context.mounted) return;
+    final vm = context.read<RecurringTransactionViewModel>();
+    if (result.id != null) {
+      final updated = rule.copyWith(
+        categoryName: result.categoryName,
+        amount: result.amount,
+        note: result.note,
+        frequency: result.frequency,
+        nextRunAt: result.startDate,
+      );
+      await vm.updateRecurring(updated);
     }
   }
 }

@@ -230,6 +230,52 @@ class _TransactionList extends StatelessWidget {
 
   const _TransactionList({required this.transactions});
 
+  Future<void> _confirmAndDelete(
+    BuildContext context,
+    Transaction transaction,
+  ) async {
+    final viewModel = context.read<ExpenseViewModel>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xoá giao dịch?'),
+        content: const Text('Bạn có chắc chắn muốn xoá giao dịch này?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Huỷ'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Xoá', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final savedJson = await viewModel.deleteTransactionWithUndo(transaction.id);
+    if (savedJson.isEmpty) return;
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('Đã xoá'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Hoàn tác',
+          onPressed: () async {
+            await viewModel.undoDeleteTransaction(savedJson);
+            if (!navigator.mounted) return;
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
@@ -274,15 +320,7 @@ class _TransactionList extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.delete_outline),
                 color: AppColors.textSecondary,
-                onPressed: () {
-                  context.read<ExpenseViewModel>().deleteTransaction(transaction.id);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Đã xóa giao dịch'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
+                onPressed: () => _confirmAndDelete(context, transaction),
               ),
             ],
           ),

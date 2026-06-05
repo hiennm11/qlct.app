@@ -106,8 +106,8 @@ class Category with _$Category {
           name: 'Khác',
           emoji: '📌',
           minAmount: 10000,
-          defaultAmount: 25000,
-          maxAmount: 1000000,
+          defaultAmount: 50000,
+          maxAmount: 5000000,
           phrases: ['khác'],
         ),
       ];

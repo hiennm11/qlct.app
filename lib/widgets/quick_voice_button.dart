@@ -34,15 +34,18 @@ class _QuickVoiceButtonState extends State<QuickVoiceButton> {
 
     await _voiceService.startListening(
       onResult: (transcript) {
+        if (!context.mounted) return;
         setState(() {
           _transcript = transcript;
           _isListening = false;
         });
         // Rebuild modal to show input field with recognized text
         Navigator.of(context).pop();
+        if (!context.mounted) return;
         _showVoiceModal();
       },
       onError: (error) {
+        if (!context.mounted) return;
         setState(() {
           _isListening = false;
           _transcript = 'Lỗi: $error';

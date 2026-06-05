@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:uuid/uuid.dart';
 import '../models/transaction.dart';
@@ -91,6 +92,49 @@ class ExpenseViewModel extends ChangeNotifier {
       _transactions.removeWhere((t) => t.id == id);
     } catch (e) {
       _errorMessage = 'Lỗi khi xóa giao dịch: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Delete a transaction and return its JSON snapshot for undo
+  Future<String> deleteTransactionWithUndo(String id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final txn = _transactions.firstWhere((t) => t.id == id);
+      final jsonString = jsonEncode(txn.toJson());
+      await _repository.delete(id);
+      await _loadTransactions();
+      return jsonString;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi xóa giao dịch: $e';
+      return '';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Restore a previously deleted transaction from its JSON snapshot
+  Future<void> undoDeleteTransaction(String jsonString) async {
+    if (jsonString.isEmpty) return;
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final txn = Transaction.fromJson(
+        jsonDecode(jsonString) as Map<String, dynamic>,
+      );
+      await _repository.add(txn);
+      await _loadTransactions();
+    } catch (e) {
+      _errorMessage = 'Lỗi khi hoàn tác: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -226,5 +270,23 @@ class ExpenseViewModel extends ChangeNotifier {
   /// Refresh data
   Future<void> refresh() async {
     await _loadTransactions();
+  }
+
+  /// Add a pre-built Transaction object directly (used for undo/restore flows).
+  /// Unlike [addTransaction], this preserves the original id and date.
+  Future<void> addTransactionFromModel(Transaction transaction) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _repository.add(transaction);
+      _transactions = await _repository.getAll();
+    } catch (e) {
+      _errorMessage = 'Lỗi khi thêm giao dịch: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 }

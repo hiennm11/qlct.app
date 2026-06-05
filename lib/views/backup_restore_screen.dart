@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/transaction.dart';
 import '../services/backup_service.dart';
 import '../viewmodels/backup_viewmodel.dart';
 import '../viewmodels/expense_viewmodel.dart';
@@ -110,7 +111,9 @@ class BackupRestoreScreen extends StatelessWidget {
                     icon: Icons.science,
                     label: 'Tạo dữ liệu mẫu',
                     subtitle: 'Tạo 20 giao dịch + 3 ngân sách + 2 định kỳ',
-                    onTap: vm.isLoading ? null : () => vm.generateSampleData(),
+                    onTap: vm.isLoading
+                        ? null
+                        : () => _confirmGenerateSample(context, vm),
                     isWarning: true,
                   ),
                 ],
@@ -299,21 +302,59 @@ class BackupRestoreScreen extends StatelessWidget {
     );
   }
 
+  void _confirmGenerateSample(BuildContext context, BackupViewModel vm) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tạo dữ liệu mẫu?'),
+        content: const Text(
+            'Dữ liệu hiện tại sẽ được giữ nguyên. Thêm ~20 giao dịch mẫu, 3 ngân sách, 2 giao dịch định kỳ.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Huỷ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await Future<void>.delayed(Duration.zero);
+              if (!context.mounted) return;
+              await vm.generateSampleData();
+            },
+            child: const Text('Tạo'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _deleteAll(BuildContext context) async {
     final expenseVM = context.read<ExpenseViewModel>();
     final messenger = ScaffoldMessenger.of(context);
+
+    // Save before clearing — enables undo
+    final allTransactions = expenseVM.allTransactions;
+    final savedData = allTransactions.map((t) => t.toJson()).toList();
+
     await expenseVM.clearAllTransactions();
     await expenseVM.refresh();
-    if (context.mounted) {
-      final snackBar = SnackBar(
-        content: const Text('Đã xoá toàn bộ dữ liệu'),
-        action: SnackBarAction(
-          label: 'OK',
-          onPressed: () {},
-        ),
-      );
-      messenger.showSnackBar(snackBar);
-    }
+
+    if (!context.mounted) return;
+
+    messenger.showSnackBar(SnackBar(
+      content: const Text('Đã xoá toàn bộ dữ liệu'),
+      action: SnackBarAction(
+        label: 'Hoàn tác',
+        onPressed: () async {
+          for (final json in savedData) {
+            final tx = Transaction.fromJson(json);
+            await expenseVM.addTransactionFromModel(tx);
+          }
+          await expenseVM.refresh();
+        },
+      ),
+      duration: const Duration(seconds: 5),
+    ));
   }
 
   Future<void> _exportQuickCsv(BuildContext context) async {
