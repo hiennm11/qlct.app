@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import '../core/formatters.dart';
 import '../viewmodels/recurring_viewmodel.dart';
 import '../models/recurring_transaction.dart';
 import '../models/category.dart';
@@ -19,7 +19,7 @@ class RecurringOverviewWidget extends StatelessWidget {
   }
 
   String _formatAmount(int amount) {
-    return '${NumberFormat('#,###', 'vi_VN').format(amount)} ₫';
+    return '${CurrencyFormatter.format(amount)} ₫';
   }
 
   @override

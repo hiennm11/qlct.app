@@ -165,7 +165,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Quan Ly Chi Tieu',
+        title: 'Quản Lý Chi Tiêu',
         theme: AppTheme.lightTheme,
         home: const HomeScreen(),
         debugShowCheckedModeBanner: false,

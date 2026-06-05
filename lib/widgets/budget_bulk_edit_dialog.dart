@@ -44,13 +44,13 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
     final viewModel = context.read<BudgetViewModel>();
     
     if (viewModel.totalBudget != null) {
-      _totalController.text = viewModel.totalBudget.toString();
+      _totalController.text = ThousandSeparatorFormatter.formatValue(viewModel.totalBudget!);
     }
     
     for (final budget in viewModel.budgets) {
       final controller = _categoryControllers[budget.categoryName];
       if (controller != null && budget.monthlyLimit > 0) {
-        controller.text = budget.monthlyLimit.toString();
+        controller.text = ThousandSeparatorFormatter.formatValue(budget.monthlyLimit);
       }
     }
   }
@@ -139,7 +139,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          const Text('Thiet Lap Ngan Sach'),
+          const Text('Thiết Lập Ngân Sách'),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.close),
@@ -156,7 +156,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
             children: [
               // Total budget section
               const Text(
-                'Tong Ngan Sach Thang',
+                'Tổng Ngân Sách Tháng',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
               ),
               const SizedBox(height: 8),
@@ -165,7 +165,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [ThousandSeparatorFormatter()],
                 decoration: const InputDecoration(
-                  hintText: 'Nhap so tien',
+                  hintText: 'Nhập số tiền',
                   prefixText: '\u20ab ',
                 ),
                 onChanged: (_) => setState(() {}),
@@ -184,7 +184,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Da phan bo:'),
+                        const Text('Đã phân bổ:'),
                         Text(
                           CurrencyFormatter.format(allocated),
                           style: TextStyle(
@@ -198,7 +198,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Con lai:'),
+                        const Text('Còn lại:'),
                         Text(
                           CurrencyFormatter.format(remaining),
                           style: TextStyle(
@@ -211,7 +211,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
                     if (isOverAllocated) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'So tien phan bo vuot qua tong ngan sach!',
+                        'Số tiền phân bổ vượt quá tổng ngân sách!',
                         style: TextStyle(
                           color: AppColors.error,
                           fontWeight: FontWeight.w500,
@@ -226,7 +226,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
 
               // Category limits
               const Text(
-                'Han Muc Theo Danh Muc',
+                'Hạn Mức Theo Danh Mục',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
               ),
               const SizedBox(height: 8),
@@ -272,7 +272,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
       actions: [
         TextButton(
           onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-          child: const Text('Huy'),
+          child: const Text('Huỷ'),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _save,
@@ -282,7 +282,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Luu'),
+              : const Text('Lưu'),
         ),
       ],
     );

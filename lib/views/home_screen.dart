@@ -44,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            tooltip: 'Sao lưu& Khôi phục',
+            tooltip: 'Sao lưu & Khôi phục',
             onPressed: () {
               Navigator.push(
                 context,

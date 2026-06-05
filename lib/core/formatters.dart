@@ -109,4 +109,17 @@ class ThousandSeparatorFormatter extends TextInputFormatter {
   static String strip(String formatted) {
     return formatted.replaceAll(RegExp(r'[^0-9]'), '');
   }
+
+  /// Format a raw integer value with thousand separators (for initial values)
+  static String formatValue(int value) {
+    final raw = value.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < raw.length; i++) {
+      if (i > 0 && (raw.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(raw[i]);
+    }
+    return buffer.toString();
+  }
 }
