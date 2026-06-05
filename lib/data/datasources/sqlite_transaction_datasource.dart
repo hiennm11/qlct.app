@@ -30,23 +30,38 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
     return maps.map(_fromMap).toList();
   }
 
+  Map<String, dynamic> _toMap(Transaction transaction) {
+    return {
+      'id': transaction.id,
+      'amount': transaction.amount,
+      'category': transaction.category,
+      'emoji': transaction.emoji,
+      'date': transaction.date.toIso8601String(),
+      'note': transaction.note,
+      'source_recurring_id': transaction.sourceRecurringId,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    };
+  }
+
   @override
   Future<void> add(Transaction transaction) async {
     final db = await _dbHelper.database;
     await db.insert(
       'transactions',
-      {
-        'id': transaction.id,
-        'amount': transaction.amount,
-        'category': transaction.category,
-        'emoji': transaction.emoji,
-        'date': transaction.date.toIso8601String(),
-        'note': transaction.note,
-        'source_recurring_id': transaction.sourceRecurringId,
-        'created_at': DateTime.now().millisecondsSinceEpoch,
-      },
+      _toMap(transaction),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  @override
+  Future<void> bulkInsert(List<Transaction> transactions) async {
+    final db = await _dbHelper.database;
+    final batch = db.batch();
+    for (final t in transactions) {
+      batch.insert('transactions', _toMap(t),
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
   }
 
   @override

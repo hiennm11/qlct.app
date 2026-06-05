@@ -29,4 +29,8 @@ class RecurringRepositoryImpl implements RecurringRepository {
   @override
   Future<void> updateNextRunAt(String id, DateTime nextRunAt) =>
       _dataSource.updateNextRunAt(id, nextRunAt);
+
+  @override
+  Future<void> bulkInsert(List<RecurringTransaction> recurrings) =>
+      _dataSource.bulkInsert(recurrings);
 }

@@ -31,4 +31,8 @@ class TransactionRepositoryImpl implements TransactionRepository {
   @override
   Future<List<Transaction>> getByDateRange(DateTime start, DateTime end) =>
       _dataSource.getByDateRange(start, end);
+
+  @override
+  Future<void> bulkAdd(List<Transaction> transactions) =>
+      _dataSource.bulkInsert(transactions);
 }

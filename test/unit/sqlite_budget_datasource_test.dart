@@ -179,6 +179,29 @@ void main() {
     });
   });
 
+  group('bulkUpsert', () {
+    test('should insert multiple budgets', () async {
+      final budgets = List.generate(3, (i) => Budget(
+        id: 'b-bulk-$i',
+        categoryName: 'Category-$i',
+        monthlyLimit: (i + 1) * 1000000,
+        alertThreshold: 80,
+        createdAt: DateTime(2026, i + 1, 1),
+      ));
+
+      await dataSource.bulkUpsert(budgets);
+
+      final all = await dataSource.getAll();
+      expect(all.length, greaterThanOrEqualTo(3));
+    });
+
+    test('should handle empty list', () async {
+      await dataSource.bulkUpsert([]);
+      final all = await dataSource.getAll();
+      expect(all.length, greaterThanOrEqualTo(0));
+    });
+  });
+
   group('getByCategory', () {
     test('returns budget for matching categoryName', () async {
       final budget = Budget(

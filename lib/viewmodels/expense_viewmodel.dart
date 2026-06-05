@@ -143,6 +143,18 @@ class ExpenseViewModel extends ChangeNotifier {
     return await _exportService.exportToJson(_transactions);
   }
 
+  /// Export transactions to CSV and share via system share sheet
+  Future<void> exportAndShareCsv() async {
+    final transactions = await _repository.getAll();
+    await _exportService.exportAndShareCsv(transactions);
+  }
+
+  /// Export transactions to JSON and share via system share sheet
+  Future<void> exportAndShareJson() async {
+    final transactions = await _repository.getAll();
+    await _exportService.exportAndShareJson(transactions);
+  }
+
   /// Get filtered transactions based on current filters
   List<Transaction> _getFilteredTransactions() {
     List<Transaction> filtered = [..._transactions];

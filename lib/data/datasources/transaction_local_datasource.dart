@@ -8,4 +8,7 @@ abstract class TransactionLocalDataSource {
   Future<List<Transaction>> getByDate(DateTime date);
   Future<List<Transaction>> getByCategory(String category);
   Future<List<Transaction>> getByDateRange(DateTime start, DateTime end);
+
+  /// Bulk insert transactions using batch for performance
+  Future<void> bulkInsert(List<Transaction> transactions);
 }

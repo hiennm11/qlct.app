@@ -227,6 +227,31 @@ void main() {
     });
   });
 
+  group('bulkInsert', () {
+    test('should insert multiple recurring transactions', () async {
+      final recurrings = List.generate(5, (i) => RecurringTransaction(
+        id: 'r-bulk-$i',
+        categoryName: 'Subscription',
+        amount: (i + 1) * 100000,
+        frequency: 'monthly',
+        nextRunAt: DateTime(2026, 7, i + 1),
+        isActive: true,
+        createdAt: DateTime(2026, 6, 1),
+      ));
+
+      await dataSource.bulkInsert(recurrings);
+
+      final all = await dataSource.getAll();
+      expect(all.length, 5);
+    });
+
+    test('should handle empty list', () async {
+      await dataSource.bulkInsert([]);
+      final all = await dataSource.getAll();
+      expect(all.length, greaterThanOrEqualTo(0));
+    });
+  });
+
   group('delete', () {
     test('removes recurring transaction by id', () async {
       final rt1 = RecurringTransaction(

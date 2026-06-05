@@ -12,6 +12,7 @@ import 'data/datasources/sqlite_recurring_datasource.dart';
 import 'data/migrations/shared_prefs_to_sqlite.dart';
 import 'services/storage_service.dart';
 import 'services/export_service.dart';
+import 'services/backup_service.dart';
 import 'repositories/transaction_repository.dart';
 import 'repositories/transaction_repository_impl.dart';
 import 'repositories/budget_repository.dart';
@@ -21,6 +22,7 @@ import 'repositories/recurring_repository_impl.dart';
 import 'viewmodels/expense_viewmodel.dart';
 import 'viewmodels/budget_viewmodel.dart';
 import 'viewmodels/recurring_viewmodel.dart';
+import 'viewmodels/backup_viewmodel.dart';
 import 'views/home_screen.dart';
 
 Future<void> main() async {
@@ -65,6 +67,15 @@ Future<void> main() async {
     final RecurringRepository recurringRepository = RecurringRepositoryImpl(recurringDataSource);
     debugPrint('✅ Recurring repository ready');
 
+    debugPrint('📦 Setting up backup service...');
+    final backupService = BackupService(
+      repository,
+      budgetRepository,
+      recurringRepository,
+      storageService,
+    );
+    debugPrint('✅ Backup service ready');
+
     debugPrint('Starting app...');
     runApp(MyApp(
       repository: repository,
@@ -72,6 +83,7 @@ Future<void> main() async {
       recurringRepository: recurringRepository,
       exportService: exportService,
       storageService: storageService,
+      backupService: backupService,
     ));
   } catch (e, stackTrace) {
     debugPrint('❌ Error during initialization: $e');
@@ -117,6 +129,7 @@ class MyApp extends StatelessWidget {
   final RecurringRepository recurringRepository;
   final ExportService exportService;
   final StorageService storageService;
+  final BackupService backupService;
 
   const MyApp({
     super.key,
@@ -125,6 +138,7 @@ class MyApp extends StatelessWidget {
     required this.recurringRepository,
     required this.exportService,
     required this.storageService,
+    required this.backupService,
   });
 
   @override
@@ -140,6 +154,14 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => RecurringTransactionViewModel(recurringRepository, repository),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => BackupViewModel(
+            backupService,
+            context.read<ExpenseViewModel>(),
+            context.read<BudgetViewModel>(),
+            context.read<RecurringTransactionViewModel>(),
+          ),
         ),
       ],
       child: MaterialApp(

@@ -20,4 +20,8 @@ class BudgetRepositoryImpl implements BudgetRepository {
   @override
   Future<Budget?> getByCategory(String categoryName) =>
       _dataSource.getByCategory(categoryName);
+
+  @override
+  Future<void> bulkUpsert(List<Budget> budgets) =>
+      _dataSource.bulkUpsert(budgets);
 }

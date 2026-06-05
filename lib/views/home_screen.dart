@@ -10,6 +10,7 @@ import '../widgets/transaction_list_widget.dart';
 import '../widgets/chart_widget.dart';
 import '../widgets/budget_overview_widget.dart';
 import '../widgets/recurring_overview_widget.dart';
+import 'backup_restore_screen.dart';
 
 /// Main home screen for the expense tracking app
 class HomeScreen extends StatefulWidget {
@@ -41,6 +42,18 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('💰 Quản Lý Chi Tiêu'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Sao lưu& Khôi phục',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const BackupRestoreScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {

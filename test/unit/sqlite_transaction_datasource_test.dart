@@ -30,6 +30,7 @@ void main() {
               emoji      TEXT NOT NULL DEFAULT '',
               date       TEXT NOT NULL,
               note       TEXT NOT NULL DEFAULT '',
+              source_recurring_id TEXT,
               created_at INTEGER NOT NULL
             )
           ''');
@@ -232,6 +233,56 @@ void main() {
     });
   });
 
+  group('bulkInsert', () {
+    test('should insert multiple transactions', () async {
+      final txs = List.generate(10, (i) => Transaction(
+        id: 'bulk-$i',
+        amount: (i + 1) * 10000,
+        category: 'Cà phê',
+        emoji: '☕',
+        date: DateTime(2026, 6, i + 1),
+      ));
+
+      await dataSource.bulkInsert(txs);
+
+      final all = await dataSource.getAll();
+      expect(all.length, 10);
+      expect(all.map((t) => t.id).toSet(),
+          containsAll(txs.map((t) => t.id)));
+    });
+
+    test('should handle empty list', () async {
+      await dataSource.bulkInsert([]);
+      final all = await dataSource.getAll();
+      expect(all, isEmpty);
+    });
+
+    test('should overwrite on duplicate IDs (ConflictAlgorithm.replace)', () async {
+      final tx1 = Transaction(
+        id: 'bulk-dup',
+        amount: 50000,
+        category: 'Cà phê',
+        emoji: '☕',
+        date: DateTime(2026, 6, 1),
+      );
+      await dataSource.bulkInsert([tx1]);
+
+      final tx2 = Transaction(
+        id: 'bulk-dup',
+        amount: 99999,
+        category: 'Khác',
+        emoji: '📌',
+        date: DateTime(2026, 6, 1),
+      );
+      await dataSource.bulkInsert([tx2]);
+
+      final all = await dataSource.getAll();
+      expect(all.length, 1);
+      expect(all.first.amount, 99999);
+      expect(all.first.category, 'Khác');
+    });
+  });
+
   group('persistence after restart', () {
     late String tempDbPath;
     late Database? tempDb;
@@ -268,6 +319,7 @@ void main() {
                 emoji      TEXT NOT NULL DEFAULT '',
                 date       TEXT NOT NULL,
                 note       TEXT NOT NULL DEFAULT '',
+                source_recurring_id TEXT,
                 created_at INTEGER NOT NULL
               )
             ''');

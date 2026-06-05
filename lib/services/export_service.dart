@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/transaction.dart';
 import '../core/formatters.dart';
 
@@ -67,5 +68,25 @@ class ExportService {
   Future<String> getExportDirectory() async {
     final directory = await getApplicationDocumentsDirectory();
     return directory.path;
+  }
+
+  /// Share a file via system share sheet
+  Future<void> shareFile(File file) async {
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: 'Dữ liệu chi tiêu',
+    );
+  }
+
+  /// Export transactions to CSV and share via system share sheet
+  Future<void> exportAndShareCsv(List<Transaction> transactions) async {
+    final file = await exportToCsv(transactions);
+    await shareFile(file);
+  }
+
+  /// Export transactions to JSON and share via system share sheet
+  Future<void> exportAndShareJson(List<Transaction> transactions) async {
+    final file = await exportToJson(transactions);
+    await shareFile(file);
   }
 }

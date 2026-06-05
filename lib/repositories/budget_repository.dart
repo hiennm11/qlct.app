@@ -5,4 +5,7 @@ abstract class BudgetRepository {
   Future<void> upsert(Budget budget);
   Future<void> delete(String id);
   Future<Budget?> getByCategory(String categoryName);
+
+  /// Bulk upsert budgets
+  Future<void> bulkUpsert(List<Budget> budgets);
 }

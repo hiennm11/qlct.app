@@ -28,20 +28,35 @@ class SqliteBudgetDataSource implements BudgetLocalDataSource {
     return maps.map(_fromMap).toList();
   }
 
+  Map<String, dynamic> _toMap(Budget budget) {
+    return {
+      'id': budget.id,
+      'category_name': budget.categoryName,
+      'monthly_limit': budget.monthlyLimit,
+      'alert_threshold': budget.alertThreshold,
+      'created_at': budget.createdAt.millisecondsSinceEpoch,
+    };
+  }
+
   @override
   Future<void> upsert(Budget budget) async {
     final db = await _dbHelper.database;
     await db.insert(
       'budgets',
-      {
-        'id': budget.id,
-        'category_name': budget.categoryName,
-        'monthly_limit': budget.monthlyLimit,
-        'alert_threshold': budget.alertThreshold,
-        'created_at': budget.createdAt.millisecondsSinceEpoch,
-      },
+      _toMap(budget),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  @override
+  Future<void> bulkUpsert(List<Budget> budgets) async {
+    final db = await _dbHelper.database;
+    final batch = db.batch();
+    for (final b in budgets) {
+      batch.insert('budgets', _toMap(b),
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
   }
 
   @override

@@ -7,4 +7,7 @@ abstract class RecurringRepository {
   Future<void> delete(String id);
   Future<List<RecurringTransaction>> getActiveDue(DateTime now);
   Future<void> updateNextRunAt(String id, DateTime nextRunAt);
+
+  /// Bulk insert recurring transactions
+  Future<void> bulkInsert(List<RecurringTransaction> recurrings);
 }

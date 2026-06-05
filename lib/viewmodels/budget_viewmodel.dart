@@ -118,6 +118,11 @@ class BudgetViewModel extends ChangeNotifier {
     }
   }
 
+  /// Force reload budgets from repository (used after restore)
+  Future<void> forceReload() async {
+    await _loadBudgets();
+  }
+
   /// Load all budgets from repository
   Future<void> _loadBudgets() async {
     _isLoading = true;

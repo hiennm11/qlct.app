@@ -24,6 +24,11 @@ class RecurringTransactionViewModel extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  /// Force reload recurring rules from repository (used after restore)
+  Future<void> forceReload() async {
+    await _loadRecurrings();
+  }
+
   /// Load all recurring rules
   Future<void> _loadRecurrings() async {
     _isLoading = true;

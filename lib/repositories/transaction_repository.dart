@@ -22,4 +22,7 @@ abstract class TransactionRepository {
 
   /// Get transactions filtered by date range
   Future<List<Transaction>> getByDateRange(DateTime start, DateTime end);
+
+  /// Bulk add transactions
+  Future<void> bulkAdd(List<Transaction> transactions);
 }

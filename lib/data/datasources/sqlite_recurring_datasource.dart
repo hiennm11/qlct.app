@@ -1,3 +1,5 @@
+import 'package:sqflite/sqflite.dart';
+
 import '../../models/recurring_transaction.dart';
 import '../database/database_helper.dart';
 import 'recurring_local_datasource.dart';
@@ -30,22 +32,37 @@ class SqliteRecurringDataSource implements RecurringLocalDataSource {
     return maps.map(_fromMap).toList();
   }
 
+  Map<String, dynamic> _toMap(RecurringTransaction recurring) {
+    return {
+      'id': recurring.id,
+      'category_name': recurring.categoryName,
+      'amount': recurring.amount,
+      'note': recurring.note,
+      'frequency': recurring.frequency,
+      'next_run_at': recurring.nextRunAt.toIso8601String(),
+      'is_active': recurring.isActive ? 1 : 0,
+      'created_at': recurring.createdAt.toIso8601String(),
+    };
+  }
+
   @override
   Future<void> insert(RecurringTransaction recurring) async {
     final db = await _dbHelper.database;
     await db.insert(
       'recurring_transactions',
-      {
-        'id': recurring.id,
-        'category_name': recurring.categoryName,
-        'amount': recurring.amount,
-        'note': recurring.note,
-        'frequency': recurring.frequency,
-        'next_run_at': recurring.nextRunAt.toIso8601String(),
-        'is_active': recurring.isActive ? 1 : 0,
-        'created_at': recurring.createdAt.toIso8601String(),
-      },
+      _toMap(recurring),
     );
+  }
+
+  @override
+  Future<void> bulkInsert(List<RecurringTransaction> recurrings) async {
+    final db = await _dbHelper.database;
+    final batch = db.batch();
+    for (final r in recurrings) {
+      batch.insert('recurring_transactions', _toMap(r),
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
   }
 
   @override
