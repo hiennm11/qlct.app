@@ -12,4 +12,12 @@ abstract class TransactionLocalDataSource {
 
   /// Bulk insert transactions using batch for performance
   Future<void> bulkInsert(List<Transaction> transactions);
+
+  /// Full-text search across note, category, amount via FTS5.
+  /// Empty/whitespace query returns empty list.
+  Future<List<Transaction>> search(String query);
+
+  /// Delete multiple transactions by ID in a single SQL statement.
+  /// FTS index is kept in sync by triggers.
+  Future<void> deleteMultiple(List<String> ids);
 }

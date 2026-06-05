@@ -20,14 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey _transactionListKey = GlobalKey();
-
-  void _scrollToTransactions() {
-    Scrollable.ensureVisible(
-      _transactionListKey.currentContext!,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
+  String? _lastShownError;
 
   @override
   void initState() {
@@ -42,6 +35,41 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     });
+
+    // Listen for errors from ExpenseViewModel
+    final vm = context.read<ExpenseViewModel>();
+    vm.addListener(_onExpenseError);
+  }
+
+  @override
+  void dispose() {
+    final vm = context.read<ExpenseViewModel>();
+    vm.removeListener(_onExpenseError);
+    super.dispose();
+  }
+
+  void _onExpenseError() {
+    final vm = context.read<ExpenseViewModel>();
+    final error = vm.errorMessage;
+    if (error != null && error != _lastShownError) {
+      _lastShownError = error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      vm.clearError();
+    }
+  }
+
+  void _scrollToTransactions() {
+    Scrollable.ensureVisible(
+      _transactionListKey.currentContext!,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   void _showAboutDialog() {
@@ -99,42 +127,53 @@ class _HomeScreenState extends State<HomeScreen> {
                   break;
               }
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'export_csv',
-                child: ListTile(
-                  leading: Icon(Icons.table_chart),
-                  title: Text('Xuất CSV'),
-                  contentPadding: EdgeInsets.zero,
+            itemBuilder: (context) {
+              final viewModel = context.read<ExpenseViewModel>();
+              final hasFilters = viewModel.hasActiveFilters;
+              final count = viewModel.transactions.length;
+              final csvLabel = hasFilters
+                  ? 'Xuất CSV kết quả lọc ($count mục)'
+                  : 'Xuất CSV tất cả ($count mục)';
+              final jsonLabel = hasFilters
+                  ? 'Xuất JSON kết quả lọc ($count mục)'
+                  : 'Xuất JSON tất cả ($count mục)';
+              return [
+                PopupMenuItem(
+                  value: 'export_csv',
+                  child: ListTile(
+                    leading: const Icon(Icons.table_chart),
+                    title: Text(csvLabel),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              const PopupMenuItem(
-                value: 'export_json',
-                child: ListTile(
-                  leading: Icon(Icons.data_object),
-                  title: Text('Xuất JSON'),
-                  contentPadding: EdgeInsets.zero,
+                PopupMenuItem(
+                  value: 'export_json',
+                  child: ListTile(
+                    leading: const Icon(Icons.data_object),
+                    title: Text(jsonLabel),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'backup',
-                child: ListTile(
-                  leading: Icon(Icons.backup),
-                  title: Text('Sao lưu & Khôi phục'),
-                  contentPadding: EdgeInsets.zero,
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'backup',
+                  child: ListTile(
+                    leading: Icon(Icons.backup),
+                    title: Text('Sao lưu & Khôi phục'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'about',
-                child: ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('Giới thiệu'),
-                  contentPadding: EdgeInsets.zero,
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'about',
+                  child: ListTile(
+                    leading: Icon(Icons.info_outline),
+                    title: Text('Giới thiệu'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-            ],
+              ];
+            },
           ),
         ],
       ),
@@ -168,8 +207,38 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
 
               // Stats section
-              // TODO(Phase 2): Add onTapToday, onTapWeek, onTapMonth callbacks
-              const StatsWidget(),
+              StatsWidget(
+                onTapToday: () {
+                  final vm = context.read<ExpenseViewModel>();
+                  vm.clearFilters();
+                  vm.setDateFilter(DateTime.now());
+                  _scrollToTransactions();
+                },
+                onTapWeek: () {
+                  final vm = context.read<ExpenseViewModel>();
+                  vm.clearFilters();
+                  final now = DateTime.now();
+                  final startOfWeek =
+                      now.subtract(Duration(days: now.weekday - 1));
+                  vm.setDateRangeFilter(
+                    DateTime(
+                        startOfWeek.year, startOfWeek.month, startOfWeek.day),
+                    DateTime(now.year, now.month, now.day),
+                  );
+                  _scrollToTransactions();
+                },
+                onTapMonth: () {
+                  final vm = context.read<ExpenseViewModel>();
+                  vm.clearFilters();
+                  final now = DateTime.now();
+                  final startOfMonth = DateTime(now.year, now.month, 1);
+                  vm.setDateRangeFilter(
+                    startOfMonth,
+                    DateTime(now.year, now.month + 1, 0),
+                  );
+                  _scrollToTransactions();
+                },
+              ),
               const SizedBox(height: 20),
 
               // Chart

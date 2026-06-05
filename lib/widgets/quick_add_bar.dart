@@ -112,7 +112,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
     );
   }
 
-  void _handleVoiceConfirm(String transcript) {
+  void _handleVoiceConfirm(String transcript) async {
     final vm = context.read<ExpenseViewModel>();
     final amount = VietnameseNumberParser.extractAmount(transcript);
 
@@ -136,42 +136,85 @@ class _QuickAddBarState extends State<QuickAddBar> {
       if (matchedName != 'Khác') break;
     }
 
-    final cat = vm.categories.firstWhere((c) => c.name == matchedName);
+    final matchedCat = vm.categories.firstWhere((c) => c.name == matchedName);
 
-    vm.addTransaction(
-      amount: amount,
-      category: cat.name,
-      note: transcript,
-      emoji: cat.emoji,
-    );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Đã thêm: ${cat.emoji} ${cat.name} - ${CurrencyFormatter.format(amount)} ₫',
+    try {
+      await vm.addTransaction(
+        amount: amount,
+        category: matchedCat.name,
+        note: transcript,
+        emoji: matchedCat.emoji,
+      );
+      if (!context.mounted) return;
+      if (vm.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(vm.errorMessage!),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã thêm: ${matchedCat.emoji} ${matchedCat.name} - ${CurrencyFormatter.format(amount)} ₫',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
         ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+    }
   }
 
   // === QUICK CATEGORY TAP ===
 
-  void _addQuick(Category cat) {
+  void _addQuick(Category cat) async {
     final vm = context.read<ExpenseViewModel>();
-    vm.addTransaction(
-      amount: cat.defaultAmount,
-      category: cat.name,
-      emoji: cat.emoji,
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Đã thêm: ${cat.emoji} ${cat.name} - ${CurrencyFormatter.format(cat.defaultAmount)} ₫',
+    try {
+      await vm.addTransaction(
+        amount: cat.defaultAmount,
+        category: cat.name,
+        emoji: cat.emoji,
+      );
+      if (!context.mounted) return;
+      if (vm.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(vm.errorMessage!),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã thêm: ${cat.emoji} ${cat.name} - ${CurrencyFormatter.format(cat.defaultAmount)} ₫',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
         ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+    }
   }
 
   // === CUSTOM BOTTOM SHEET ===

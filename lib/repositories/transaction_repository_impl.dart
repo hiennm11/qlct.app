@@ -38,4 +38,12 @@ class TransactionRepositoryImpl implements TransactionRepository {
   @override
   Future<void> bulkAdd(List<Transaction> transactions) =>
       _dataSource.bulkInsert(transactions);
+
+  @override
+  Future<List<Transaction>> search(String query) =>
+      _dataSource.search(query);
+
+  @override
+  Future<void> deleteMultiple(List<String> ids) =>
+      _dataSource.deleteMultiple(ids);
 }

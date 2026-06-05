@@ -30,8 +30,6 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = context.read<ExpenseViewModel>();
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -77,22 +75,46 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                         _amounts[category.name] = value;
                       });
                     },
-                    onAdd: () {
-                      viewModel.addTransaction(
-                        amount: _amounts[category.name]!.toInt(),
-                        category: category.name,
-                        emoji: category.emoji,
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Đã thêm ${CurrencyFormatter.format(_amounts[category.name]!.toInt())} - ${category.name}',
+                    onAdd: () async {
+                      final vm = context.read<ExpenseViewModel>();
+                      try {
+                        await vm.addTransaction(
+                          amount: _amounts[category.name]!.toInt(),
+                          category: category.name,
+                          emoji: category.emoji,
+                        );
+                        if (!context.mounted) return;
+                        if (vm.errorMessage != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(vm.errorMessage!),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Đã thêm ${CurrencyFormatter.format(_amounts[category.name]!.toInt())} - ${category.name}',
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Lỗi: $e'),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 2),
                           ),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
+                        );
+                      }
                     },
-                    onVoiceInput: (transcript) {
+                    onVoiceInput: (transcript) async {
+                      final vm = context.read<ExpenseViewModel>();
                       final amount = VietnameseNumberParser.extractAmount(
                         transcript,
                       );
@@ -100,20 +122,42 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                         setState(() {
                           _amounts[category.name] = amount.toDouble();
                         });
-                        viewModel.addTransaction(
-                          amount: amount,
-                          category: category.name,
-                          emoji: category.emoji,
-                          note: transcript,
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Đã thêm ${CurrencyFormatter.format(amount)} - ${category.name}',
+                        try {
+                          await vm.addTransaction(
+                            amount: amount,
+                            category: category.name,
+                            emoji: category.emoji,
+                            note: transcript,
+                          );
+                          if (!context.mounted) return;
+                          if (vm.errorMessage != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(vm.errorMessage!),
+                                backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Đã thêm ${CurrencyFormatter.format(amount)} - ${category.name}',
+                                ),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Lỗi: $e'),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 2),
                             ),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
+                          );
+                        }
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(

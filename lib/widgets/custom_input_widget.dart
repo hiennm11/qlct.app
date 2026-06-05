@@ -119,7 +119,7 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
     _noteController.text = transcript;
   }
 
-  void _addTransaction() {
+  void _addTransaction() async {
     final amount = int.tryParse(
       _amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
     );
@@ -141,25 +141,48 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
       (c) => c.name == _selectedCategory,
     );
 
-    context.read<ExpenseViewModel>().addTransaction(
-      amount: amount,
-      category: category.name,
-      emoji: category.emoji,
-      note: _noteController.text,
-    );
+    final vm = context.read<ExpenseViewModel>();
+    try {
+      await vm.addTransaction(
+        amount: amount,
+        category: category.name,
+        emoji: category.emoji,
+        note: _noteController.text,
+      );
 
-    _amountController.clear();
-    _noteController.clear();
-    setState(() {
-      _selectedCategory = null;
-    });
+      _amountController.clear();
+      _noteController.clear();
+      setState(() {
+        _selectedCategory = null;
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã thêm giao dịch'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+      if (!context.mounted) return;
+      if (vm.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(vm.errorMessage!),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã thêm giao dịch'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   /// Format raw number with thousand separators (e.g. 100000 → 100.000)

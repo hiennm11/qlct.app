@@ -20,16 +20,6 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
     );
   }
 
-  @override
-  Future<List<Transaction>> getAll() async {
-    final db = await _dbHelper.database;
-    final maps = await db.query(
-      'transactions',
-      orderBy: 'created_at DESC',
-    );
-    return maps.map(_fromMap).toList();
-  }
-
   Map<String, dynamic> _toMap(Transaction transaction) {
     return {
       'id': transaction.id,
@@ -43,12 +33,25 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
     };
   }
 
+  // ===== CRUD operations =====
+
+  @override
+  Future<List<Transaction>> getAll() async {
+    final db = await _dbHelper.database;
+    final maps = await db.query(
+      'transactions',
+      orderBy: 'created_at DESC',
+    );
+    return maps.map(_fromMap).toList();
+  }
+
   @override
   Future<void> add(Transaction transaction) async {
     final db = await _dbHelper.database;
+    final map = _toMap(transaction);
     await db.insert(
       'transactions',
-      _toMap(transaction),
+      map,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -56,9 +59,10 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
   @override
   Future<void> update(Transaction transaction) async {
     final db = await _dbHelper.database;
+    final map = _toMap(transaction);
     await db.update(
       'transactions',
-      _toMap(transaction),
+      map,
       where: 'id = ?',
       whereArgs: [transaction.id],
     );
@@ -66,6 +70,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
 
   @override
   Future<void> bulkInsert(List<Transaction> transactions) async {
+    if (transactions.isEmpty) return;
     final db = await _dbHelper.database;
     final batch = db.batch();
     for (final t in transactions) {
@@ -134,5 +139,34 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       orderBy: 'created_at DESC',
     );
     return maps.map(_fromMap).toList();
+  }
+
+  @override
+  Future<List<Transaction>> search(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    final likePattern = '%$trimmed%';
+    final db = await _dbHelper.database;
+    final maps = await db.query(
+      'transactions',
+      where: 'note LIKE ? OR category LIKE ? OR CAST(amount AS TEXT) LIKE ?',
+      whereArgs: [likePattern, likePattern, likePattern],
+      orderBy: 'created_at DESC',
+    );
+
+    return maps.map(_fromMap).toList();
+  }
+
+  @override
+  Future<void> deleteMultiple(List<String> ids) async {
+    if (ids.isEmpty) return;
+
+    final db = await _dbHelper.database;
+    final placeholders = List.filled(ids.length, '?').join(', ');
+    await db.rawDelete(
+      'DELETE FROM transactions WHERE id IN ($placeholders)',
+      ids,
+    );
   }
 }

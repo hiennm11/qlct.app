@@ -142,4 +142,43 @@ void main() {
       expect(result, isEmpty);
     });
   });
+
+  group('search', () {
+    test('delegates to dataSource.search', () async {
+      when(() => mockDataSource.search(any())).thenAnswer((_) async => [sampleTransaction]);
+
+      final result = await repository.search('ăn trưa');
+
+      expect(result.length, 1);
+      expect(result.first.id, 'test-id-1');
+      verify(() => mockDataSource.search('ăn trưa')).called(1);
+    });
+
+    test('returns empty when no matches', () async {
+      when(() => mockDataSource.search(any())).thenAnswer((_) async => []);
+
+      final result = await repository.search('nothing');
+
+      expect(result, isEmpty);
+      verify(() => mockDataSource.search('nothing')).called(1);
+    });
+  });
+
+  group('deleteMultiple', () {
+    test('delegates to dataSource.deleteMultiple', () async {
+      when(() => mockDataSource.deleteMultiple(any())).thenAnswer((_) async {});
+
+      await repository.deleteMultiple(['id-1', 'id-2', 'id-3']);
+
+      verify(() => mockDataSource.deleteMultiple(['id-1', 'id-2', 'id-3'])).called(1);
+    });
+
+    test('handles empty list', () async {
+      when(() => mockDataSource.deleteMultiple(any())).thenAnswer((_) async {});
+
+      await repository.deleteMultiple([]);
+
+      verify(() => mockDataSource.deleteMultiple([])).called(1);
+    });
+  });
 }

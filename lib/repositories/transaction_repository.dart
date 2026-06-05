@@ -28,4 +28,10 @@ abstract class TransactionRepository {
 
   /// Bulk add transactions
   Future<void> bulkAdd(List<Transaction> transactions);
+
+  /// Full-text search via FTS5
+  Future<List<Transaction>> search(String query);
+
+  /// Bulk delete transactions by IDs
+  Future<void> deleteMultiple(List<String> ids);
 }

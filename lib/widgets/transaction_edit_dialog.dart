@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../core/formatters.dart';
+import '../core/theme.dart';
 
 /// Dialog for editing an existing transaction
 class _TransactionEditDialog extends StatefulWidget {
@@ -105,6 +106,25 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
                 validator: (v) =>
                     v == null ? 'Vui lòng chọn danh mục' : null,
               ),
+              // Recurring source info label
+              if (widget.transaction.sourceRecurringId != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: const [
+                    Icon(Icons.loop, size: 14, color: AppColors.primary),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Giao dịch này được tạo tự động từ định kỳ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 16),
 
               // Amount

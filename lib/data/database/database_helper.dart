@@ -4,7 +4,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 3;
+  static const _databaseVersion = 6;
 
   Database? _database;
 
@@ -93,6 +93,10 @@ class DatabaseHelper {
       ''');
       await db.execute('CREATE INDEX idx_recurring_next_run ON recurring_transactions(is_active, next_run_at)');
       await db.execute('ALTER TABLE transactions ADD COLUMN source_recurring_id TEXT');
+    }
+    if (oldVersion < 6) {
+      // Drop FTS5 table if it exists (cleanup from v4/v5 migration)
+      await db.execute('DROP TABLE IF EXISTS transactions_fts');
     }
   }
 

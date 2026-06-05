@@ -90,6 +90,38 @@ void main() {
 
       verify(() => mockRepo.add(any<Transaction>())).called(1);
     });
+
+    test('addTransaction refreshes search results when search active', () async {
+      final t1 = makeTransaction(id: '1');
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.search('test')).thenAnswer((_) async => []);
+      when(() => mockRepo.add(any())).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      // Set search active
+      await viewModel.setSearchQuery('test');
+
+      // Add a transaction with matching note
+      final added = Transaction(
+        id: '3', amount: 99999, category: 'Ăn ngoài', emoji: '🍜',
+        date: DateTime.now(), note: 'test note',
+      );
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, added]);
+      when(() => mockRepo.search('test')).thenAnswer((_) async => [added]);
+
+      await viewModel.addTransaction(
+        amount: 99999,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        note: 'test note',
+      );
+
+      // New transaction should appear in filtered transactions
+      final filtered = viewModel.transactions;
+      expect(filtered.any((t) => t.note == 'test note'), isTrue);
+    });
   });
 
   group('deleteTransaction', () {
@@ -253,6 +285,260 @@ void main() {
       await Future.delayed(Duration.zero);
 
       expect(viewModel.stats.categoryTotals['Ăn ngoài'], 80000);
+    });
+  });
+
+  group('search', () {
+    test('searchQuery defaults to null', () {
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      expect(viewModel.searchQuery, isNull);
+    });
+
+    test('setSearchQuery fetches results from repository', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 2));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.search('ăn')).thenAnswer((_) async => [t1]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      await viewModel.setSearchQuery('ăn');
+
+      expect(viewModel.searchQuery, 'ăn');
+      verify(() => mockRepo.search('ăn')).called(1);
+    });
+
+    test('transactions getter returns searchResults when search active', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 5));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.search('t1')).thenAnswer((_) async => [t1]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      await viewModel.setSearchQuery('t1');
+
+      final result = viewModel.transactions;
+      expect(result.length, 1);
+      expect(result.first.id, '1');
+    });
+
+    test('transactions getter returns all when no search', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 5));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      final result = viewModel.transactions;
+      expect(result.length, 2);
+    });
+
+    test('clearSearch resets query and results', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.search('q')).thenAnswer((_) async => [t1]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      await viewModel.setSearchQuery('q');
+      expect(viewModel.searchQuery, 'q');
+
+      viewModel.clearSearch();
+      expect(viewModel.searchQuery, isNull);
+    });
+
+    test('setSearchQuery with empty string clears search', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.search('q')).thenAnswer((_) async => [t1]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      await viewModel.setSearchQuery('q');
+      await viewModel.setSearchQuery('');
+
+      expect(viewModel.searchQuery, isNull);
+    });
+
+    test('search combines with date filter', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 3));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 4));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      // Search returns both
+      when(() => mockRepo.search('test')).thenAnswer((_) async => [t1, t2]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      await viewModel.setSearchQuery('test');
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+
+      final result = viewModel.transactions;
+      expect(result.length, 1);
+      expect(result.first.id, '1');
+    });
+
+    test('stats unaffected by search (always based on allTransactions)', () async {
+      final now = DateTime.now();
+      final t1 = Transaction(
+        id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        date: DateTime(now.year, now.month, 5), note: '',
+      );
+      final t2 = Transaction(
+        id: '2', amount: 30000, category: 'Ăn ngoài', emoji: '🍜',
+        date: DateTime(now.year, now.month, 10), note: '',
+      );
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      // Search returns only t1
+      when(() => mockRepo.search('ăn')).thenAnswer((_) async => [t1]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      // Stats before search
+      final statsBefore = viewModel.stats.monthExpense;
+      expect(statsBefore, 80000);
+
+      // Set search to a subset
+      await viewModel.setSearchQuery('ăn');
+      // Stats should still be 80000 (based on all, not just search results)
+      final statsAfter = viewModel.stats.monthExpense;
+      expect(statsAfter, 80000);
+    });
+  });
+
+  group('date range filter', () {
+    test('setDateRangeFilter sets start and end', () async {
+      when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
+      expect(viewModel.filterStartDate, DateTime(2026, 6, 1));
+      expect(viewModel.filterEndDate, DateTime(2026, 6, 7));
+    });
+
+    test('setDateRangeFilter clears single date filter (mutual exclusive)', () async {
+      when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+      expect(viewModel.filterDate, DateTime(2026, 6, 3));
+
+      viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
+      expect(viewModel.filterDate, isNull);
+      expect(viewModel.filterStartDate, DateTime(2026, 6, 1));
+    });
+
+    test('setDateFilter clears date range filter (mutual exclusive)', () async {
+      when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
+      expect(viewModel.filterStartDate, isNotNull);
+
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+      expect(viewModel.filterStartDate, isNull);
+      expect(viewModel.filterEndDate, isNull);
+    });
+
+    test('date range filter narrows transactions', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 3));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 10));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 5));
+
+      final result = viewModel.transactions;
+      expect(result.length, 1);
+      expect(result.first.id, '1');
+    });
+  });
+
+  group('deleteTransactions (bulk delete)', () {
+    test('deletes multiple transactions and refreshes', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 2));
+      final t3 = makeTransaction(id: '3', date: DateTime(2026, 6, 3));
+      // Initial getAll returns all 3
+      // After delete, getAll returns 1
+      when(() => mockRepo.getAll())
+          .thenAnswer((_) async => [t1, t2, t3]);
+      when(() => mockRepo.deleteMultiple(any())).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.transactions.length, 3);
+
+      // Mock that after delete, only t3 remains
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t3]);
+      await viewModel.deleteTransactions(['1', '2']);
+
+      verify(() => mockRepo.deleteMultiple(['1', '2'])).called(1);
+      expect(viewModel.transactions.length, 1);
+      expect(viewModel.transactions.first.id, '3');
+    });
+  });
+
+  group('hasActiveFilters', () {
+    test('returns false when no filters', () {
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      expect(viewModel.hasActiveFilters, isFalse);
+    });
+
+    test('returns true when date filter set', () async {
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+      expect(viewModel.hasActiveFilters, isTrue);
+    });
+
+    test('returns true when category filter set', () async {
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+      viewModel.setCategoryFilter('Ăn ngoài');
+      expect(viewModel.hasActiveFilters, isTrue);
+    });
+
+    test('returns true when search query set', () async {
+      when(() => mockRepo.search(any())).thenAnswer((_) async => []);
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+      await viewModel.setSearchQuery('test');
+      expect(viewModel.hasActiveFilters, isTrue);
+    });
+
+    test('clearFilters also clears search and range', () async {
+      when(() => mockRepo.search(any())).thenAnswer((_) async => []);
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+      viewModel.setCategoryFilter('Ăn ngoài');
+      viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
+      await viewModel.setSearchQuery('q');
+
+      viewModel.clearFilters();
+      expect(viewModel.filterDate, isNull);
+      expect(viewModel.filterCategory, isNull);
+      expect(viewModel.filterStartDate, isNull);
+      expect(viewModel.filterEndDate, isNull);
+      expect(viewModel.searchQuery, isNull);
     });
   });
 }
