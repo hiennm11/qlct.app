@@ -19,6 +19,22 @@ class AppColors {
   static const Color gray100 = Color(0xFFFAFAFA);
   static const Color gray200 = Color(0xFFF5F5F5);
   static const Color gray300 = Color(0xFFE0E0E0);
+
+  /// 11-color palette for category chart slices and legend swatches.
+  /// First 5 mirror the brand palette; the rest are extra hues.
+  static const List<Color> categoryColors = [
+    primary,
+    secondary,
+    success,
+    warning,
+    error,
+    Color(0xFF9C27B0),
+    Color(0xFF673AB7),
+    Color(0xFF3F51B5),
+    Color(0xFF03A9F4),
+    Color(0xFF009688),
+    Color(0xFFFFC107),
+  ];
 }
 
 /// Application theme configuration

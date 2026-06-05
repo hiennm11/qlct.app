@@ -41,6 +41,16 @@ class BackupRestoreScreen extends StatelessWidget {
 
                 // Backup section
                 _buildSectionHeader('📤 SAO LƯU'),
+                if (vm.lastBackupTimeFormatted != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Sao lưu gần nhất: ${vm.lastBackupTimeFormatted}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 _buildActionButton(
                   context,
@@ -243,29 +253,46 @@ class BackupRestoreScreen extends StatelessWidget {
     );
   }
 
-  void _confirmRestore(
+  Future<void> _confirmRestore(
     BuildContext context,
     BackupViewModel vm,
     RestoreMode mode,
-  ) {
+  ) async {
     final modeLabel = mode == RestoreMode.merge ? 'hợp nhất' : 'thay thế';
     final isReplace = mode == RestoreMode.replace;
+
+    // Task 1: pick + validate first, save counts for preview
+    final result = await vm.prepareRestorePreview();
+    if (result == null) {
+      // User cancelled or validation failed (error already set on VM)
+      return;
+    }
+    if (!context.mounted) return;
+
+    final preview = 'File sẽ ${isReplace ? 'thay thế' : 'thêm'}:'
+        '\n• ${vm.pendingTransactionCount ?? 0} giao dịch'
+        '\n• ${vm.pendingBudgetCount ?? 0} ngân sách'
+        '\n• ${vm.pendingRecurringCount ?? 0} giao dịch định kỳ';
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Khôi phục ($modeLabel)'),
         content: Text(isReplace
-            ? 'Toàn bộ dữ liệu hiện tại sẽ bị XOÁ và thay thế bằng dữ liệu từ file backup. Hành động này KHÔNG thể hoàn tác.\n\nBạn có chắc chắn?'
-            : 'Dữ liệu từ file backup sẽ được thêm vào. Dữ liệu hiện tại sẽ được giữ nguyên.\n\nTiếp tục?'),
+            ? '$preview\n\nToàn bộ dữ liệu hiện tại sẽ bị XOÁ và thay thế. Hành động này KHÔNG thể hoàn tác.\n\nBạn có chắc chắn?'
+            : '$preview\n\nDữ liệu sẽ được thêm vào dữ liệu hiện tại. Trùng ID sẽ được bỏ qua.\n\nTiếp tục?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () {
+              vm.clearMessages();
+              Navigator.pop(ctx);
+            },
             child: const Text('Huỷ'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              vm.importAndRestore(mode);
+              vm.executeRestore(result, mode);
             },
             style: isReplace
                 ? TextButton.styleFrom(foregroundColor: Colors.red)

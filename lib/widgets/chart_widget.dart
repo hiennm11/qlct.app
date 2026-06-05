@@ -72,19 +72,7 @@ class ChartWidget extends StatelessWidget {
 
   List<PieChartSectionData> _createSections(Map<String, int> categoryTotals) {
     final total = categoryTotals.values.fold(0, (sum, val) => sum + val);
-    final colors = [
-      AppColors.primary,
-      AppColors.secondary,
-      AppColors.success,
-      AppColors.warning,
-      AppColors.error,
-      const Color(0xFF9C27B0),
-      const Color(0xFF673AB7),
-      const Color(0xFF3F51B5),
-      const Color(0xFF03A9F4),
-      const Color(0xFF009688),
-      const Color(0xFFFFC107),
-    ];
+    final colors = AppColors.categoryColors;
 
     int colorIndex = 0;
     return categoryTotals.entries.map((entry) {
@@ -114,19 +102,7 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = [
-      AppColors.primary,
-      AppColors.secondary,
-      AppColors.success,
-      AppColors.warning,
-      AppColors.error,
-      const Color(0xFF9C27B0),
-      const Color(0xFF673AB7),
-      const Color(0xFF3F51B5),
-      const Color(0xFF03A9F4),
-      const Color(0xFF009688),
-      const Color(0xFFFFC107),
-    ];
+    final colors = AppColors.categoryColors;
 
     int colorIndex = 0;
     return ListView(

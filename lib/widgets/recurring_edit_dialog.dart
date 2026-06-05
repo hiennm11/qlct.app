@@ -48,23 +48,13 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
   DateTime _startDate = DateTime.now();
   final _formKey = GlobalKey<FormState>();
 
-  String _formatAmount(int amount) {
-    final digits = amount.toString();
-    final buffer = StringBuffer();
-    for (int i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
-      buffer.write(digits[i]);
-    }
-    return buffer.toString();
-  }
-
   @override
   void initState() {
     super.initState();
     final existing = widget.existing;
     if (existing != null) {
       _selectedCategory = existing.categoryName;
-      _amountController.text = _formatAmount(existing.amount);
+      _amountController.text = ThousandSeparatorFormatter.formatValue(existing.amount);
       _noteController.text = existing.note;
       _selectedFrequency = existing.frequency;
       _startDate = existing.nextRunAt;

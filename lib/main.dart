@@ -161,6 +161,7 @@ class MyApp extends StatelessWidget {
             context.read<ExpenseViewModel>(),
             context.read<BudgetViewModel>(),
             context.read<RecurringTransactionViewModel>(),
+            storageService: storageService,
           ),
         ),
       ],
