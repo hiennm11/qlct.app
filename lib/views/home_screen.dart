@@ -21,7 +21,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey _transactionListKey = GlobalKey();
 
-  // ignore: unused_element - Will be used when StatsWidget callbacks are implemented
   void _scrollToTransactions() {
     Scrollable.ensureVisible(
       _transactionListKey.currentContext!,
@@ -153,7 +152,12 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
 
               // Budget overview
-              const BudgetOverviewWidget(),
+              BudgetOverviewWidget(
+                onCategoryTap: (categoryName) {
+                  context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
+                  _scrollToTransactions();
+                },
+              ),
               const SizedBox(height: 20),
 
               // Transactions list

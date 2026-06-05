@@ -15,6 +15,9 @@ class TransactionRepositoryImpl implements TransactionRepository {
   Future<void> add(Transaction transaction) => _dataSource.add(transaction);
 
   @override
+  Future<void> update(Transaction transaction) => _dataSource.update(transaction);
+
+  @override
   Future<void> delete(String id) => _dataSource.delete(id);
 
   @override

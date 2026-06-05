@@ -9,7 +9,9 @@ import 'budget_bulk_edit_dialog.dart';
 
 /// Widget displaying budget overview with cards
 class BudgetOverviewWidget extends StatelessWidget {
-  const BudgetOverviewWidget({super.key});
+  final void Function(String categoryName)? onCategoryTap;
+
+  const BudgetOverviewWidget({super.key, this.onCategoryTap});
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +61,10 @@ class BudgetOverviewWidget extends StatelessWidget {
                 else
                   ...viewModel.budgetStatuses.map((status) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _BudgetCard(status: status),
+                        child: _BudgetCard(
+                          status: status,
+                          onCategoryTap: onCategoryTap,
+                        ),
                       )),
               ],
             ),
@@ -175,8 +180,9 @@ class _EmptyState extends StatelessWidget {
 
 class _BudgetCard extends StatelessWidget {
   final BudgetStatus status;
+  final void Function(String categoryName)? onCategoryTap;
 
-  const _BudgetCard({required this.status});
+  const _BudgetCard({required this.status, this.onCategoryTap});
 
   Color _getProgressColor() {
     switch (status.alertLevel) {
@@ -195,7 +201,8 @@ class _BudgetCard extends StatelessWidget {
     final progressClamped = progress.clamp(0.0, 1.0);
 
     return InkWell(
-      onTap: () => showBudgetEditDialog(
+      onTap: () => onCategoryTap?.call(status.categoryName),
+      onLongPress: () => showBudgetEditDialog(
         context,
         categoryName: status.categoryName,
         currentLimit: status.limit,
@@ -220,6 +227,19 @@ class _BudgetCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Sửa ngân sách',
+                  onPressed: () => showBudgetEditDialog(
+                    context,
+                    categoryName: status.categoryName,
+                    currentLimit: status.limit,
+                    currentThreshold: null,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(
                   '${CurrencyFormatter.format(status.spent)} / ${CurrencyFormatter.format(status.limit)}',
                   style: Theme.of(context).textTheme.bodyMedium,

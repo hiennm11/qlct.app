@@ -289,4 +289,21 @@ class ExpenseViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Update an existing transaction
+  Future<void> updateTransaction(Transaction transaction) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _repository.update(transaction);
+      await _loadTransactions();
+    } catch (e) {
+      _errorMessage = 'Lỗi khi cập nhật giao dịch: $e';
+      debugPrint('Error updating transaction: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

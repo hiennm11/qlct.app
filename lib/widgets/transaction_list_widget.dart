@@ -4,10 +4,19 @@ import '../models/transaction.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
+import 'transaction_edit_dialog.dart';
 
 /// Widget displaying list of transactions with filters
-class TransactionListWidget extends StatelessWidget {
+class TransactionListWidget extends StatefulWidget {
   const TransactionListWidget({super.key});
+
+  @override
+  State<TransactionListWidget> createState() => _TransactionListWidgetState();
+}
+
+class _TransactionListWidgetState extends State<TransactionListWidget> {
+  static const int _pageSize = 20;
+  bool _showAll = false;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +57,12 @@ class TransactionListWidget extends StatelessWidget {
                 if (viewModel.transactions.isEmpty)
                   const _EmptyState()
                 else
-                  _TransactionList(transactions: viewModel.transactions),
+                  _TransactionList(
+                    transactions: viewModel.transactions,
+                    pageSize: _pageSize,
+                    showAll: _showAll,
+                    onShowAll: () => setState(() => _showAll = true),
+                  ),
               ],
             ),
           ),
@@ -155,6 +169,13 @@ class _FilterRow extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Hôm nay quick filter
+            ActionChip(
+              label: const Text('Hôm nay'),
+              avatar: const Icon(Icons.today, size: 18),
+              onPressed: () => viewModel.setDateFilter(DateTime.now()),
+            ),
+            const SizedBox(width: 8),
             SizedBox(
               width: 160,
               child: InkWell(
@@ -173,7 +194,8 @@ class _FilterRow extends StatelessWidget {
                   decoration: const InputDecoration(
                     labelText: 'Ngày',
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   ),
                   child: Text(
                     viewModel.filterDate != null
@@ -192,7 +214,8 @@ class _FilterRow extends StatelessWidget {
                 decoration: const InputDecoration(
                   labelText: 'Danh mục',
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 ),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('Tất cả')),
@@ -227,8 +250,31 @@ class _FilterRow extends StatelessWidget {
 
 class _TransactionList extends StatelessWidget {
   final List<Transaction> transactions;
+  final int pageSize;
+  final bool showAll;
+  final VoidCallback onShowAll;
 
-  const _TransactionList({required this.transactions});
+  const _TransactionList({
+    required this.transactions,
+    required this.pageSize,
+    required this.showAll,
+    required this.onShowAll,
+  });
+
+  Future<void> _onRowTap(BuildContext context, Transaction transaction) async {
+    final updated = await showTransactionEditDialog(context, transaction);
+    if (updated != null && context.mounted) {
+      await context.read<ExpenseViewModel>().updateTransaction(updated);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã cập nhật giao dịch'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _confirmAndDelete(
     BuildContext context,
@@ -278,54 +324,70 @@ class _TransactionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: transactions.length,
-      separatorBuilder: (context, index) => const Divider(),
-      itemBuilder: (context, index) {
-        final transaction = transactions[index];
-        return ListTile(
-          leading: Text(
-            transaction.emoji,
-            style: const TextStyle(fontSize: 32),
-          ),
-          title: Text(transaction.category),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(DateFormatter.getRelativeTimeString(transaction.date)),
-              if (transaction.note.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  transaction.note,
-                  style: const TextStyle(fontSize: 12),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                CurrencyFormatter.format(transaction.amount),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColors.error,
-                ),
+    final total = transactions.length;
+    final showCount = showAll || total <= pageSize ? total : pageSize;
+    final visible = transactions.take(showCount).toList();
+    final remaining = total - showCount;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: visible.length,
+          separatorBuilder: (context, index) => const Divider(),
+          itemBuilder: (context, index) {
+            final transaction = visible[index];
+            return ListTile(
+              onTap: () => _onRowTap(context, transaction),
+              leading: Text(
+                transaction.emoji,
+                style: const TextStyle(fontSize: 32),
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                color: AppColors.textSecondary,
-                onPressed: () => _confirmAndDelete(context, transaction),
+              title: Text(transaction.category),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(DateFormatter.getRelativeTimeString(transaction.date)),
+                  if (transaction.note.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      transaction.note,
+                      style: const TextStyle(fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
               ),
-            ],
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    CurrencyFormatter.format(transaction.amount),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    color: AppColors.textSecondary,
+                    onPressed: () => _confirmAndDelete(context, transaction),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        if (remaining > 0)
+          TextButton(
+            onPressed: onShowAll,
+            child: Text('Xem thêm $remaining giao dịch'),
           ),
-        );
-      },
+      ],
     );
   }
 }

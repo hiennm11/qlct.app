@@ -8,6 +8,9 @@ abstract class TransactionRepository {
   /// Add a new transaction
   Future<void> add(Transaction transaction);
 
+  /// Update an existing transaction
+  Future<void> update(Transaction transaction);
+
   /// Delete a transaction by ID
   Future<void> delete(String id);
 

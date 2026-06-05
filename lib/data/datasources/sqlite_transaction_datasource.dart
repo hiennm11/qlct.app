@@ -54,6 +54,17 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
   }
 
   @override
+  Future<void> update(Transaction transaction) async {
+    final db = await _dbHelper.database;
+    await db.update(
+      'transactions',
+      _toMap(transaction),
+      where: 'id = ?',
+      whereArgs: [transaction.id],
+    );
+  }
+
+  @override
   Future<void> bulkInsert(List<Transaction> transactions) async {
     final db = await _dbHelper.database;
     final batch = db.batch();
