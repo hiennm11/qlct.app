@@ -122,3 +122,6 @@ app.*.symbols
 build_log.txt
 debug_output.txt
 debug_run.txt
+
+.agents/
+skills-lock.json
