@@ -10,4 +10,21 @@ Canonical roles map directly: `needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` at root + `docs/adr/` (neither exists yet — created lazily by `grill-with-docs`). See `docs/agents/domain.md`.
+Single-context: `CONTEXT.md` at root + `docs/adr/`. See `docs/agents/domain.md`.
+
+### Flutter skills
+
+Project skills in `.agents/skills/`. Load via `skill` tool when coding.
+
+| Skill | When to use |
+|-------|-------------|
+| `flutter-add-widget-test` | Viết component test với WidgetTester |
+| `flutter-add-integration-test` | Viết integration test, automate user flow |
+| `flutter-add-widget-preview` | Preview widget để test UI tương tác |
+| `flutter-apply-architecture-best-practices` | Refactor/new project theo layered architecture |
+| `flutter-build-responsive-layout` | Layout thích ứng mobile/tablet/desktop |
+| `flutter-fix-layout-issues` | Sửa lỗi overflow, unbounded constraints |
+| `flutter-implement-json-serialization` | Tạo fromJson/toJson thủ công |
+| `flutter-setup-declarative-routing` | Setup go_router, deep linking |
+| `flutter-setup-localization` | Đa ngôn ngữ với intl |
+| `flutter-use-http-package` | Gọi REST API với package:http |
