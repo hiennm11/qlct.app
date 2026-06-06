@@ -37,6 +37,7 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 | **Chọn nhiều** | Multi-select / Select mode | Long press row → vào chế độ chọn (checkbox + bottom action bar). Hỗ trợ bulk delete (confirm + undo) và bulk export CSV. State lưu trong widget (`Set<String> _selectedIds`) |
 | **Lọc theo khoảng ngày** | `DateRangeFilter` | `ExpenseViewModel.setDateRangeFilter(start, end)`. Mutual exclusive với single-date filter. Dùng cho Stats tap-through "Tuần này" / "Tháng này" |
 | **Xuất theo ngữ cảnh** | Context-aware export | Gear menu tự động hiển thị "Xuất kết quả lọc (N mục)" khi có filter/search, hoặc "Xuất tất cả (N mục)" khi không |
+| **Phân tích nội bộ** | `AnalyticsService` | Singleton đếm event sử dụng app (local-only): app_open, transaction_added, voice_used, backup_created, error_caught, v.v. Ring buffer 500 events. Export JSON |
 
 ## Architecture
 
@@ -53,14 +54,14 @@ Storage: SQLite (sqflite) — transactions, budgets, recurring_transactions tabl
 lib/
 ├── core/           — Constants, theme, formatters, Vietnamese number parser
 ├── data/
-│   ├── database/   — DatabaseHelper (SQLite connection, version 3, migration)
+│   ├── database/   — DatabaseHelper (SQLite connection, version 6, migration, runInTransaction)
 │   ├── datasources/— TransactionLocalDataSource, BudgetLocalDataSource,
 │   │                 RecurringLocalDataSource (abstract); sqlite impls
-│   └── migrations/ — One-time SharedPreferences → SQLite data import
+│   └── migrations/ — One-time SharedPreferences → SQLite data import (atomic via transaction)
 ├── models/         — Transaction, Category, ExpenseStats, Budget,
-│                     BudgetStatus, RecurringTransaction (Freezed)
+│                     BudgetStatus, RecurringTransaction, BackupData (Freezed)
 ├── services/       — StorageService (settings only), ExportService, VoiceInputService,
-│                     BackupService (backup/restore full flow)
+│                     BackupService (backup/restore atomic), AnalyticsService (local events)
 ├── repositories/   — TransactionRepository, BudgetRepository,
 │                     RecurringRepository (abstract + impl)
 ├── viewmodels/     — ExpenseViewModel, BudgetViewModel,
@@ -71,7 +72,7 @@ lib/
 │                     QuickVoiceButton, BudgetOverviewWidget,
 │                     RecurringOverviewWidget, RecurringEditDialog,
 │                     RecurringListSheet, TransactionEditDialog
-└── main.dart       — DI wiring: 4 Provider + 1 ProxyProvider
+└── main.dart       — DI wiring: 4 Provider + 1 ProxyProvider + Sentry init
 ```
 
 ### Data Flow
@@ -94,12 +95,14 @@ Recurring (cold start) → RecurringTransactionViewModel.checkAndGenerate()
 Backup → BackupViewModel.createBackup()
   → BackupService.createBackup()
     → 3 repo.getAll() + StorageService.loadValue('total_budget')
-    → BackupData → exportToJson → share via share_plus
+    → BackupData → exportToJson (compact) → share via share_plus
 
 Restore → BackupViewModel.importAndRestore(mode)
-  → BackupService.pickBackupFile() → validate(json)
+  → BackupService.pickBackupFile() → size guard (50MB)
+  → BackupService.validate(json)
   → BackupService.restore(BackupData, mode)
-    → merge: skip duplicate IDs / replace: clearAll → bulkInsert
+    → atomic via DatabaseHelper.runInTransaction()
+    → merge: INSERT OR IGNORE / replace: DELETE + INSERT
     → StorageService.saveValue('total_budget', ...)
   → ExpenseVM.refresh() + BudgetVM.forceReload() + RecurringVM.forceReload()
 ```
@@ -118,13 +121,14 @@ Restore → BackupViewModel.importAndRestore(mode)
 10. **Deferred initial load** — `ExpenseViewModel` uses `Future.microtask` to defer `_loadTransactions`. Prevents `notifyListeners` during widget build phase.
 11. **Voice per-category vs standalone** — `QuickInputWidget._CategoryCard` has its own voice flow (mic icon per card). `CustomInputWidget` has separate mic FAB. `QuickVoiceButton` provides standalone voice input via `ElevatedButton.icon` on HomeScreen. All three use `VoiceInputModal`.
 12. **Unified voice category detection** — ADR-0002: Both `QuickVoiceButton` and `CustomInputWidget` detect category by iterating `Category.predefined` and matching against `cat.phrases`.
-13. **One-time SharedPreferences migration** — ADR-0004: On first launch after upgrade, existing transactions migrate from SharedPreferences JSON to SQLite. Flag `migrated_to_sqlite_v1` prevents re-run.
+13. **One-time SharedPreferences migration** — ADR-0004: On first launch after upgrade, existing transactions migrate from SharedPreferences JSON to SQLite. Atomic via `DatabaseHelper.runInTransaction()`. Flag `migrated_to_sqlite_v1` prevents re-run. ADR-0010 hardened: per-row error handling, backup before delete, INSERT OR IGNORE for retry safety.
 14. **Multi-ViewModel with ProxyProvider** — ADR-0005: `BudgetViewModel` tách riêng khỏi `ExpenseViewModel`. Giao tiếp cross-VM qua `ProxyProvider<ExpenseViewModel, BudgetViewModel>` để tự động sync `categoryTotals` → budget status.
 15. **Number formatting on input** — `ThousandSeparatorFormatter` (custom `TextInputFormatter`) formats digits with `.` thousand separators in real-time. Applied to all dialogs (BudgetEdit, BudgetBulkEdit, RecurringEdit) and `CustomInputWidget` amount field. Raw digits stored in DB, formatting is UI-only.
 16. **Recurring transactions** — ADR-0006: `RecurringTransaction` model + `RecurringTransactionViewModel`. Generate trigger: cold start (`HomeScreen.initState`). Duplicate prevention: 2-layer (primary: `nextRunAt` always advances; safety net: `sourceRecurringId` on transaction). Catch-up: only 1 transaction generated, no backfill. Frequency: daily/weekly/monthly via Duration-based calculation. No ProxyProvider cross-VM (VM queries `TransactionRepository` directly to avoid circular loop).
-17. **Backup & Restore** — ADR-0007: JSON schema versioned (v1) with all 3 domains + totalBudget. `BackupService` handles full flow: create → export → share, validate → import → restore. 2 modes: merge (skip duplicate UUIDs) and replace (clear all + bulk insert). `BackupViewModel` manages state. UI via `BackupRestoreScreen` (gear icon on HomeScreen). Uses `file_picker` (import) + `share_plus` (export). Bulk insert via `db.batch()` for performance. Hidden sample data generator behind `kDebugMode`.
+17. **Backup & Restore** — ADR-0007: JSON schema versioned (v1) with all 3 domains + totalBudget. `BackupService` handles full flow. 2 modes: merge (INSERT OR IGNORE via SQL) and replace (atomic: delete all + insert all in 1 transaction). ADR-0010 hardened: compact JSON, 50MB file size guard, O(1) merge memory.
 18. **UI/UX Pass** — ADR-0008: HomeScreen reorder (QuickAdd → Budget → Transactions → Stats/Chart → Recurring). QuickAddBar gộp 3 input methods. Gear menu (PopupMenuButton) thay AppBar actions. Pull-to-refresh thay refresh icon. Undo 5s cho destructive deletes. Tap-through: Stats/Budget card → filter + scroll. Empty states + loading skeletons. Transaction edit dialog + full update stack. RecurringListSheet fix bug "Xem thêm". Formatter/color palette unification. Deprecated API migration (PopScope, withValues).
 19. **Search, Detail, Bulk Actions** — ADR-0009. Search dùng SQL `LIKE` (không FTS5 — Android không hỗ trợ, lỗi `no such module: fts5`). TransactionDetailSheet (read-only bottom sheet) + TransactionEditDialog 2-layer flow. Recurring badge (🔄 icon) cho giao dịch có `sourceRecurringId`. Multi-select qua long press (checkbox + bottom action bar). Bulk delete (confirm + undo) và bulk export CSV. Context-aware gear menu label (dynamic count). Stats tap-through dùng `setDateRangeFilter`. DB v6 — cleanup FTS5 table từ migration thất bại. Widget add flow có `await` + error display (snackbar đỏ).
+20. **Release Hardening** — ADR-0010: Migration atomic via `DatabaseHelper.runInTransaction()`, per-row corrupt skip, SharedPreferences backup before clear. Restore atomic (replace in 1 transaction), merge via INSERT OR IGNORE (O(1) memory). Compact JSON backup. 50MB import guard. Sentry crash reporting (`sentry_flutter`) with env-var DSN config. Internal analytics (`AnalyticsService`) — local counter + ring buffer. Fallback UI no longer leaks stack trace. Release checklist (`RELEASE_CHECKLIST.md`).
 
 ## Dependencies
 
@@ -145,13 +149,14 @@ Restore → BackupViewModel.importAndRestore(mode)
 | `path_provider: ^2.1.2` | File path for exports |
 | `file_picker: ^8.0.0` | File picker for import backup |
 | `share_plus: ^10.0.0` | System share sheet for export |
+| `sentry_flutter: ^8.13.0` | Crash reporting (production) |
 
 ## Known Issues
 
 - ~~`QuickVoiceButton` commented out (`// const QuickVoiceButton(),`). Detection logic uses wrong category names.~~ ✅ Fixed ADR-0002 — unified voice detection uses `Category.phrases`, widget uncommented, changed from FAB to `ElevatedButton.icon`.
 - ~~`transaction_list_widget.dart:190` has `Row` inside `DropdownMenuItem` without width constraint → runtime layout error.~~ ✅ Verified: no Row at that location. Row overflow risk in `custom_input_widget.dart:195` fixed with `Flexible` + `TextOverflow.ellipsis`.
 - ~~`transaction_list_widget.dart:228` — `List transactions` uses dynamic type, not `List<Transaction>`.~~ ✅ Fixed — typed as `List<Transaction>`.
-- ~~Only 1 test file (`widget_test.dart`). Zero unit/integration tests for VM, repo, services.~~ ✅ Fixed — 249 tests total: model tests (Transaction, Category, Budget, BudgetStatus, RecurringTransaction, BackupData), datasource tests (SQLite Transaction, Budget, Recurring), repository tests (Transaction, Budget, Recurring impl), ViewModel tests (Expense, Budget, Recurring, Backup), service tests (VietnameseNumberParser, BackupService), widget tests (App, BudgetEdit, RecurringEdit, RecurringOverview, VoiceInputModal), integration tests (Recurring).
+- ~~Only 1 test file (`widget_test.dart`). Zero unit/integration tests for VM, repo, services.~~ ✅ Fixed — 317 tests total: model tests, datasource tests, repository tests, ViewModel tests, service tests, widget tests, integration tests.
 - `CustomInputWidget` uses `DropdownButtonFormField` with `initialValue` — Flutter 3.38 deprecated `value` (not `initialValue`). No action needed.
 - `VietnameseNumberParser` has known bugs: "mươi" treated as digit 10 instead of ×10 multiplier; `extractAmount` doesn't combine numeric + scale words (e.g. "50 ngàn" → 50 not 50000). ~~Documented in parser tests.~~ ✅ Fixed ADR-0003 — "mươi"/"mười" removed from `_numberMap`, lastDigit tracking added, `_parseNumericWithScales` for numeric+scale combination. Added dialect variants (lăm, nhăm, tư). 20 tests pass.
 - `ExpenseViewModel` uses `Future.microtask` for initial load to avoid mid-build `notifyListeners`. Slight UX delay on cold start (sub-frame, invisible).
@@ -166,6 +171,13 @@ Restore → BackupViewModel.importAndRestore(mode)
 - ~~Deprecated APIs: `WillPopScope` + `withOpacity` trong voice_input_modal.dart.~~ ✅ Fixed ADR-0008 — PopScope + withValues.
 - ~~Color palette (11 màu category) bị duplicate trong chart_widget.dart.~~ ✅ Fixed ADR-0008 — AppColors.categoryColors tập trung.
 - ~~ThousandSeparatorFormatter bị duplicate `_formatNumber`/`_parseNumber` trong budget_edit_dialog và recurring_edit_dialog.~~ ✅ Fixed ADR-0008 — xoá local helper, dùng formatter từ core.
+- ~~Migration (SharedPreferences→SQLite) không atomic — fail giữa chừng mất data vĩnh viễn.~~ ✅ Fixed ADR-0010 — wrap trong `DatabaseHelper.runInTransaction()`, flag set sau commit, INSERT OR IGNORE cho retry.
+- ~~Restore replace không atomic — delete từng dòng rồi bulk insert, fail giữa chừng để DB half-empty.~~ ✅ Fixed ADR-0010 — wrap trong transaction, all-or-nothing.
+- ~~Restore merge O(N) memory — load toàn bộ IDs vào Set.~~ ✅ Fixed ADR-0010 — INSERT OR IGNORE via SQL PRIMARY KEY constraint.
+- ~~Zero crash reporting trong production.~~ ✅ Fixed ADR-0010 — `sentry_flutter` với DSN từ environment variable.
+- ~~Fallback UI leak stack trace.~~ ✅ Fixed ADR-0010 — hiển thị message thân thiện, không lộ thông tin.
+- ~~JSON backup pretty-printed tốn gấp đôi dung lượng.~~ ✅ Fixed ADR-0010 — compact `JsonEncoder()`.
+- ~~Không có file size guard khi import backup.~~ ✅ Fixed ADR-0010 — reject file >50MB.
 
 ## Build
 
@@ -173,5 +185,9 @@ Restore → BackupViewModel.importAndRestore(mode)
 flutter pub get
 flutter pub run build_runner build --delete-conflicting-outputs
 flutter run
-flutter build apk --release
+flutter build apk --release --dart-define=SENTRY_DSN=$env:SENTRY_DSN
 ```
+
+## Release
+
+See `RELEASE_CHECKLIST.md` for full pre-release verification checklist.

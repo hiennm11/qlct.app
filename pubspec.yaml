@@ -56,7 +56,10 @@ dependencies:
   csv: ^6.0.0
   file_picker: ^8.0.0
   share_plus: ^10.0.0
-  
+
+  # Crash reporting
+  sentry_flutter: ^8.13.0
+
 # Immutable models
   freezed_annotation: ^2.4.1
   json_annotation: ^4.8.1

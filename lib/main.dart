@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/theme.dart';
@@ -29,98 +30,117 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    debugPrint('🚀 Initializing app...');
-
-    // Initialize dependencies
-    debugPrint('📦 Getting SharedPreferences...');
-    final prefs = await SharedPreferences.getInstance();
-    debugPrint('✅ SharedPreferences initialized');
-
-    // Initialize StorageService for SharedPreferences
-    final storageService = StorageService(prefs);
-
-    debugPrint('💾 Setting up database...');
-    final dbHelper = DatabaseHelper();
-    final dataSource = SqliteTransactionDataSource(dbHelper);
-    debugPrint('✅ Database ready');
-
-    debugPrint('🔄 Running migration...');
-    final migrationService = MigrationService(dataSource);
-    await migrationService.migrate();
-    debugPrint('✅ Migration done');
-
-    debugPrint('📤 Setting up export service...');
-    final exportService = ExportService();
-    debugPrint('✅ Export service ready');
-
-    debugPrint('💾 Setting up repository...');
-    final TransactionRepository repository = TransactionRepositoryImpl(dataSource);
-    debugPrint('✅ Repository ready');
-
-    debugPrint('💰 Setting up budget repository...');
-    final BudgetLocalDataSource budgetDataSource = SqliteBudgetDataSource(dbHelper);
-    final BudgetRepository budgetRepository = BudgetRepositoryImpl(budgetDataSource);
-    debugPrint('✅ Budget repository ready');
-
-    debugPrint('🔄 Setting up recurring repository...');
-    final RecurringLocalDataSource recurringDataSource = SqliteRecurringDataSource(dbHelper);
-    final RecurringRepository recurringRepository = RecurringRepositoryImpl(recurringDataSource);
-    debugPrint('✅ Recurring repository ready');
-
-    debugPrint('📦 Setting up backup service...');
-    final backupService = BackupService(
-      repository,
-      budgetRepository,
-      recurringRepository,
-      storageService,
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+        if (options.dsn?.isEmpty ?? true) {
+          debugPrint('⚠️ SENTRY_DSN not set — crash reporting disabled');
+          return;
+        }
+        options.tracesSampleRate = 0.1;
+        options.attachScreenshot = false;
+        options.sendDefaultPii = false;
+        options.diagnosticLevel = SentryLevel.warning;
+      },
+      appRunner: () {
+        _initApp();
+      },
     );
-    debugPrint('✅ Backup service ready');
-
-    debugPrint('Starting app...');
-    runApp(MyApp(
-      repository: repository,
-      budgetRepository: budgetRepository,
-      recurringRepository: recurringRepository,
-      exportService: exportService,
-      storageService: storageService,
-      backupService: backupService,
-    ));
   } catch (e, stackTrace) {
     debugPrint('❌ Error during initialization: $e');
     debugPrint('📍 Stack trace: $stackTrace');
-    
-    // Fallback if initialization fails
-    runApp(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    '❌ Error Initializing App',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    e.toString(),
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Stack: $stackTrace',
-                    style: const TextStyle(fontSize: 10),
-                  ),
-                ],
+    runApp(_buildErrorApp());
+  }
+}
+
+Future<void> _initApp() async {
+  debugPrint('🚀 Initializing app...');
+
+  // Initialize dependencies
+  debugPrint('📦 Getting SharedPreferences...');
+  final prefs = await SharedPreferences.getInstance();
+  debugPrint('✅ SharedPreferences initialized');
+
+  // Initialize StorageService for SharedPreferences
+  final storageService = StorageService(prefs);
+
+  debugPrint('💾 Setting up database...');
+  final dbHelper = DatabaseHelper();
+  final dataSource = SqliteTransactionDataSource(dbHelper);
+  debugPrint('✅ Database ready');
+
+  debugPrint('🔄 Running migration...');
+  final migrationService = MigrationService(dbHelper);
+  await migrationService.migrate();
+  debugPrint('✅ Migration done');
+
+  debugPrint('📤 Setting up export service...');
+  final exportService = ExportService();
+  debugPrint('✅ Export service ready');
+
+  debugPrint('💾 Setting up repository...');
+  final TransactionRepository repository = TransactionRepositoryImpl(dataSource);
+  debugPrint('✅ Repository ready');
+
+  debugPrint('💰 Setting up budget repository...');
+  final BudgetLocalDataSource budgetDataSource = SqliteBudgetDataSource(dbHelper);
+  final BudgetRepository budgetRepository = BudgetRepositoryImpl(budgetDataSource);
+  debugPrint('✅ Budget repository ready');
+
+  debugPrint('🔄 Setting up recurring repository...');
+  final RecurringLocalDataSource recurringDataSource = SqliteRecurringDataSource(dbHelper);
+  final RecurringRepository recurringRepository = RecurringRepositoryImpl(recurringDataSource);
+  debugPrint('✅ Recurring repository ready');
+
+  debugPrint('📦 Setting up backup service...');
+  final backupService = BackupService(
+    repository,
+    budgetRepository,
+    recurringRepository,
+    storageService,
+    dbHelper,
+  );
+  debugPrint('✅ Backup service ready');
+
+  debugPrint('Starting app...');
+  runApp(MyApp(
+    repository: repository,
+    budgetRepository: budgetRepository,
+    recurringRepository: recurringRepository,
+    exportService: exportService,
+    storageService: storageService,
+    backupService: backupService,
+  ));
+}
+
+Widget _buildErrorApp() {
+  return MaterialApp(
+    home: Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                'Ứng dụng gặp lỗi khi khởi động.',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
               ),
-            ),
+              const SizedBox(height: 8),
+              const Text(
+                'Vui lòng thử khởi động lại ứng dụng.',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

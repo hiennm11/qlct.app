@@ -6,9 +6,11 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:sqflite/sqflite.dart' hide Transaction;
 import 'package:uuid/uuid.dart';
 
 import '../core/constants.dart';
+import '../data/database/database_helper.dart';
 import '../models/backup_data.dart';
 import '../models/transaction.dart';
 import '../models/budget.dart';
@@ -17,6 +19,15 @@ import '../repositories/transaction_repository.dart';
 import '../repositories/budget_repository.dart';
 import '../repositories/recurring_repository.dart';
 import 'storage_service.dart';
+
+/// Thrown by [BackupService.pickBackupFile] when the selected file exceeds
+/// the 50MB import limit. Surfaces a user-friendly error to the viewmodel.
+class FileTooLargeException implements Exception {
+  final String message;
+  const FileTooLargeException(this.message);
+  @override
+  String toString() => message;
+}
 
 /// Result of import validation
 class ImportResult {
@@ -59,12 +70,14 @@ class BackupService {
   final BudgetRepository _budgetRepo;
   final RecurringRepository _recurringRepo;
   final StorageService _storageService;
+  final DatabaseHelper _dbHelper;
 
   BackupService(
     this._transactionRepo,
     this._budgetRepo,
     this._recurringRepo,
     this._storageService,
+    this._dbHelper,
   );
 
   /// Create a full backup payload from current app state
@@ -101,8 +114,7 @@ class BackupService {
 
   /// Export backup data to a JSON file
   Future<File> exportToJson(BackupData data) async {
-    final jsonString =
-        const JsonEncoder.withIndent('  ').convert(_toJsonMap(data));
+    final jsonString = const JsonEncoder().convert(_toJsonMap(data));
     final directory = await getApplicationDocumentsDirectory();
     final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final fileName = 'qlct-backup-$dateStr.json';
@@ -134,7 +146,21 @@ class BackupService {
       allowedExtensions: ['json'],
     );
     if (result == null || result.files.isEmpty) return null;
-    return File(result.files.single.path!);
+
+    final file = File(result.files.single.path!);
+
+    // Guard: max 50MB. A malicious or accidental oversized JSON would otherwise
+    // be fully read into memory and could OOM the app.
+    const maxSize = 50 * 1024 * 1024;
+    final size = await file.length();
+    if (size > maxSize) {
+      throw FileTooLargeException(
+        'File quá lớn (${(size / 1024 / 1024).toStringAsFixed(1)}MB). '
+        'Giới hạn tối đa: 50MB.',
+      );
+    }
+
+    return file;
   }
 
   /// Validate a backup JSON string
@@ -198,100 +224,111 @@ class BackupService {
   }
 
   /// Restore data from a BackupData payload
-  /// [mode] determines merge or replace behavior
+  /// [mode] determines merge or replace behavior.
+  ///
+  /// Replace mode is fully atomic: all DELETEs and INSERTs happen in one
+  /// SQLite transaction. If any insert fails the entire operation rolls back.
+  ///
+  /// Merge mode uses INSERT OR IGNORE so existing rows (by PRIMARY KEY) are
+  /// skipped without loading any IDs into Dart memory.
   Future<RestoreResult> restore(BackupData data, RestoreMode mode) async {
     try {
-      if (mode == RestoreMode.replace) {
-        // Replace: clear all then insert
-        await _transactionRepo.clearAll();
-
-        // Delete all recurrings individually (no clearAll/deleteAll on this repo)
-        final existingRecurrings = await _recurringRepo.getAll();
-        for (final r in existingRecurrings) {
-          await _recurringRepo.delete(r.id);
-        }
-
-        // For budgets, delete one by one via getAll
-        final existingBudgets = await _budgetRepo.getAll();
-        for (final b in existingBudgets) {
-          await _budgetRepo.delete(b.id);
-        }
-      }
-
-      // Prepare lists
       final transactions = data.transactions;
       final budgets = data.budgets;
       final recurrings = data.recurringTransactions;
 
-      int txImported = 0;
-      int bImported = 0;
-      int rImported = 0;
-
-      if (mode == RestoreMode.merge) {
-        // Merge: only insert records with new IDs
-        final existingTxIds = (await _transactionRepo.getAll())
-            .map((t) => t.id)
-            .toSet();
-        final existingBIds =
-            (await _budgetRepo.getAll()).map((b) => b.id).toSet();
-        final existingRIds = (await _recurringRepo.getAll())
-            .map((r) => r.id)
-            .toSet();
-
-        final newTransactions =
-            transactions.where((t) => !existingTxIds.contains(t.id)).toList();
-        final newBudgets =
-            budgets.where((b) => !existingBIds.contains(b.id)).toList();
-        final newRecurrings =
-            recurrings.where((r) => !existingRIds.contains(r.id)).toList();
-
-        if (newTransactions.isNotEmpty) {
-          await _transactionRepo.bulkAdd(newTransactions);
+      return await _dbHelper.runInTransaction((txn) async {
+        if (mode == RestoreMode.replace) {
+          // Atomic clear: delete all within the same transaction as the inserts.
+          // If the insert phase fails, this delete is also rolled back.
+          await txn.delete('transactions');
+          await txn.delete('budgets');
+          await txn.delete('recurring_transactions');
         }
-        txImported = newTransactions.length;
 
-        if (newBudgets.isNotEmpty) {
-          await _budgetRepo.bulkUpsert(newBudgets);
-        }
-        bImported = newBudgets.length;
+        int txImported = 0;
+        int bImported = 0;
+        int rImported = 0;
 
-        if (newRecurrings.isNotEmpty) {
-          await _recurringRepo.bulkInsert(newRecurrings);
-        }
-        rImported = newRecurrings.length;
+        if (mode == RestoreMode.merge) {
+          // Use INSERT OR IGNORE — SQLite PRIMARY KEY constraint handles
+          // deduplication. No O(N) Dart-side ID loading.
+          if (transactions.isNotEmpty) {
+            final batch = txn.batch();
+            for (final t in transactions) {
+              batch.insert('transactions', _transactionToMap(t),
+                  conflictAlgorithm: ConflictAlgorithm.ignore);
+            }
+            final results = await batch.commit(noResult: false);
+            txImported = results.whereType<int>().where((r) => r > 0).length;
+          }
 
-        // Only overwrite totalBudget if it's currently 0
-        if (_storageService.loadValue<int>('total_budget') == 0 ||
-            _storageService.loadValue<int>('total_budget') == null) {
+          if (budgets.isNotEmpty) {
+            final batch = txn.batch();
+            for (final b in budgets) {
+              batch.insert('budgets', _budgetToMap(b),
+                  conflictAlgorithm: ConflictAlgorithm.ignore);
+            }
+            final results = await batch.commit(noResult: false);
+            bImported = results.whereType<int>().where((r) => r > 0).length;
+          }
+
+          if (recurrings.isNotEmpty) {
+            final batch = txn.batch();
+            for (final r in recurrings) {
+              batch.insert('recurring_transactions', _recurringToMap(r),
+                  conflictAlgorithm: ConflictAlgorithm.ignore);
+            }
+            final results = await batch.commit(noResult: false);
+            rImported = results.whereType<int>().where((r) => r > 0).length;
+          }
+
+          // Only overwrite totalBudget if currently 0 or null
+          if (_storageService.loadValue<int>('total_budget') == 0 ||
+              _storageService.loadValue<int>('total_budget') == null) {
+            _storageService.saveValue('total_budget', data.totalBudget);
+          }
+        } else {
+          // Replace mode: insert everything (table already cleared above).
+          if (transactions.isNotEmpty) {
+            final batch = txn.batch();
+            for (final t in transactions) {
+              batch.insert('transactions', _transactionToMap(t));
+            }
+            await batch.commit(noResult: true);
+            txImported = transactions.length;
+          }
+
+          if (budgets.isNotEmpty) {
+            final batch = txn.batch();
+            for (final b in budgets) {
+              batch.insert('budgets', _budgetToMap(b));
+            }
+            await batch.commit(noResult: true);
+            bImported = budgets.length;
+          }
+
+          if (recurrings.isNotEmpty) {
+            final batch = txn.batch();
+            for (final r in recurrings) {
+              batch.insert('recurring_transactions', _recurringToMap(r));
+            }
+            await batch.commit(noResult: true);
+            rImported = recurrings.length;
+          }
+
           _storageService.saveValue('total_budget', data.totalBudget);
         }
-      } else {
-        // Replace mode: insert everything
-        if (transactions.isNotEmpty) {
-          await _transactionRepo.bulkAdd(transactions);
-        }
-        txImported = transactions.length;
 
-        if (budgets.isNotEmpty) {
-          await _budgetRepo.bulkUpsert(budgets);
-        }
-        bImported = budgets.length;
-
-        if (recurrings.isNotEmpty) {
-          await _recurringRepo.bulkInsert(recurrings);
-        }
-        rImported = recurrings.length;
-
-        // Overwrite totalBudget
-        _storageService.saveValue('total_budget', data.totalBudget);
-      }
-
-      return RestoreResult(
-        success: true,
-        transactionsImported: txImported,
-        budgetsImported: bImported,
-        recurringsImported: rImported,
-      );
+        return RestoreResult(
+          success: true,
+          transactionsImported: txImported,
+          budgetsImported: bImported,
+          recurringsImported: rImported,
+        );
+      });
+    } on FileTooLargeException {
+      rethrow;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
       return RestoreResult(
@@ -397,5 +434,49 @@ class BackupService {
       budgets: budgets,
       recurringTransactions: recurrings,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Row-to-map helpers — mirror the schema defined in DatabaseHelper.
+  // Transactions table: date=TEXT(ISO), created_at=INTEGER(ms)
+  // Budgets table:      created_at=INTEGER(ms)
+  // Recurring table:    next_run_at=TEXT(ISO), is_active=INTEGER(0/1),
+  //                     created_at=TEXT(ISO) — NOT millisecondsSinceEpoch.
+  // -------------------------------------------------------------------------
+
+  Map<String, dynamic> _transactionToMap(Transaction t) {
+    return {
+      'id': t.id,
+      'amount': t.amount,
+      'category': t.category,
+      'emoji': t.emoji,
+      'date': t.date.toIso8601String(),
+      'note': t.note,
+      'source_recurring_id': t.sourceRecurringId,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    };
+  }
+
+  Map<String, dynamic> _budgetToMap(Budget b) {
+    return {
+      'id': b.id,
+      'category_name': b.categoryName,
+      'monthly_limit': b.monthlyLimit,
+      'alert_threshold': b.alertThreshold,
+      'created_at': b.createdAt.millisecondsSinceEpoch,
+    };
+  }
+
+  Map<String, dynamic> _recurringToMap(RecurringTransaction r) {
+    return {
+      'id': r.id,
+      'category_name': r.categoryName,
+      'amount': r.amount,
+      'note': r.note,
+      'frequency': r.frequency,
+      'next_run_at': r.nextRunAt.toIso8601String(),
+      'is_active': r.isActive ? 1 : 0,
+      'created_at': r.createdAt.toIso8601String(),
+    };
   }
 }

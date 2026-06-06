@@ -1,16 +1,17 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../datasources/transaction_local_datasource.dart';
+import 'package:sqflite/sqflite.dart' hide Transaction;
+import '../database/database_helper.dart';
 import '../../models/transaction.dart';
 import '../../core/constants.dart';
 
 class MigrationService {
   static const _migrationFlag = 'migrated_to_sqlite_v1';
 
-  final TransactionLocalDataSource _dataSource;
+  final DatabaseHelper _dbHelper;
 
-  MigrationService(this._dataSource);
+  MigrationService(this._dbHelper);
 
   Future<void> migrate() async {
     final prefs = await SharedPreferences.getInstance();
@@ -23,37 +24,89 @@ class MigrationService {
       return;
     }
 
+    final transactions = _parseOldTransactions(jsonString);
+    if (transactions.isEmpty) {
+      // All rows corrupt — nothing to migrate, set flag to prevent retry loop
+      debugPrint(
+          '⚠️ Migration: no valid transactions parsed, setting flag');
+      await prefs.setBool(_migrationFlag, true);
+      return;
+    }
+
     try {
-      final transactions = _parseOldTransactions(jsonString);
+      await _dbHelper.runInTransaction((txn) async {
+        for (final t in transactions) {
+          await txn.insert(
+            'transactions',
+            _toMap(t),
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+      });
 
-      for (final t in transactions) {
-        await _dataSource.add(t);
-      }
+      // Backup old data before clearing
+      await prefs.setString(
+          '${AppConstants.transactionsKey}_backup_v1', jsonString);
 
+      // Only set flag AFTER successful transaction commit
       await prefs.setBool(_migrationFlag, true);
       await prefs.remove(AppConstants.transactionsKey);
 
-      debugPrint('✅ Migrated ${transactions.length} transactions from SharedPreferences to SQLite');
-    } catch (e) {
+      debugPrint(
+          '✅ Migrated ${transactions.length} transactions from SharedPreferences to SQLite');
+    } catch (e, stack) {
       debugPrint('❌ Migration failed: $e');
+      debugPrint('📍 Stack: $stack');
+      // Do NOT set flag — retry on next launch
+      rethrow;
     }
   }
 
-  /// Parse old JSON format. Old format: jsonEncode of List of Map String,dynamic
-  /// where each map has string keys matching old Transaction fields (id: int, etc.)
-  /// Old ID was int, new ID is String — convert toString()
+  /// Parse old JSON format with per-row error handling.
+  /// Skips corrupt rows instead of failing the entire migration.
   List<Transaction> _parseOldTransactions(String jsonString) {
-    final List<dynamic> decoded = jsonDecode(jsonString) as List<dynamic>;
-    return decoded.map((item) {
-      final map = item as Map<String, dynamic>;
-      return Transaction(
-        id: map['id'].toString(),
-        amount: (map['amount'] as num).toInt(),
-        category: map['category'] as String,
-        emoji: (map['emoji'] ?? '') as String,
-        date: DateTime.parse(map['date'] as String),
-        note: (map['note'] ?? '') as String,
-      );
-    }).toList();
+    try {
+      final List<dynamic> decoded = jsonDecode(jsonString) as List<dynamic>;
+      final result = <Transaction>[];
+      int skipped = 0;
+
+      for (int i = 0; i < decoded.length; i++) {
+        try {
+          final map = decoded[i] as Map<String, dynamic>;
+          result.add(Transaction(
+            id: map['id'].toString(),
+            amount: (map['amount'] as num).toInt(),
+            category: map['category'] as String,
+            emoji: (map['emoji'] ?? '') as String,
+            date: DateTime.parse(map['date'] as String),
+            note: (map['note'] ?? '') as String,
+          ));
+        } catch (e) {
+          skipped++;
+          debugPrint('⚠️ Migration: skipping corrupt row #$i: $e');
+        }
+      }
+
+      if (skipped > 0) {
+        debugPrint(
+            '⚠️ Migration: skipped $skipped corrupt rows out of ${decoded.length}');
+      }
+      return result;
+    } on FormatException catch (e) {
+      debugPrint('❌ Migration: invalid JSON — $e');
+      return [];
+    }
+  }
+
+  Map<String, dynamic> _toMap(Transaction t) {
+    return {
+      'id': t.id,
+      'amount': t.amount,
+      'category': t.category,
+      'emoji': t.emoji,
+      'date': t.date.toIso8601String(),
+      'note': t.note,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    };
   }
 }

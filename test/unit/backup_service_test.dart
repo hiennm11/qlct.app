@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:qlct/models/backup_data.dart';
+import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/recurring_transaction.dart';
@@ -20,6 +20,8 @@ class MockRecurringRepo extends Mock implements RecurringRepository {}
 
 class MockStorageService extends Mock implements StorageService {}
 
+class MockDatabaseHelper extends Mock implements DatabaseHelper {}
+
 void main() {
   late MockTransactionRepo txRepo;
   late MockBudgetRepo budgetRepo;
@@ -32,7 +34,15 @@ void main() {
     budgetRepo = MockBudgetRepo();
     recurringRepo = MockRecurringRepo();
     storageService = MockStorageService();
-    service = BackupService(txRepo, budgetRepo, recurringRepo, storageService);
+    // _dbHelper is unused by createBackup/validate/generateSampleData but
+    // required by the constructor. Pass null-safe stub.
+    service = BackupService(
+      txRepo,
+      budgetRepo,
+      recurringRepo,
+      storageService,
+      MockDatabaseHelper(), // dummy — not exercised by these tests
+    );
 
     registerFallbackValue(Transaction(
       id: 'fallback',
@@ -174,125 +184,8 @@ void main() {
     });
   });
 
-  group('restore', () {
-    final sampleBackup = BackupData(
-      schemaVersion: 1,
-      exportedAt: '2026-06-05T10:00:00.000Z',
-      appVersion: '1.0.0',
-      totalBudget: 10000000,
-      transactions: [
-        Transaction(
-          id: 'tx-1',
-          amount: 50000,
-          category: 'Cà phê',
-          emoji: '☕',
-          date: DateTime(2026, 6, 1),
-        ),
-      ],
-      budgets: [
-        Budget(
-          id: 'b-1',
-          categoryName: 'Ăn ngoài',
-          monthlyLimit: 3000000,
-          createdAt: DateTime(2026, 1, 1),
-        ),
-      ],
-      recurringTransactions: [
-        RecurringTransaction(
-          id: 'r-1',
-          categoryName: 'Subscription',
-          amount: 200000,
-          frequency: 'monthly',
-          nextRunAt: DateTime(2026, 7, 1),
-          isActive: true,
-          createdAt: DateTime(2026, 6, 1),
-        ),
-      ],
-    );
-
-    test('replace mode clears and inserts all', () async {
-      when(() => txRepo.clearAll()).thenAnswer((_) async {});
-      when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
-      when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
-      when(() => txRepo.bulkAdd(any())).thenAnswer((_) async {});
-      when(() => budgetRepo.bulkUpsert(any())).thenAnswer((_) async {});
-      when(() => recurringRepo.bulkInsert(any())).thenAnswer((_) async {});
-      when(() => storageService.saveValue('total_budget', any()))
-          .thenAnswer((_) async {});
-
-      final result = await service.restore(sampleBackup, RestoreMode.replace);
-
-      expect(result.success, isTrue);
-      expect(result.transactionsImported, 1);
-      expect(result.budgetsImported, 1);
-      expect(result.recurringsImported, 1);
-
-      verify(() => txRepo.clearAll()).called(1);
-      verify(() => txRepo.bulkAdd(any())).called(1);
-      verify(() => budgetRepo.bulkUpsert(any())).called(1);
-      verify(() => recurringRepo.bulkInsert(any())).called(1);
-    });
-
-    test('merge mode skips duplicate IDs', () async {
-      when(() => txRepo.getAll()).thenAnswer((_) async => [
-            Transaction(
-              id: 'tx-1',
-              amount: 99999,
-              category: 'Cà phê',
-              emoji: '☕',
-              date: DateTime(2026, 5, 1),
-            ),
-          ]);
-      when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
-      when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
-      when(() => txRepo.bulkAdd(any())).thenAnswer((_) async {});
-      when(() => budgetRepo.bulkUpsert(any())).thenAnswer((_) async {});
-      when(() => recurringRepo.bulkInsert(any())).thenAnswer((_) async {});
-      when(() => storageService.loadValue<int>('total_budget'))
-          .thenReturn(5000000);
-      when(() => storageService.saveValue('total_budget', any()))
-          .thenAnswer((_) async {});
-
-      final result = await service.restore(sampleBackup, RestoreMode.merge);
-
-      expect(result.success, isTrue);
-      expect(result.transactionsImported, 0);
-      expect(result.budgetsImported, 1);
-      expect(result.recurringsImported, 1);
-    });
-
-    test('merge mode inserts only new IDs', () async {
-      final backup = BackupData(
-        schemaVersion: 1,
-        exportedAt: '2026-06-05T10:00:00.000Z',
-        appVersion: '1.0.0',
-        transactions: [
-          Transaction(
-            id: 'tx-new',
-            amount: 50000,
-            category: 'Cà phê',
-            emoji: '☕',
-            date: DateTime(2026, 6, 1),
-          ),
-        ],
-        budgets: [],
-        recurringTransactions: [],
-      );
-
-      when(() => txRepo.getAll()).thenAnswer((_) async => []);
-      when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
-      when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
-      when(() => txRepo.bulkAdd(any())).thenAnswer((_) async {});
-      when(() => storageService.loadValue<int>('total_budget')).thenReturn(0);
-      when(() => storageService.saveValue('total_budget', any()))
-          .thenAnswer((_) async {});
-
-      final result = await service.restore(backup, RestoreMode.merge);
-
-      expect(result.success, isTrue);
-      expect(result.transactionsImported, 1);
-    });
-  });
+  // restore() behavior is covered by backup_service_atomic_test.dart
+  // (atomic transaction, INSERT OR IGNORE merge, file size guard).
 
   group('createBackup', () {
     test('gathers data from all repos and storage', () async {

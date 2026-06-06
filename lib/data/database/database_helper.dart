@@ -114,4 +114,9 @@ class DatabaseHelper {
     await _database?.close();
     _database = null;
   }
+
+  Future<T> runInTransaction<T>(Future<T> Function(Transaction txn) action) async {
+    final db = await database;
+    return db.transaction((txn) => action(txn));
+  }
 }
