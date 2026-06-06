@@ -64,7 +64,10 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn danh mục')),
+        const SnackBar(
+          content: Text('Vui lòng chọn danh mục'),
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }
@@ -72,7 +75,10 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
     final limit = int.tryParse(ThousandSeparatorFormatter.strip(_limitController.text)) ?? 0;
     if (limit <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hạn mức phải lớn hơn 0')),
+        const SnackBar(
+          content: Text('Hạn mức phải lớn hơn 0'),
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }

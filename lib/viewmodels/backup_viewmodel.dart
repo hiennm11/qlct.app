@@ -108,7 +108,7 @@ class BackupViewModel extends ChangeNotifier {
       _setSuccess('Đã sao lưu dữ liệu thành công');
     } catch (e, stack) {
       debugPrint('Backup error: $e\n$stack');
-      _setError('Lỗi khi sao lưu: $e');
+      _setError('Thao tác thất bại. Vui lòng thử lại.');
     }
   }
 
@@ -139,7 +139,7 @@ class BackupViewModel extends ChangeNotifier {
       return result;
     } catch (e, stack) {
       debugPrint('Preview error: $e\n$stack');
-      _setError('Lỗi khi đọc file: $e');
+      _setError('Thao tác thất bại. Vui lòng thử lại.');
       return null;
     }
   }
@@ -194,7 +194,7 @@ class BackupViewModel extends ChangeNotifier {
       pendingRecurringCount = null;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
-      _setError('Lỗi khi khôi phục: $e');
+      _setError('Thao tác thất bại. Vui lòng thử lại.');
     }
   }
 
@@ -227,7 +227,7 @@ class BackupViewModel extends ChangeNotifier {
       pendingRecurringCount = null;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
-      _setError('Lỗi khi khôi phục: $e');
+      _setError('Thao tác thất bại. Vui lòng thử lại.');
     }
   }
 
@@ -257,7 +257,7 @@ class BackupViewModel extends ChangeNotifier {
       );
     } catch (e, stack) {
       debugPrint('Sample data error: $e\n$stack');
-      _setError('Lỗi khi tạo dữ liệu mẫu: $e');
+      _setError('Thao tác thất bại. Vui lòng thử lại.');
     }
   }
 }

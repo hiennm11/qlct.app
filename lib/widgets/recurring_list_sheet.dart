@@ -77,6 +77,18 @@ class RecurringListSheet extends StatelessWidget {
                     return const Center(child: CircularProgressIndicator());
                   }
 
+                  if (vm.errorMessage != null)
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          '⚠️ ${vm.errorMessage}',
+                          style: const TextStyle(color: AppColors.error),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+
                   final rules = vm.recurrings;
 
                   if (rules.isEmpty) {

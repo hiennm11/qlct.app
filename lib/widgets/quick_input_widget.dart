@@ -104,11 +104,12 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                         }
                       } catch (e) {
                         if (!context.mounted) return;
+                        debugPrint('Error quick input add: $e');
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Lỗi: $e'),
+                            content: const Text('Không thể thực hiện thao tác. Vui lòng thử lại.'),
                             backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 2),
+                            duration: const Duration(seconds: 4),
                           ),
                         );
                       }
@@ -150,20 +151,20 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                           }
                         } catch (e) {
                           if (!context.mounted) return;
+                          debugPrint('Error quick input voice: $e');
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Lỗi: $e'),
+                              content: const Text('Không thể thực hiện thao tác. Vui lòng thử lại.'),
                               backgroundColor: Colors.red,
-                              duration: const Duration(seconds: 2),
+                              duration: const Duration(seconds: 4),
                             ),
                           );
                         }
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text(
-                              'Không thể nhận diện số tiền từ giọng nói',
-                            ),
+                            content: Text('Không thể nhận diện số tiền từ giọng nói'),
+                            duration: Duration(seconds: 3),
                           ),
                         );
                       }

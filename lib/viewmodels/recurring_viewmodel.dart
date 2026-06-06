@@ -37,7 +37,8 @@ class RecurringTransactionViewModel extends ChangeNotifier {
     try {
       _recurrings = await _recurringRepo.getAll();
     } catch (e) {
-      _errorMessage = 'Lỗi khi tải danh sách định kỳ: $e';
+      debugPrint('Error loading recurrings: $e');
+      _errorMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -95,7 +96,8 @@ class RecurringTransactionViewModel extends ChangeNotifier {
       // Reload rules (nextRunAt changed)
       await _loadRecurrings();
     } catch (e) {
-      _errorMessage = 'Lỗi khi sinh giao dịch định kỳ: $e';
+      debugPrint('Error checking and generating: $e');
+      _errorMessage = 'Không thể sinh giao dịch định kỳ. Vui lòng thử lại.';
     } finally {
       _isGenerating = false;
     }
@@ -136,7 +138,8 @@ class RecurringTransactionViewModel extends ChangeNotifier {
       await _recurringRepo.insert(rule);
       await _loadRecurrings();
     } catch (e) {
-      _errorMessage = 'Lỗi khi thêm định kỳ: $e';
+      debugPrint('Error adding recurring: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
     }
@@ -151,7 +154,8 @@ class RecurringTransactionViewModel extends ChangeNotifier {
       await _recurringRepo.update(updated);
       await _loadRecurrings();
     } catch (e) {
-      _errorMessage = 'Lỗi khi cập nhật định kỳ: $e';
+      debugPrint('Error updating recurring: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
     }
@@ -166,7 +170,8 @@ class RecurringTransactionViewModel extends ChangeNotifier {
       await _recurringRepo.delete(id);
       await _loadRecurrings();
     } catch (e) {
-      _errorMessage = 'Lỗi khi xóa định kỳ: $e';
+      debugPrint('Error deleting recurring: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
     }

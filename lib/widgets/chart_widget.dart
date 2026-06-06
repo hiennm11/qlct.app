@@ -17,6 +17,17 @@ class ChartWidget extends StatelessWidget {
         final stats = viewModel.stats;
         final categoryTotals = stats.categoryTotals;
 
+        if (viewModel.isLoading && viewModel.allTransactions.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          );
+        }
+
         if (categoryTotals.isEmpty) {
           return const Card(
             child: Padding(

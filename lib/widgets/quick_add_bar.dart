@@ -166,11 +166,12 @@ class _QuickAddBarState extends State<QuickAddBar> {
       }
     } catch (e) {
       if (!context.mounted) return;
+      debugPrint('Error adding voice transaction: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi: $e'),
+          content: const Text('Không thể thực hiện thao tác. Vui lòng thử lại.'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 4),
         ),
       );
     }
@@ -207,11 +208,12 @@ class _QuickAddBarState extends State<QuickAddBar> {
       }
     } catch (e) {
       if (!context.mounted) return;
+      debugPrint('Error quick adding category: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi: $e'),
+          content: const Text('Không thể thực hiện thao tác. Vui lòng thử lại.'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 4),
         ),
       );
     }

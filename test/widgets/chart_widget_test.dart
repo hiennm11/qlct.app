@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -103,6 +104,27 @@ void main() {
       expect(find.byType(SectionHeader), findsNothing);
       expect(find.text('📊'), findsOneWidget);
       expect(find.text('Chưa có dữ liệu để hiển thị'), findsOneWidget);
+    });
+  });
+
+  group('ChartWidget - loading state (D5)', () {
+    testWidgets('shows CircularProgressIndicator when isLoading and allTransactions is empty',
+        (tester) async {
+      // Use a Completer to keep the repo in loading state
+      final completer = Completer<List<Transaction>>();
+      when(() => mockRepo.getAll()).thenAnswer((_) => completer.future);
+      final vm = ExpenseViewModel(mockRepo, mockExport);
+
+      // Pump once to capture the loading state before async completes
+      await tester.pumpWidget(wrap(vm));
+      await tester.pump();
+
+      // Loading state should show spinner, not empty state
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Chưa có dữ liệu để hiển thị'), findsNothing);
+
+      // Clean up: complete the future so the VM doesn't hang
+      completer.complete([]);
     });
   });
 }

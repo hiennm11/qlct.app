@@ -60,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(
           content: Text(error),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
+          duration: const Duration(seconds: 4),
         ),
       );
       vm.clearError();

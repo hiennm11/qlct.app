@@ -76,7 +76,7 @@ void main() {
 
       expect(viewModel.isLoading, isFalse);
       expect(viewModel.errorMessage, isNotNull);
-      expect(viewModel.errorMessage!.contains('Lỗi'), isTrue);
+      expect(viewModel.errorMessage!.contains('Thao tác thất bại'), isTrue);
     });
   });
 }

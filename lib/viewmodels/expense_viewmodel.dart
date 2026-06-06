@@ -64,7 +64,8 @@ class ExpenseViewModel extends ChangeNotifier {
     try {
       _transactions = await _repository.getAll();
     } catch (e) {
-      _errorMessage = 'Lỗi khi tải dữ liệu: $e';
+      debugPrint('Error loading transactions: $e');
+      _errorMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -104,7 +105,8 @@ class ExpenseViewModel extends ChangeNotifier {
       // Reload transactions and search results (if active) to avoid duplication
       await _refreshAll();
     } catch (e) {
-      _errorMessage = 'Lỗi khi thêm giao dịch: $e';
+      debugPrint('Error adding transaction: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -121,7 +123,8 @@ class ExpenseViewModel extends ChangeNotifier {
       await _repository.delete(id);
       _transactions.removeWhere((t) => t.id == id);
     } catch (e) {
-      _errorMessage = 'Lỗi khi xóa giao dịch: $e';
+      debugPrint('Error deleting transaction: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -141,7 +144,8 @@ class ExpenseViewModel extends ChangeNotifier {
       await _loadTransactions();
       return jsonString;
     } catch (e) {
-      _errorMessage = 'Lỗi khi xóa giao dịch: $e';
+      debugPrint('Error deleting transaction with undo: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       return '';
     } finally {
       _isLoading = false;
@@ -164,7 +168,8 @@ class ExpenseViewModel extends ChangeNotifier {
       await _repository.add(txn);
       await _refreshAll();
     } catch (e) {
-      _errorMessage = 'Lỗi khi hoàn tác: $e';
+      debugPrint('Error undoing delete: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -181,7 +186,8 @@ class ExpenseViewModel extends ChangeNotifier {
       await _repository.clearAll();
       _transactions.clear();
     } catch (e) {
-      _errorMessage = 'Lỗi khi xóa tất cả: $e';
+      debugPrint('Error clearing all transactions: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -215,7 +221,8 @@ class ExpenseViewModel extends ChangeNotifier {
     try {
       _searchResults = await _repository.search(trimmed);
     } catch (e) {
-      _errorMessage = 'Lỗi khi tìm kiếm: $e';
+      debugPrint('Error searching: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       _searchResults = [];
     } finally {
       _isLoading = false;
@@ -243,7 +250,8 @@ class ExpenseViewModel extends ChangeNotifier {
       await _refreshAll();
       return deleted;
     } catch (e) {
-      _errorMessage = 'Lỗi khi xóa giao dịch: $e';
+      debugPrint('Error bulk deleting transactions: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       return [];
     } finally {
       _isLoading = false;
@@ -407,7 +415,8 @@ class ExpenseViewModel extends ChangeNotifier {
       await _repository.add(transaction);
       await _refreshAll();
     } catch (e) {
-      _errorMessage = 'Lỗi khi thêm giao dịch: $e';
+      debugPrint('Error adding transaction from model: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -423,8 +432,8 @@ class ExpenseViewModel extends ChangeNotifier {
       await _repository.update(transaction);
       await _refreshAll();
     } catch (e) {
-      _errorMessage = 'Lỗi khi cập nhật giao dịch: $e';
       debugPrint('Error updating transaction: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();

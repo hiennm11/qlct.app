@@ -54,7 +54,7 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Xoá $count giao dịch?'),
-        content: const Text('Hành động này không thể hoàn tác.'),
+        content: const Text('Bạn có 5 giây để hoàn tác sau khi xoá.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -72,10 +72,21 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
 
     final viewModel = context.read<ExpenseViewModel>();
     final messenger = ScaffoldMessenger.of(context);
-    await viewModel.deleteTransactions(_selectedIds.toList());
+    final deleted = await viewModel.deleteTransactions(_selectedIds.toList());
     _exitSelectionMode();
     messenger.showSnackBar(
-      SnackBar(content: Text('Đã xoá $count giao dịch')),
+      SnackBar(
+        content: Text('Đã xoá $count giao dịch'),
+        action: SnackBarAction(
+          label: 'Hoàn tác',
+          onPressed: () async {
+            for (final tx in deleted) {
+              await viewModel.addTransactionFromModel(tx);
+            }
+          },
+        ),
+        duration: const Duration(seconds: 5),
+      ),
     );
   }
 
@@ -249,13 +260,19 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
                 final file = await viewModel.exportToCsv();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Đã xuất CSV: ${file.path}')),
+                    SnackBar(
+                      content: Text('Đã xuất CSV: ${file.path}'),
+                      duration: const Duration(seconds: 2),
+                    ),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Lỗi: $e')),
+                    SnackBar(
+                      content: Text('Lỗi: $e'),
+                      duration: const Duration(seconds: 4),
+                    ),
                   );
                 }
               }
@@ -269,13 +286,19 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
                 final file = await viewModel.exportToJson();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Đã xuất JSON: ${file.path}')),
+                    SnackBar(
+                      content: Text('Đã xuất JSON: ${file.path}'),
+                      duration: const Duration(seconds: 2),
+                    ),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Lỗi: $e')),
+                    SnackBar(
+                      content: Text('Lỗi: $e'),
+                      duration: const Duration(seconds: 4),
+                    ),
                   );
                 }
               }
@@ -294,20 +317,38 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
   void _showClearDialog(BuildContext context, ExpenseViewModel viewModel) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Xóa tất cả dữ liệu'),
-        content: const Text('Bạn có chắc chắn muốn xóa toàn bộ dữ liệu?'),
+        content: const Text(
+          'Tất cả giao dịch sẽ bị xoá. Bạn có 5 giây để hoàn tác.\n\nBạn có chắc chắn?',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('Hủy'),
           ),
           TextButton(
-            onPressed: () {
-              viewModel.clearAllTransactions();
-              Navigator.pop(context);
+            onPressed: () async {
+              // Capture before clear
+              final savedData =
+                  viewModel.allTransactions.map((t) => t.toJson()).toList();
+              await viewModel.clearAllTransactions();
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã xóa tất cả dữ liệu')),
+                SnackBar(
+                  content: const Text('Đã xoá toàn bộ dữ liệu'),
+                  action: SnackBarAction(
+                    label: 'Hoàn tác',
+                    onPressed: () async {
+                      for (final json in savedData) {
+                        await viewModel.addTransactionFromModel(
+                            Transaction.fromJson(json));
+                      }
+                    },
+                  ),
+                  duration: const Duration(seconds: 5),
+                ),
               );
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
@@ -794,6 +835,14 @@ class _EmptyState extends StatelessWidget {
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Dùng thanh nhập nhanh bên trên để thêm',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
               ),
             ),
           ],

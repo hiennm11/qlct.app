@@ -52,6 +52,21 @@ class RecurringOverviewWidget extends StatelessWidget {
           );
         }
 
+        if (vm.errorMessage != null)
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SectionHeader(emoji: '🔄', title: 'Giao dịch định kỳ'),
+                  const SizedBox(height: 8),
+                  Text('⚠️ ${vm.errorMessage}', style: const TextStyle(color: AppColors.error)),
+                ],
+              ),
+            ),
+          );
+
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),

@@ -127,15 +127,21 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
     );
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập số tiền hợp lệ')),
+        const SnackBar(
+          content: Text('Vui lòng nhập số tiền hợp lệ'),
+          duration: Duration(seconds: 3),
+        ),
       );
       return;
     }
 
     if (_selectedCategory == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Vui lòng chọn danh mục')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn danh mục'),
+          duration: Duration(seconds: 3),
+        ),
+      );
       return;
     }
 
@@ -177,11 +183,12 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
       }
     } catch (e) {
       if (!context.mounted) return;
+      debugPrint('Error custom input add: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi: $e'),
+          content: const Text('Không thể thực hiện thao tác. Vui lòng thử lại.'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 4),
         ),
       );
     }

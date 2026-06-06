@@ -77,4 +77,70 @@ void main() {
       expect(find.text('📋'), findsOneWidget);
     });
   });
+
+  group('RecurringListSheet - error state', () {
+    testWidgets('shows error message when errorMessage is set', (tester) async {
+      when(() => mockRecurringRepo.getAll())
+          .thenThrow(Exception('DB read failed'));
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      await vm.forceReload(); // Trigger load with throwing mock
+
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      // ViewModel format: 'Không thể tải dữ liệu. Vui lòng thử lại.'
+      expect(find.textContaining('⚠️'), findsOneWidget);
+      expect(find.textContaining('Không thể tải'), findsOneWidget);
+      expect(find.textContaining('Vui lòng thử lại'), findsOneWidget);
+    });
+
+    testWidgets('error text uses AppColors.error', (tester) async {
+      when(() => mockRecurringRepo.getAll())
+          .thenThrow(Exception('Test error'));
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      await vm.forceReload(); // Trigger load with throwing mock
+
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      // Full text: '⚠️ Không thể tải dữ liệu. Vui lòng thử lại.'
+      final errorText = find.byWidgetPredicate(
+        (w) => w is Text && w.data!.contains('⚠️') && w.data!.contains('Không thể tải'),
+      );
+      expect(errorText, findsOneWidget);
+
+      final textWidget = tester.widget<Text>(errorText);
+      expect(textWidget.style?.color, AppColors.error);
+    });
+
+    testWidgets('error state hides empty state', (tester) async {
+      when(() => mockRecurringRepo.getAll())
+          .thenThrow(Exception('Error'));
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      await vm.forceReload(); // Trigger load with throwing mock
+
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      // Empty state should NOT be shown when error present
+      expect(find.text('Chưa có giao dịch định kỳ nào'), findsNothing);
+      expect(find.text('📋'), findsNothing);
+    });
+
+    testWidgets('error text is centered with padding', (tester) async {
+      when(() => mockRecurringRepo.getAll())
+          .thenThrow(Exception('Center test'));
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      await vm.forceReload(); // Trigger load with throwing mock
+
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      final errorText = find.byWidgetPredicate(
+        (w) => w is Text && w.data!.contains('⚠️'),
+      );
+      final textWidget = tester.widget<Text>(errorText);
+      expect(textWidget.textAlign, TextAlign.center);
+    });
+  });
 }

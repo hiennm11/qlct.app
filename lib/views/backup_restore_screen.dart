@@ -304,7 +304,7 @@ class BackupRestoreScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Xoá toàn bộ dữ liệu'),
         content: const Text(
-            'Tất cả giao dịch, ngân sách và giao dịch định kỳ sẽ bị XOÁ vĩnh viễn. Hành động này KHÔNG thể hoàn tác.\n\nBạn có chắc chắn?'),
+            'Tất cả giao dịch, ngân sách và giao dịch định kỳ sẽ bị xoá. Bạn có 5 giây để hoàn tác sau khi xoá.\n\nBạn có chắc chắn?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -384,8 +384,13 @@ class BackupRestoreScreen extends StatelessWidget {
     try {
       await expenseVM.exportAndShareCsv();
     } catch (e) {
+      debugPrint('CSV export error: $e');
       messenger.showSnackBar(
-        SnackBar(content: Text('Lỗi xuất CSV: $e')),
+        const SnackBar(
+          content: Text('Không thể xuất file. Vui lòng thử lại.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
       );
     }
   }
@@ -396,8 +401,13 @@ class BackupRestoreScreen extends StatelessWidget {
     try {
       await expenseVM.exportAndShareJson();
     } catch (e) {
+      debugPrint('JSON export error: $e');
       messenger.showSnackBar(
-        SnackBar(content: Text('Lỗi xuất JSON: $e')),
+        const SnackBar(
+          content: Text('Không thể xuất file. Vui lòng thử lại.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
       );
     }
   }

@@ -66,7 +66,8 @@ class BudgetViewModel extends ChangeNotifier {
       }
       await _loadBudgets();
     } catch (e) {
-      _errorMessage = 'Lỗi khi lưu ngân sách: $e';
+      debugPrint('Error saving all budgets: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
     }
@@ -92,7 +93,8 @@ class BudgetViewModel extends ChangeNotifier {
       await _budgetRepository.upsert(budget);
       await _loadBudgets();
     } catch (e) {
-      _errorMessage = 'Lỗi khi lưu ngân sách: $e';
+      debugPrint('Error saving budget: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
     }
@@ -112,7 +114,8 @@ class BudgetViewModel extends ChangeNotifier {
       await _budgetRepository.delete(budget.id);
       await _loadBudgets();
     } catch (e) {
-      _errorMessage = 'Lỗi khi xóa ngân sách: $e';
+      debugPrint('Error deleting budget: $e');
+      _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
     }
@@ -132,7 +135,8 @@ class BudgetViewModel extends ChangeNotifier {
     try {
       _budgets = await _budgetRepository.getAll();
     } catch (e) {
-      _errorMessage = 'Lỗi khi tải ngân sách: $e';
+      debugPrint('Error loading budgets: $e');
+      _errorMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.';
     } finally {
       _isLoading = false;
       notifyListeners();
