@@ -8,6 +8,7 @@ import '../widgets/chart_widget.dart';
 import '../widgets/budget_overview_widget.dart';
 import '../widgets/recurring_overview_widget.dart';
 import '../widgets/quick_add_bar.dart';
+import '../core/theme.dart';
 import 'backup_restore_screen.dart';
 
 /// Main home screen for the expense tracking app
@@ -20,6 +21,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey _transactionListKey = GlobalKey();
+  final GlobalKey _statsKey = GlobalKey();
+  final GlobalKey _recurringKey = GlobalKey();
   String? _lastShownError;
 
   @override
@@ -64,11 +67,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _scrollToTransactions() {
+  void _scrollToSection(GlobalKey key, {double alignment = 0.1}) {
+    final ctx = key.currentContext;
+    if (ctx == null) return;
     Scrollable.ensureVisible(
-      _transactionListKey.currentContext!,
-      duration: const Duration(milliseconds: 300),
+      ctx,
+      duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOut,
+      alignment: alignment,
     );
   }
 
@@ -81,6 +87,44 @@ class _HomeScreenState extends State<HomeScreen> {
       children: const [
         Text('Ứng dụng quản lý chi tiêu cá nhân với tính năng theo dõi chi tiêu, ngân sách và giao dịch định kỳ.'),
       ],
+    );
+  }
+
+  Widget _buildJumpBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _JumpButton(
+            icon: Icons.bar_chart,
+            label: 'Tổng quan',
+            onTap: () => _scrollToSection(_statsKey),
+          ),
+          _JumpButton(
+            icon: Icons.history,
+            label: 'Lịch sử',
+            onTap: () => _scrollToSection(_transactionListKey),
+          ),
+          _JumpButton(
+            icon: Icons.repeat,
+            label: 'Định kỳ',
+            onTap: () => _scrollToSection(_recurringKey),
+          ),
+        ],
+      ),
     );
   }
 
@@ -177,78 +221,126 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await context.read<ExpenseViewModel>().refresh();
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Quick add bar
-              const QuickAddBar(),
-              const SizedBox(height: 20),
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: () async {
+              await context.read<ExpenseViewModel>().refresh();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+              child: Column(
+                children: [
+                  // Quick add bar
+                  const QuickAddBar(),
+                  const SizedBox(height: 20),
 
-              // Budget overview
-              BudgetOverviewWidget(
-                onCategoryTap: (categoryName) {
-                  context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
-                  _scrollToTransactions();
-                },
+                  // Budget overview
+                  BudgetOverviewWidget(
+                    onCategoryTap: (categoryName) {
+                      context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
+                      _scrollToSection(_transactionListKey);
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Transactions list
+                  Container(
+                    key: _transactionListKey,
+                    child: const TransactionListWidget(),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Stats section
+                  Container(
+                    key: _statsKey,
+                    child: StatsWidget(
+                      onTapToday: () {
+                        final vm = context.read<ExpenseViewModel>();
+                        vm.clearFilters();
+                        vm.setDateFilter(DateTime.now());
+                        _scrollToSection(_transactionListKey);
+                      },
+                      onTapWeek: () {
+                        final vm = context.read<ExpenseViewModel>();
+                        vm.clearFilters();
+                        final now = DateTime.now();
+                        final startOfWeek =
+                            now.subtract(Duration(days: now.weekday - 1));
+                        vm.setDateRangeFilter(
+                          DateTime(
+                              startOfWeek.year, startOfWeek.month, startOfWeek.day),
+                          DateTime(now.year, now.month, now.day),
+                        );
+                        _scrollToSection(_transactionListKey);
+                      },
+                      onTapMonth: () {
+                        final vm = context.read<ExpenseViewModel>();
+                        vm.clearFilters();
+                        final now = DateTime.now();
+                        final startOfMonth = DateTime(now.year, now.month, 1);
+                        vm.setDateRangeFilter(
+                          startOfMonth,
+                          DateTime(now.year, now.month + 1, 0),
+                        );
+                        _scrollToSection(_transactionListKey);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Chart
+                  const ChartWidget(),
+                  const SizedBox(height: 20),
+
+                  // Recurring transactions
+                  Container(
+                    key: _recurringKey,
+                    child: const RecurringOverviewWidget(),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-
-              // Transactions list
-              Container(
-                key: _transactionListKey,
-                child: const TransactionListWidget(),
-              ),
-              const SizedBox(height: 20),
-
-              // Stats section
-              StatsWidget(
-                onTapToday: () {
-                  final vm = context.read<ExpenseViewModel>();
-                  vm.clearFilters();
-                  vm.setDateFilter(DateTime.now());
-                  _scrollToTransactions();
-                },
-                onTapWeek: () {
-                  final vm = context.read<ExpenseViewModel>();
-                  vm.clearFilters();
-                  final now = DateTime.now();
-                  final startOfWeek =
-                      now.subtract(Duration(days: now.weekday - 1));
-                  vm.setDateRangeFilter(
-                    DateTime(
-                        startOfWeek.year, startOfWeek.month, startOfWeek.day),
-                    DateTime(now.year, now.month, now.day),
-                  );
-                  _scrollToTransactions();
-                },
-                onTapMonth: () {
-                  final vm = context.read<ExpenseViewModel>();
-                  vm.clearFilters();
-                  final now = DateTime.now();
-                  final startOfMonth = DateTime(now.year, now.month, 1);
-                  vm.setDateRangeFilter(
-                    startOfMonth,
-                    DateTime(now.year, now.month + 1, 0),
-                  );
-                  _scrollToTransactions();
-                },
-              ),
-              const SizedBox(height: 20),
-
-              // Chart
-              const ChartWidget(),
-              const SizedBox(height: 20),
-
-              // Recurring transactions
-              const RecurringOverviewWidget(),
-            ],
+            ),
           ),
+          // Jump bar — positioned at bottom center
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _buildJumpBar(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JumpButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _JumpButton({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: AppColors.primary),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
+            ),
+          ],
         ),
       ),
     );

@@ -16,7 +16,7 @@ class TransactionListWidget extends StatefulWidget {
 }
 
 class _TransactionListWidgetState extends State<TransactionListWidget> {
-  static const int _pageSize = 20;
+  static const int _pageSize = 5;
   bool _showAll = false;
   bool _selectionMode = false;
   final Set<String> _selectedIds = {};
@@ -134,6 +134,7 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
                     pageSize: _pageSize,
                     showAll: _showAll,
                     onShowAll: () => setState(() => _showAll = true),
+                    onCollapse: () => setState(() => _showAll = false),
                     selectionMode: _selectionMode,
                     selectedIds: _selectedIds,
                     onLongPress: _enterSelectionMode,
@@ -504,6 +505,7 @@ class _TransactionList extends StatelessWidget {
   final int pageSize;
   final bool showAll;
   final VoidCallback onShowAll;
+  final VoidCallback onCollapse;
   final bool selectionMode;
   final Set<String> selectedIds;
   final void Function(String id) onLongPress;
@@ -514,6 +516,7 @@ class _TransactionList extends StatelessWidget {
     required this.pageSize,
     required this.showAll,
     required this.onShowAll,
+    required this.onCollapse,
     required this.selectionMode,
     required this.selectedIds,
     required this.onLongPress,
@@ -548,9 +551,22 @@ class _TransactionList extends StatelessWidget {
           },
         ),
         if (remaining > 0)
-          TextButton(
+          OutlinedButton.icon(
             onPressed: onShowAll,
-            child: Text('Xem thêm $remaining giao dịch'),
+            icon: const Icon(Icons.expand_more, size: 18),
+            label: Text(
+              'Xem thêm $remaining giao dịch',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ),
+        if (showAll && total > pageSize)
+          OutlinedButton.icon(
+            onPressed: onCollapse,
+            icon: const Icon(Icons.expand_less, size: 18),
+            label: const Text(
+              'Thu gọn',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
           ),
       ],
     );
