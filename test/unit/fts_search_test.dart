@@ -263,6 +263,7 @@ void main() {
         note: 'test search',
       );
       await dataSource.add(t1);
+      await Future.delayed(const Duration(milliseconds: 10)); // ensure distinct created_at for DESC order
       await dataSource.add(t2);
 
       final result = await dataSource.search('test search');

@@ -47,9 +47,12 @@ class RecurringTransactionViewModel extends ChangeNotifier {
 
   /// Check all active recurring rules and generate transactions if due.
   /// Called once on app cold start (from main.dart).
-  Future<void> checkAndGenerate() async {
-    if (_isGenerating) return;
+  /// Returns the number of transactions actually generated (for caller to decide
+  /// whether to refresh downstream views).
+  Future<int> checkAndGenerate() async {
+    if (_isGenerating) return 0;
     _isGenerating = true;
+    int generated = 0;
     try {
       final now = DateTime.now();
       final dueRules = await _recurringRepo.getActiveDue(now);
@@ -58,11 +61,8 @@ class RecurringTransactionViewModel extends ChangeNotifier {
         try {
           // Safety net: check duplicate via sourceRecurringId + rule.nextRunAt date
           final ruleDate = DateTime(rule.nextRunAt.year, rule.nextRunAt.month, rule.nextRunAt.day);
-          final allTx = await _transactionRepo.getAll();
-          final alreadyExists = allTx.any((tx) =>
-            tx.sourceRecurringId == rule.id &&
-            DateTime(tx.date.year, tx.date.month, tx.date.day) == ruleDate
-          );
+          final dateStr = '${ruleDate.year}-${ruleDate.month.toString().padLeft(2, '0')}-${ruleDate.day.toString().padLeft(2, '0')}';
+          final alreadyExists = await _transactionRepo.existsBySourceRecurringIdAndDate(rule.id, dateStr);
           if (alreadyExists) continue;
 
           // Get emoji from category
@@ -83,6 +83,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
           );
 
           await _transactionRepo.add(tx);
+          generated++;
 
           // Update nextRunAt
           final next = _calculateNextRun(now, rule.frequency);
@@ -93,14 +94,17 @@ class RecurringTransactionViewModel extends ChangeNotifier {
         }
       }
 
-      // Reload rules (nextRunAt changed)
-      await _loadRecurrings();
+      // Reload rules (nextRunAt changed) — only if anything changed
+      if (generated > 0) {
+        await _loadRecurrings();
+      }
     } catch (e) {
       debugPrint('Error checking and generating: $e');
       _errorMessage = 'Không thể sinh giao dịch định kỳ. Vui lòng thử lại.';
     } finally {
       _isGenerating = false;
     }
+    return generated;
   }
 
   /// Calculate next run based on frequency

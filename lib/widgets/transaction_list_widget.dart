@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/transaction.dart';
@@ -14,6 +15,12 @@ class TransactionListWidget extends StatefulWidget {
   @override
   State<TransactionListWidget> createState() => _TransactionListWidgetState();
 }
+
+/// Approximate rendered height of a single transaction row, used to compute
+/// a bounded height for the lazy ListView. Derived from the _TransactionRow
+/// layout: 32 (emoji) + 8+8 vertical padding = ~48, but to absorb locale
+/// scaling and text-wrapping we round up to 72.
+const double _kRowHeight = 72.0;
 
 class _TransactionListWidgetState extends State<TransactionListWidget> {
   static const int _pageSize = 5;
@@ -360,10 +367,30 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
   }
 }
 
-class _FilterRow extends StatelessWidget {
+class _FilterRow extends StatefulWidget {
   final ExpenseViewModel viewModel;
 
   const _FilterRow({required this.viewModel});
+
+  @override
+  State<_FilterRow> createState() => _FilterRowState();
+}
+
+class _FilterRowState extends State<_FilterRow> {
+  Timer? _searchDebounce;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      widget.viewModel.setSearchQuery(value);
+    });
+  }
 
   bool _isToday(DateTime? d) {
     if (d == null) return false;
@@ -379,9 +406,9 @@ class _FilterRow extends StatelessWidget {
   }
 
   String _categoryChipLabel() {
-    final cat = viewModel.filterCategory;
+    final cat = widget.viewModel.filterCategory;
     if (cat == null) return 'Danh mục';
-    final match = viewModel.categories
+    final match = widget.viewModel.categories
         .where((c) => c.name == cat)
         .cast<dynamic>()
         .firstOrNull;
@@ -391,11 +418,11 @@ class _FilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final today = _isToday(viewModel.filterDate);
-    final hasDate = viewModel.filterDate != null;
-    final hasCategory = viewModel.filterCategory != null;
-    final hasSearch = viewModel.searchQuery != null &&
-        viewModel.searchQuery!.isNotEmpty;
+    final today = _isToday(widget.viewModel.filterDate);
+    final hasDate = widget.viewModel.filterDate != null;
+    final hasCategory = widget.viewModel.filterCategory != null;
+    final hasSearch = widget.viewModel.searchQuery != null &&
+        widget.viewModel.searchQuery!.isNotEmpty;
     final hasAny = hasDate || hasCategory || hasSearch;
 
     return Column(
@@ -409,7 +436,7 @@ class _FilterRow extends StatelessWidget {
             suffixIcon: hasSearch
                 ? IconButton(
                     icon: const Icon(Icons.clear),
-                    onPressed: () => viewModel.clearSearch(),
+                    onPressed: () => widget.viewModel.clearSearch(),
                   )
                 : null,
             contentPadding:
@@ -418,7 +445,7 @@ class _FilterRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
           ),
-          onChanged: (value) => viewModel.setSearchQuery(value),
+          onChanged: _onSearchChanged,
         ),
         const SizedBox(height: 8),
         // Unified chip row — wraps on narrow screens
@@ -446,15 +473,15 @@ class _FilterRow extends StatelessWidget {
               ),
               onPressed: () {
                 if (today) {
-                  viewModel.setDateFilter(null);
+                  widget.viewModel.setDateFilter(null);
                 } else {
-                  viewModel.setDateFilter(DateTime.now());
+                  widget.viewModel.setDateFilter(DateTime.now());
                 }
               },
             ),
             // Date — FilterChip, shows "📅 05/06" or "📅 Ngày"
             FilterChip(
-              label: Text(_dateChipLabel(viewModel.filterDate)),
+              label: Text(_dateChipLabel(widget.viewModel.filterDate)),
               avatar: Icon(
                 Icons.calendar_today,
                 size: 16,
@@ -474,12 +501,12 @@ class _FilterRow extends StatelessWidget {
               onSelected: (_) async {
                 final picked = await showDatePicker(
                   context: context,
-                  initialDate: viewModel.filterDate ?? DateTime.now(),
+                  initialDate: widget.viewModel.filterDate ?? DateTime.now(),
                   firstDate: DateTime(2020),
                   lastDate: DateTime.now(),
                 );
                 if (picked != null) {
-                  viewModel.setDateFilter(picked);
+                  widget.viewModel.setDateFilter(picked);
                 }
               },
             ),
@@ -508,7 +535,7 @@ class _FilterRow extends StatelessWidget {
                       value: null,
                       child: Text('Tất cả'),
                     ),
-                    ...viewModel.categories.map(
+                    ...widget.viewModel.categories.map(
                       (cat) => PopupMenuItem<String?>(
                         value: cat.name,
                         child: Text('${cat.emoji} ${cat.name}'),
@@ -517,7 +544,7 @@ class _FilterRow extends StatelessWidget {
                   ],
                 );
                 // null = user dismissed OR selected "Tất cả"; both clear the filter
-                viewModel.setCategoryFilter(selected);
+                widget.viewModel.setCategoryFilter(selected);
               },
             ),
             // Clear — only visible when any filter is active
@@ -532,7 +559,7 @@ class _FilterRow extends StatelessWidget {
                 labelStyle: TextStyle(color: AppColors.textSecondary),
                 backgroundColor: AppColors.gray100,
                 side: BorderSide(color: AppColors.border),
-                onPressed: () => viewModel.clearFilters(),
+                onPressed: () => widget.viewModel.clearFilters(),
               ),
           ],
         ),
@@ -574,22 +601,25 @@ class _TransactionList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: visible.length,
-          separatorBuilder: (context, index) => const Divider(),
-          itemBuilder: (context, index) {
-            final transaction = visible[index];
-            final isSelected = selectedIds.contains(transaction.id);
-            return _TransactionRow(
-              transaction: transaction,
-              selectionMode: selectionMode,
-              isSelected: isSelected,
-              onTap: () => onTap(transaction.id),
-              onLongPress: () => onLongPress(transaction.id),
-            );
-          },
+        // ADR-0017 Slice 3 D3.1: explicit height + no shrinkWrap enables
+        // element recycling. 72 ≈ 48 (icon) + 24 (text/meta row).
+        // 16 ≈ vertical padding (8 top + 8 bottom) per row.
+        SizedBox(
+          height: _kRowHeight * visible.length,
+          child: ListView.builder(
+            itemCount: visible.length,
+            itemBuilder: (context, index) {
+              final transaction = visible[index];
+              final isSelected = selectedIds.contains(transaction.id);
+              return _TransactionRow(
+                transaction: transaction,
+                selectionMode: selectionMode,
+                isSelected: isSelected,
+                onTap: () => onTap(transaction.id),
+                onLongPress: () => onLongPress(transaction.id),
+              );
+            },
+          ),
         ),
         if (remaining > 0)
           OutlinedButton.icon(

@@ -123,8 +123,8 @@ class BackupViewModel extends ChangeNotifier {
         return null; // User cancelled
       }
 
-      final jsonString = await file.readAsString();
-      final result = _backupService.validate(jsonString);
+      // Stream-parse instead of readAsString + jsonDecode to avoid OOM on large files
+      final result = await _backupService.validateFile(file);
 
       if (!result.isValid || result.data == null) {
         _setError(result.errors.join('\n'));
@@ -155,8 +155,8 @@ class BackupViewModel extends ChangeNotifier {
         return;
       }
 
-      final jsonString = await file.readAsString();
-      final result = _backupService.validate(jsonString);
+      // Stream-parse to avoid OOM on large files
+      final result = await _backupService.validateFile(file);
 
       if (!result.isValid || result.data == null) {
         _setError(result.errors.join('\n'));

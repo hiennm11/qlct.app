@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../models/expense_stats.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../core/theme.dart';
 import '../core/formatters.dart';
 import 'section_header.dart';
 
 /// Widget displaying expense chart by category
-class ChartWidget extends StatelessWidget {
+class ChartWidget extends StatefulWidget {
   const ChartWidget({super.key});
+
+  @override
+  State<ChartWidget> createState() => _ChartWidgetState();
+}
+
+class _ChartWidgetState extends State<ChartWidget> {
+  // ADR-0017 D5.2: memoize PieChart sections. The fl_chart PieChart rebuilds
+  // and re-layouts every section on every build; recomputing them on each
+  // ExpenseViewModel notification is wasted work when stats haven't changed.
+  ExpenseStats? _lastStats;
+  List<PieChartSectionData>? _cachedSections;
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +30,9 @@ class ChartWidget extends StatelessWidget {
         final categoryTotals = stats.categoryTotals;
 
         if (viewModel.isLoading && viewModel.allTransactions.isEmpty) {
+          // Loading state — drop any cached sections since data is stale.
+          _lastStats = null;
+          _cachedSections = null;
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(32),
@@ -29,6 +44,8 @@ class ChartWidget extends StatelessWidget {
         }
 
         if (categoryTotals.isEmpty) {
+          _lastStats = null;
+          _cachedSections = null;
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(32),
@@ -49,6 +66,12 @@ class ChartWidget extends StatelessWidget {
           );
         }
 
+        // Recompute sections only when stats instance changes.
+        if (_cachedSections == null || !identical(_lastStats, stats)) {
+          _cachedSections = _createSections(categoryTotals);
+          _lastStats = stats;
+        }
+
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -65,7 +88,7 @@ class ChartWidget extends StatelessWidget {
                         flex: 2,
                         child: PieChart(
                           PieChartData(
-                            sections: _createSections(categoryTotals),
+                            sections: _cachedSections!,
                             centerSpaceRadius: 40,
                             sectionsSpace: 2,
                           ),

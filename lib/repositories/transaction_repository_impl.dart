@@ -46,4 +46,16 @@ class TransactionRepositoryImpl implements TransactionRepository {
   @override
   Future<void> deleteMultiple(List<String> ids) =>
       _dataSource.deleteMultiple(ids);
+
+  @override
+  Future<bool> existsBySourceRecurringIdAndDate(
+          String sourceRecurringId, String dateStr) =>
+      _dataSource.existsBySourceRecurringIdAndDate(sourceRecurringId, dateStr);
+
+  @override
+  Future<List<Transaction>> getAllPaginated({
+    required int offset,
+    required int limit,
+  }) =>
+      _dataSource.getAllPaginated(offset: offset, limit: limit);
 }

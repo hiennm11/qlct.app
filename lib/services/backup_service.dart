@@ -163,6 +163,75 @@ class BackupService {
     return file;
   }
 
+  /// Validate a backup file using streaming JSON parse.
+  /// Reads incrementally instead of loading entire file into memory.
+  /// [file] must have passed the 50MB size guard from [pickBackupFile].
+  Future<ImportResult> validateFile(File file) async {
+    try {
+      final stream = file
+          .openRead()
+          .transform(utf8.decoder)
+          .transform(json.decoder);
+      final dynamic decoded = await stream.first;
+
+      if (decoded is! Map<String, dynamic>) {
+        return ImportResult.error(
+            ['File không phải là JSON object hợp lệ']);
+      }
+
+      return _validateDecoded(decoded);
+    } on FormatException catch (e) {
+      return ImportResult.error(['File không phải là JSON hợp lệ: ${e.message}']);
+    } catch (e) {
+      return ImportResult.error(['Lỗi không xác định: $e']);
+    }
+  }
+
+  /// Core validation logic for a decoded JSON map.
+  /// Extracted from [validate] to enable reuse by [validateFile].
+  ImportResult _validateDecoded(Map<String, dynamic> map) {
+    // Check schemaVersion
+    if (map['schemaVersion'] is! int) {
+      return ImportResult.error(
+          ['Thiếu schemaVersion — file không đúng định dạng backup QLCT']);
+    }
+
+    final version = map['schemaVersion'] as int;
+    if (version > currentSchemaVersion) {
+      return ImportResult.error([
+        'File được tạo bởi phiên bản app mới hơn (schema v$version). '
+            'Vui lòng cập nhật app để khôi phục file này.'
+      ]);
+    }
+
+    // Validate transactions array
+    if (map['transactions'] != null && map['transactions'] is! List) {
+      return ImportResult.error(['"transactions" không phải là mảng']);
+    }
+
+    // Validate budgets array
+    if (map['budgets'] != null && map['budgets'] is! List) {
+      return ImportResult.error(['"budgets" không phải là mảng']);
+    }
+
+    // Validate recurringTransactions array
+    if (map['recurringTransactions'] != null &&
+        map['recurringTransactions'] is! List) {
+      return ImportResult.error(['"recurringTransactions" không phải là mảng']);
+    }
+
+    // Try to deserialize using the Freezed model
+    try {
+      final backupData = BackupData.fromJson(map);
+      return ImportResult.valid(backupData);
+    } catch (e, stack) {
+      debugPrint('Backup parse error: $e\n$stack');
+      return ImportResult.error([
+        'Không thể đọc dữ liệu trong file: file có thể bị hỏng hoặc sai định dạng.'
+      ]);
+    }
+  }
+
   /// Validate a backup JSON string
   ImportResult validate(String jsonString) {
     try {
@@ -172,50 +241,7 @@ class BackupService {
         return ImportResult.error(['File không phải là JSON object hợp lệ']);
       }
 
-      final map = decoded;
-
-      // Check schemaVersion
-      if (map['schemaVersion'] is! int) {
-        return ImportResult.error(
-            ['Thiếu schemaVersion — file không đúng định dạng backup QLCT']);
-      }
-
-      final version = map['schemaVersion'] as int;
-      if (version > currentSchemaVersion) {
-        return ImportResult.error([
-          'File được tạo bởi phiên bản app mới hơn (schema v$version). '
-              'Vui lòng cập nhật app để khôi phục file này.'
-        ]);
-      }
-
-      // Validate transactions array
-      if (map['transactions'] != null &&
-          map['transactions'] is! List) {
-        return ImportResult.error(['"transactions" không phải là mảng']);
-      }
-
-      // Validate budgets array
-      if (map['budgets'] != null && map['budgets'] is! List) {
-        return ImportResult.error(['"budgets" không phải là mảng']);
-      }
-
-      // Validate recurringTransactions array
-      if (map['recurringTransactions'] != null &&
-          map['recurringTransactions'] is! List) {
-        return ImportResult.error(
-            ['"recurringTransactions" không phải là mảng']);
-      }
-
-      // Try to deserialize using the Freezed model
-      try {
-        final backupData = BackupData.fromJson(map);
-        return ImportResult.valid(backupData);
-      } catch (e, stack) {
-        debugPrint('Backup parse error: $e\n$stack');
-        return ImportResult.error([
-          'Không thể đọc dữ liệu trong file: file có thể bị hỏng hoặc sai định dạng.'
-        ]);
-      }
+      return _validateDecoded(decoded);
     } on FormatException {
       return ImportResult.error(['File không phải là JSON hợp lệ']);
     } catch (e) {
@@ -236,6 +262,10 @@ class BackupService {
       final transactions = data.transactions;
       final budgets = data.budgets;
       final recurrings = data.recurringTransactions;
+
+      // Hoist SharedPreferences read OUTSIDE the DB transaction to avoid
+      // stalling the transaction with a sync I/O call.
+      final currentTotalBudget = _storageService.loadValue<int>('total_budget');
 
       return await _dbHelper.runInTransaction((txn) async {
         if (mode == RestoreMode.replace) {
@@ -283,9 +313,8 @@ class BackupService {
             rImported = results.whereType<int>().where((r) => r > 0).length;
           }
 
-          // Only overwrite totalBudget if currently 0 or null
-          if (_storageService.loadValue<int>('total_budget') == 0 ||
-              _storageService.loadValue<int>('total_budget') == null) {
+          // Use the hoisted value — no SharedPreferences call inside txn
+          if (currentTotalBudget == 0 || currentTotalBudget == null) {
             _storageService.saveValue('total_budget', data.totalBudget);
           }
         } else {

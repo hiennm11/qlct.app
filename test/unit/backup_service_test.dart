@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -181,6 +182,149 @@ void main() {
       expect(result.data!.transactions.length, 1);
       expect(result.data!.budgets.length, 1);
       expect(result.data!.recurringTransactions.length, 1);
+    });
+  });
+
+  group('validateFile (streaming parse)', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('backup_test_');
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('streaming parse produces same result as readAsString+jsonDecode',
+        () async {
+      final jsonMap = {
+        'schemaVersion': 1,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 15000000,
+        'transactions': [
+          {
+            'id': 'tx-stream-1',
+            'amount': 50000,
+            'category': 'Cà phê',
+            'emoji': '☕',
+            'date': '2026-06-01T08:00:00.000Z',
+            'note': 'stream test',
+            'sourceRecurringId': null,
+          }
+        ],
+        'budgets': [
+          {
+            'id': 'b-stream-1',
+            'categoryName': 'Ăn ngoài',
+            'monthlyLimit': 3000000,
+            'alertThreshold': 80,
+            'createdAt': '2026-01-01T00:00:00.000Z',
+          }
+        ],
+        'recurringTransactions': [
+          {
+            'id': 'r-stream-1',
+            'categoryName': 'Subscription',
+            'amount': 200000,
+            'note': '',
+            'frequency': 'monthly',
+            'nextRunAt': '2026-07-01T00:00:00.000Z',
+            'isActive': true,
+            'createdAt': '2026-06-01T00:00:00.000Z',
+          }
+        ],
+      };
+      final jsonStr = jsonEncode(jsonMap);
+
+      // Baseline: legacy readAsString+jsonDecode+validate path
+      final legacyResult = service.validate(jsonStr);
+      expect(legacyResult.isValid, isTrue,
+          reason: 'baseline legacy validation must pass');
+
+      // New: streaming parse from a real file on disk
+      final file = File('${tempDir.path}/backup.json');
+      await file.writeAsString(jsonStr);
+
+      final streamResult = await service.validateFile(file);
+
+      expect(streamResult.isValid, isTrue,
+          reason: 'streaming validation must pass');
+      expect(streamResult.errors, isEmpty);
+
+      // Result data must be equivalent
+      expect(streamResult.data, isNotNull);
+      expect(streamResult.data!.schemaVersion,
+          legacyResult.data!.schemaVersion);
+      expect(streamResult.data!.totalBudget, legacyResult.data!.totalBudget);
+      expect(streamResult.data!.transactions.length,
+          legacyResult.data!.transactions.length);
+      expect(streamResult.data!.budgets.length,
+          legacyResult.data!.budgets.length);
+      expect(streamResult.data!.recurringTransactions.length,
+          legacyResult.data!.recurringTransactions.length);
+
+      // Per-row equivalence
+      expect(streamResult.data!.transactions.first.id, 'tx-stream-1');
+      expect(streamResult.data!.transactions.first.amount, 50000);
+      expect(streamResult.data!.budgets.first.categoryName, 'Ăn ngoài');
+      expect(streamResult.data!.recurringTransactions.first.amount, 200000);
+    });
+
+    test('non-JSON file content returns FormatException-derived error',
+        () async {
+      final file = File('${tempDir.path}/bad.json');
+      await file.writeAsString('not json at all {{{');
+
+      final result = await service.validateFile(file);
+
+      expect(result.isValid, isFalse);
+      expect(result.data, isNull);
+      expect(result.errors, isNotEmpty);
+      expect(
+        result.errors.any((e) => e.contains('JSON') || e.contains('hợp lệ')),
+        isTrue,
+      );
+    });
+
+    test('JSON that is not an object (e.g. bare array) returns error',
+        () async {
+      final file = File('${tempDir.path}/array.json');
+      await file.writeAsString('[1, 2, 3]');
+
+      final result = await service.validateFile(file);
+
+      expect(result.isValid, isFalse);
+      expect(result.data, isNull);
+      expect(
+        result.errors.any((e) => e.contains('JSON object hợp lệ')),
+        isTrue,
+      );
+    });
+
+    test('streamed parse of empty backup file is valid', () async {
+      final emptyJson = jsonEncode({
+        'schemaVersion': 1,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+      });
+      final file = File('${tempDir.path}/empty.json');
+      await file.writeAsString(emptyJson);
+
+      final result = await service.validateFile(file);
+
+      expect(result.isValid, isTrue);
+      expect(result.data, isNotNull);
+      expect(result.data!.transactions, isEmpty);
+      expect(result.data!.budgets, isEmpty);
+      expect(result.data!.recurringTransactions, isEmpty);
     });
   });
 

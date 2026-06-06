@@ -168,9 +168,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => ExpenseViewModel(repository, exportService),
         ),
-        ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
+        ChangeNotifierProvider<BudgetViewModel>(
           create: (_) => BudgetViewModel(budgetRepository, storageService),
-          update: (_, expenseVM, budgetVM) => budgetVM!..updateStats(expenseVM.stats),
         ),
         ChangeNotifierProvider(
           create: (_) => RecurringTransactionViewModel(recurringRepository, repository),

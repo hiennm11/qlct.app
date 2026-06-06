@@ -43,6 +43,13 @@ void main() {
     mockRepo = MockTransactionRepository();
     mockExport = MockExportService();
     when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+    // Default: pagination returns empty page for any offset/limit
+    when(() => mockRepo.getAllPaginated(
+            offset: any(named: 'offset'), limit: any(named: 'limit')))
+        .thenAnswer((_) async => []);
+    // Default: delete does nothing (needed for splice tests)
+    when(() => mockRepo.delete(any())).thenAnswer((_) async {});
+    when(() => mockRepo.deleteMultiple(any())).thenAnswer((_) async {});
   });
 
   test('categories returns all predefined categories', () {
@@ -62,9 +69,11 @@ void main() {
       final t3 = makeTransaction(id: '3', date: DateTime(2026, 6, 3));
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2, t3]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2, t3]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
-      // Wait for async _loadTransactions to complete
+      // Wait for async _loadInitialPage to complete
       await Future.delayed(Duration.zero);
 
       final transactions = viewModel.transactions;
@@ -128,6 +137,8 @@ void main() {
     test('calls repository.delete and removes from local list', () async {
       final t1 = makeTransaction(id: '1');
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
       when(() => mockRepo.delete('1')).thenAnswer((_) async {});
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
@@ -145,6 +156,8 @@ void main() {
   group('clearAllTransactions', () {
     test('calls repository.clearAll and clears local list', () async {
       when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction()]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [makeTransaction()]);
       when(() => mockRepo.clearAll()).thenAnswer((_) async {});
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
@@ -165,6 +178,8 @@ void main() {
       final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 4));
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -179,6 +194,8 @@ void main() {
     test('setCategoryFilter filters by category', () async {
       when(() => mockRepo.getAll())
           .thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -191,6 +208,8 @@ void main() {
 
     test('setCategoryFilter returns empty for non-matching category', () async {
       when(() => mockRepo.getAll())
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [makeTransaction(id: '1')]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
@@ -206,6 +225,8 @@ void main() {
       final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 4));
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -242,6 +263,8 @@ void main() {
       );
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -261,6 +284,8 @@ void main() {
       );
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -280,6 +305,8 @@ void main() {
       );
 
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -313,6 +340,8 @@ void main() {
       final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
       final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 5));
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
       when(() => mockRepo.search('t1')).thenAnswer((_) async => [t1]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
@@ -329,6 +358,8 @@ void main() {
       final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
       final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 5));
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -338,8 +369,10 @@ void main() {
     });
 
     test('clearSearch resets query and results', () async {
-      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      final t1 = makeTransaction(id: '1');
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
       when(() => mockRepo.search('q')).thenAnswer((_) async => [t1]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
@@ -353,8 +386,10 @@ void main() {
     });
 
     test('setSearchQuery with empty string clears search', () async {
-      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 1));
+      final t1 = makeTransaction(id: '1');
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
       when(() => mockRepo.search('q')).thenAnswer((_) async => [t1]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
@@ -370,6 +405,8 @@ void main() {
       final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 3));
       final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 4));
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
       // Search returns both
       when(() => mockRepo.search('test')).thenAnswer((_) async => [t1, t2]);
 
@@ -395,6 +432,8 @@ void main() {
         date: DateTime(now.year, now.month, 10), note: '',
       );
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
       // Search returns only t1
       when(() => mockRepo.search('ăn')).thenAnswer((_) async => [t1]);
 
@@ -457,6 +496,8 @@ void main() {
       final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 3));
       final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 10));
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
       await Future.delayed(Duration.zero);
@@ -478,6 +519,8 @@ void main() {
       // After delete, getAll returns 1
       when(() => mockRepo.getAll())
           .thenAnswer((_) async => [t1, t2, t3]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2, t3]);
       when(() => mockRepo.deleteMultiple(any())).thenAnswer((_) async {});
 
       viewModel = ExpenseViewModel(mockRepo, mockExport);
@@ -485,13 +528,187 @@ void main() {
 
       expect(viewModel.transactions.length, 3);
 
-      // Mock that after delete, only t3 remains
+      // Mock that after delete, only t3 remains (via _refreshAll)
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t3]);
       await viewModel.deleteTransactions(['1', '2']);
 
       verify(() => mockRepo.deleteMultiple(['1', '2'])).called(1);
       expect(viewModel.transactions.length, 1);
       expect(viewModel.transactions.first.id, '3');
+    });
+  });
+
+  group('memoization', () {
+    test('transactions getter caches result on first access', () async {
+      final t1 = makeTransaction(id: '1', amount: 10000);
+      final t2 = makeTransaction(id: '2', amount: 20000);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      // First access
+      final first = viewModel.transactions;
+      // Verify it returns list
+      expect(first.length, 2);
+
+      // Second access should return cached list (no new computation)
+      // We verify this by checking the same object reference is returned
+      final second = viewModel.transactions;
+      expect(identical(first, second), isTrue,
+          reason: 'Second access should return same cached list');
+    });
+
+    test('stats getter caches result on first access', () async {
+      final now = DateTime.now();
+      final t1 = Transaction(
+        id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        date: DateTime(now.year, now.month, 5), note: '',
+      );
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      // First access
+      final first = viewModel.stats;
+      expect(first.monthExpense, 50000);
+
+      // Second access should return cached stats
+      final second = viewModel.stats;
+      expect(identical(first, second), isTrue,
+          reason: 'Second access should return same cached stats');
+    });
+
+    test('transactions cache invalidated after setDateFilter', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 3));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 4));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      // First access caches
+      final first = viewModel.transactions;
+      expect(first.length, 2);
+
+      // Set filter
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+
+      // Next access should recompute (cache invalidated)
+      final afterFilter = viewModel.transactions;
+      expect(afterFilter.length, 1);
+      expect(afterFilter.first.id, '1');
+      // Should be a new list instance
+      expect(identical(first, afterFilter), isFalse,
+          reason: 'Cache should be invalidated after filter change');
+    });
+
+    test('transactions cache invalidated after setCategoryFilter', () async {
+      final t1 = makeTransaction(id: '1');
+      final t2 = makeTransaction(id: '2');
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.transactions; // cache
+      viewModel.setCategoryFilter('Cà phê'); // non-matching
+
+      final result = viewModel.transactions;
+      expect(result, isEmpty);
+    });
+
+    test('transactions cache invalidated after clearFilters', () async {
+      final t1 = makeTransaction(id: '1', date: DateTime(2026, 6, 3));
+      final t2 = makeTransaction(id: '2', date: DateTime(2026, 6, 4));
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+      viewModel.transactions; // trigger recompute
+
+      viewModel.clearFilters();
+
+      final result = viewModel.transactions;
+      expect(result.length, 2);
+    });
+
+    test('stats cache invalidated after addTransaction', () async {
+      final t1 = makeTransaction(id: '1', amount: 10000);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+      when(() => mockRepo.add(any())).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      final firstStats = viewModel.stats;
+      expect(firstStats.monthExpense, 10000);
+
+      // Add another transaction
+      final t2 = makeTransaction(id: '2', amount: 20000);
+      await viewModel.addTransaction(
+        amount: 20000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+      );
+
+      // Stats should be recalculated
+      final afterStats = viewModel.stats;
+      expect(afterStats.monthExpense, 30000);
+    });
+
+    test('stats cache invalidated after deleteTransaction', () async {
+      final t1 = makeTransaction(id: '1', amount: 10000);
+      final t2 = makeTransaction(id: '2', amount: 20000);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.delete('2')).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.stats; // cache stats
+
+      await viewModel.deleteTransaction('2');
+
+      final stats = viewModel.stats;
+      expect(stats.monthExpense, 10000);
+    });
+
+    test('transactions cache invalidated after _loadInitialPage completes', () async {
+      final t1 = makeTransaction(id: '1');
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.transactions; // cache
+
+      // Simulate data reload (refresh calls _refreshAll which uses getAll())
+      final t2 = makeTransaction(id: '2');
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+      await viewModel.refresh();
+
+      final result = viewModel.transactions;
+      expect(result.length, 2);
     });
   });
 
@@ -539,6 +756,210 @@ void main() {
       expect(viewModel.filterStartDate, isNull);
       expect(viewModel.filterEndDate, isNull);
       expect(viewModel.searchQuery, isNull);
+    });
+  });
+
+  // ===========================================================================
+  // ADR-0017 Slice 3 — D3.2 pagination + D3.3 in-memory splice
+  // ===========================================================================
+
+  group('ADR-0017 D3.2: DB-level pagination', () {
+    test('loads first batch via getAllPaginated(offset:0, limit:50)', () async {
+      final t1 = makeTransaction(id: '1');
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      verify(() => mockRepo.getAllPaginated(offset: 0, limit: 50)).called(1);
+      expect(viewModel.allTransactions.length, 1);
+      expect(viewModel.allTransactions.first.id, '1');
+    });
+
+    test('hasMore is true when response length equals page size', () async {
+      final page = List.generate(50, (i) => makeTransaction(id: 'p-$i'));
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => page);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.hasMore, isTrue);
+    });
+
+    test('hasMore is false when response is shorter than page size', () async {
+      final page = [makeTransaction(id: '1')];
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => page);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.hasMore, isFalse);
+    });
+
+    test('loadMoreTransactions appends next batch without duplicates', () async {
+      // First page must be FULL (50 items) so hasMore=true after initial load.
+      final page1 = List.generate(50, (i) => makeTransaction(id: 'p1-$i'));
+      final page2 = [makeTransaction(id: 'p2-0')];
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => page1);
+      when(() => mockRepo.getAllPaginated(offset: 50, limit: 50))
+          .thenAnswer((_) async => page2);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.allTransactions.length, 50);
+      expect(viewModel.hasMore, isTrue);
+
+      await viewModel.loadMoreTransactions();
+
+      expect(viewModel.allTransactions.length, 51);
+      expect(viewModel.allTransactions.last.id, 'p2-0');
+    });
+
+    test('loadMoreTransactions does nothing when hasMore is false', () async {
+      final page = [makeTransaction(id: '1')];
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => page);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.hasMore, isFalse);
+
+      await viewModel.loadMoreTransactions();
+
+      expect(viewModel.allTransactions.length, 1);
+      verifyNever(() => mockRepo.getAllPaginated(offset: 1, limit: 50));
+    });
+  });
+
+  group('ADR-0017 D3.3: in-memory splice', () {
+    test('addTransaction splices new item at position 0 without calling getAll', () async {
+      final t1 = makeTransaction(id: '1');
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+      when(() => mockRepo.add(any())).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.allTransactions.length, 1);
+
+      await viewModel.addTransaction(
+        amount: 99999,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+      );
+
+      expect(viewModel.allTransactions.length, 2);
+      // New item has a generated UUID, so it's at position 0 and is not t1
+      expect(viewModel.allTransactions.first.id, isNot('1'));
+    });
+
+    test('deleteTransaction splices item out without calling getAll', () async {
+      final t1 = makeTransaction(id: '1');
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+      when(() => mockRepo.delete('1')).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.allTransactions.length, 1);
+
+      await viewModel.deleteTransaction('1');
+
+      expect(viewModel.allTransactions, isEmpty);
+    });
+
+    test('deleteTransactions splices all matching items out', () async {
+      final t1 = makeTransaction(id: '1');
+      final t2 = makeTransaction(id: '2');
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1, t2]);
+      when(() => mockRepo.deleteMultiple(any())).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.allTransactions.length, 2);
+
+      final deleted = await viewModel.deleteTransactions(['1', '2']);
+
+      expect(viewModel.allTransactions, isEmpty);
+      expect(deleted.map((t) => t.id), ['1', '2']);
+    });
+
+    test('updateTransaction splices the updated item in place', () async {
+      final t1 = makeTransaction(id: '1', amount: 10000);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+      when(() => mockRepo.update(any())).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      final updated = makeTransaction(id: '1', amount: 99999);
+      await viewModel.updateTransaction(updated);
+
+      expect(viewModel.allTransactions.length, 1);
+      expect(viewModel.allTransactions.first.amount, 99999);
+    });
+
+    test('undoDeleteTransaction splices restored item at position 0', () async {
+      final t1 = makeTransaction(id: '1');
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+      when(() => mockRepo.add(any())).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.allTransactions.length, 1);
+
+      final savedJson = await viewModel.deleteTransactionWithUndo('1');
+      expect(viewModel.allTransactions, isEmpty);
+
+      await viewModel.undoDeleteTransaction(savedJson);
+
+      expect(viewModel.allTransactions.length, 1);
+      expect(viewModel.allTransactions.first.id, '1');
+    });
+
+    test('addTransactionFromModel splices without calling getAll', () async {
+      final t1 = makeTransaction(id: '1');
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+      when(() => mockRepo.add(any())).thenAnswer((_) async {});
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      final t2 = makeTransaction(id: '2', amount: 22222);
+      await viewModel.addTransactionFromModel(t2);
+
+      expect(viewModel.allTransactions.length, 2);
+      expect(viewModel.allTransactions.first.id, '2');
+    });
+
+    test('refresh() calls _refreshAll which calls getAll (external sync)', () async {
+      final t1 = makeTransaction(id: '1');
+      final t2 = makeTransaction(id: '2');
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [t1]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      await viewModel.refresh();
+
+      verify(() => mockRepo.getAll()).called(1);
+      expect(viewModel.allTransactions.length, 2);
     });
   });
 }

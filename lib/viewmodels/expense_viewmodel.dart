@@ -21,14 +21,37 @@ class ExpenseViewModel extends ChangeNotifier {
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   String? _errorMessage;
 
+  // Pagination (ADR-0017 Slice 3 D3.2)
+  static const int _pageSize = 50;
+  bool _hasMore = true;
+
+  // Memoization caches (ADR-0017 Slice 1)
+  List<Transaction>? _cachedFiltered;
+  ExpenseStats? _cachedStats;
+  bool _filteredDirty = true;
+  bool _statsDirty = true;
+
+  /// Invalidate both caches. Call when underlying data or filters change.
+  void _invalidateCaches() {
+    _filteredDirty = true;
+    _statsDirty = true;
+  }
+
   ExpenseViewModel(this._repository, this._exportService) {
-    Future.microtask(() => _loadTransactions());
+    Future.microtask(() => _loadInitialPage());
   }
 
   // Getters
-  List<Transaction> get transactions => _getFilteredTransactions();
+  List<Transaction> get transactions {
+    if (_filteredDirty) {
+      _cachedFiltered = _getFilteredTransactions();
+      _filteredDirty = false;
+    }
+    return _cachedFiltered!;
+  }
   List<Transaction> get allTransactions => _transactions;
   DateTime? get filterDate => _filterDate;
   String? get filterCategory => _filterCategory;
@@ -37,7 +60,13 @@ class ExpenseViewModel extends ChangeNotifier {
   String? get searchQuery => _searchQuery;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  ExpenseStats get stats => _calculateStats();
+  ExpenseStats get stats {
+    if (_statsDirty) {
+      _cachedStats = _calculateStats();
+      _statsDirty = false;
+    }
+    return _cachedStats!;
+  }
   List<Category> get categories => Category.predefined;
 
   /// True if any filter (date, category, range, or search) is active
@@ -55,14 +84,16 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load all transactions from repository
-  Future<void> _loadTransactions() async {
+  /// Load first page of transactions from repository (DB pagination).
+  Future<void> _loadInitialPage() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _transactions = await _repository.getAll();
+      _transactions = await _repository.getAllPaginated(offset: 0, limit: _pageSize);
+      _hasMore = _transactions.length == _pageSize;
+      _invalidateCaches();
     } catch (e) {
       debugPrint('Error loading transactions: $e');
       _errorMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.';
@@ -72,12 +103,74 @@ class ExpenseViewModel extends ChangeNotifier {
     }
   }
 
+  /// Load more transactions (append next page).
+  Future<void> loadMoreTransactions() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final nextPage = await _repository.getAllPaginated(
+        offset: _transactions.length,
+        limit: _pageSize,
+      );
+      _transactions.addAll(nextPage);
+      _hasMore = nextPage.length == _pageSize;
+      _invalidateCaches();
+    } catch (e) {
+      debugPrint('Error loading more transactions: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
   /// Refresh both _transactions and _searchResults (if search active).
+  /// Used for external-trigger reloads (restore from backup, recurring generation).
   Future<void> _refreshAll() async {
     _transactions = await _repository.getAll();
+    _hasMore = false; // We've loaded everything; no more pages to fetch
     if (_searchQuery != null) {
       _searchResults = await _repository.search(_searchQuery!);
     }
+    _invalidateCaches();
+  }
+
+  /// Splice helper: insert [tx] into [_transactions] keeping created_at DESC order
+  /// (newer first). Also mirrors into [_searchResults] when search is active.
+  void _spliceInsert(Transaction tx) {
+    // Find insertion position to maintain created_at DESC order.
+    // We don't have created_at on the model, so we use the list order assumption
+    // (newest items added at index 0 by callers) — just prepend.
+    _transactions.insert(0, tx);
+    if (_searchQuery != null) {
+      _searchResults.insert(0, tx);
+    }
+    _invalidateCaches();
+  }
+
+  /// Splice helper: remove the transaction with [id] from both lists.
+  void _spliceRemove(String id) {
+    _transactions.removeWhere((t) => t.id == id);
+    if (_searchQuery != null) {
+      _searchResults.removeWhere((t) => t.id == id);
+    }
+    _invalidateCaches();
+  }
+
+  /// Splice helper: replace the transaction with matching id.
+  void _spliceReplace(Transaction updated) {
+    final idx = _transactions.indexWhere((t) => t.id == updated.id);
+    if (idx >= 0) {
+      _transactions[idx] = updated;
+    }
+    if (_searchQuery != null) {
+      final sIdx = _searchResults.indexWhere((t) => t.id == updated.id);
+      if (sIdx >= 0) {
+        _searchResults[sIdx] = updated;
+      }
+    }
+    _invalidateCaches();
   }
 
   /// Add a new transaction
@@ -102,8 +195,7 @@ class ExpenseViewModel extends ChangeNotifier {
       );
 
       await _repository.add(transaction);
-      // Reload transactions and search results (if active) to avoid duplication
-      await _refreshAll();
+      _spliceInsert(transaction);
     } catch (e) {
       debugPrint('Error adding transaction: $e');
       _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
@@ -121,7 +213,7 @@ class ExpenseViewModel extends ChangeNotifier {
 
     try {
       await _repository.delete(id);
-      _transactions.removeWhere((t) => t.id == id);
+      _spliceRemove(id);
     } catch (e) {
       debugPrint('Error deleting transaction: $e');
       _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
@@ -141,7 +233,7 @@ class ExpenseViewModel extends ChangeNotifier {
       final txn = _transactions.firstWhere((t) => t.id == id);
       final jsonString = jsonEncode(txn.toJson());
       await _repository.delete(id);
-      await _loadTransactions();
+      _spliceRemove(id);
       return jsonString;
     } catch (e) {
       debugPrint('Error deleting transaction with undo: $e');
@@ -166,7 +258,7 @@ class ExpenseViewModel extends ChangeNotifier {
         jsonDecode(jsonString) as Map<String, dynamic>,
       );
       await _repository.add(txn);
-      await _refreshAll();
+      _spliceInsert(txn);
     } catch (e) {
       debugPrint('Error undoing delete: $e');
       _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
@@ -185,6 +277,7 @@ class ExpenseViewModel extends ChangeNotifier {
     try {
       await _repository.clearAll();
       _transactions.clear();
+      _invalidateCaches();
     } catch (e) {
       debugPrint('Error clearing all transactions: $e');
       _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
@@ -199,16 +292,18 @@ class ExpenseViewModel extends ChangeNotifier {
     _filterDate = date;
     _filterStartDate = null; // mutual exclusive
     _filterEndDate = null;
+    _invalidateCaches();
     notifyListeners();
   }
 
   /// Set category filter
   void setCategoryFilter(String? category) {
     _filterCategory = category;
+    _invalidateCaches();
     notifyListeners();
   }
 
-  /// Set search query and fetch FTS5 results. Empty/whitespace clears search.
+  /// Set search query and fetch results via LIKE search. Empty/whitespace clears search.
   Future<void> setSearchQuery(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
@@ -220,6 +315,7 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       _searchResults = await _repository.search(trimmed);
+      _invalidateCaches();
     } catch (e) {
       debugPrint('Error searching: $e');
       _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
@@ -234,10 +330,11 @@ class ExpenseViewModel extends ChangeNotifier {
   void clearSearch() {
     _searchQuery = null;
     _searchResults = [];
+    _invalidateCaches();
     notifyListeners();
   }
 
-  /// Delete multiple transactions by ID, then refresh.
+  /// Delete multiple transactions by ID, then splice the local list.
   /// Returns the deleted transactions' JSON for potential undo.
   Future<List<Transaction>> deleteTransactions(List<String> ids) async {
     if (ids.isEmpty) return [];
@@ -247,7 +344,9 @@ class ExpenseViewModel extends ChangeNotifier {
     try {
       final deleted = _transactions.where((t) => ids.contains(t.id)).toList();
       await _repository.deleteMultiple(ids);
-      await _refreshAll();
+      for (final id in ids) {
+        _spliceRemove(id);
+      }
       return deleted;
     } catch (e) {
       debugPrint('Error bulk deleting transactions: $e');
@@ -264,6 +363,7 @@ class ExpenseViewModel extends ChangeNotifier {
     _filterStartDate = start;
     _filterEndDate = end;
     _filterDate = null; // mutual exclusive
+    _invalidateCaches();
     notifyListeners();
   }
 
@@ -275,6 +375,7 @@ class ExpenseViewModel extends ChangeNotifier {
     _filterEndDate = null;
     _searchQuery = null;
     _searchResults = [];
+    _invalidateCaches();
     notifyListeners();
   }
 
@@ -399,9 +500,10 @@ class ExpenseViewModel extends ChangeNotifier {
     );
   }
 
-  /// Refresh data
+  /// Refresh data — reloads the first page (used by pull-to-refresh and
+  /// after external mutations like recurring generation or restore from backup).
   Future<void> refresh() async {
-    await _loadTransactions();
+    await _refreshAll();
   }
 
   /// Add a pre-built Transaction object directly (used for undo/restore flows).
@@ -413,7 +515,7 @@ class ExpenseViewModel extends ChangeNotifier {
 
     try {
       await _repository.add(transaction);
-      await _refreshAll();
+      _spliceInsert(transaction);
     } catch (e) {
       debugPrint('Error adding transaction from model: $e');
       _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
@@ -430,7 +532,7 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.update(transaction);
-      await _refreshAll();
+      _spliceReplace(transaction);
     } catch (e) {
       debugPrint('Error updating transaction: $e');
       _errorMessage = 'Không thể thực hiện thao tác. Vui lòng thử lại.';
@@ -439,4 +541,10 @@ class ExpenseViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// True if more pages can be loaded (DB pagination).
+  bool get hasMore => _hasMore;
+
+  /// True while [loadMoreTransactions] is in flight.
+  bool get isLoadingMore => _isLoadingMore;
 }

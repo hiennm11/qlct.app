@@ -4,7 +4,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 6;
+  static const _databaseVersion = 7;
 
   Database? _database;
 
@@ -40,6 +40,8 @@ class DatabaseHelper {
     ''');
     await db.execute('CREATE INDEX idx_transactions_date ON transactions(date)');
     await db.execute('CREATE INDEX idx_transactions_category ON transactions(category)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_source_recurring ON transactions(source_recurring_id)');
     await db.execute('''
       CREATE TABLE budgets (
         id              TEXT PRIMARY KEY,
@@ -97,6 +99,10 @@ class DatabaseHelper {
     if (oldVersion < 6) {
       // Drop FTS5 table if it exists (cleanup from v4/v5 migration)
       await db.execute('DROP TABLE IF EXISTS transactions_fts');
+    }
+    if (oldVersion < 7) {
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_source_recurring ON transactions(source_recurring_id)');
     }
   }
 

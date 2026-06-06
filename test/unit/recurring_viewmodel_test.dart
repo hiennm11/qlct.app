@@ -81,6 +81,10 @@ void main() {
     mockTxRepo = MockTransactionRepository();
     when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockTxRepo.getAll()).thenAnswer((_) async => []);
+    // D2.1: dedup now uses existsBySourceRecurringIdAndDate; default to false
+    // (no existing transaction) for tests that don't care about dedup.
+    when(() => mockTxRepo.existsBySourceRecurringIdAndDate(any(), any()))
+        .thenAnswer((_) async => false);
   });
 
   group('initial load', () {
@@ -388,20 +392,12 @@ void main() {
 
     test('does NOT generate duplicate when tx with same source+date exists',
         () async {
-      // D1 fix: duplicate check uses rule.nextRunAt (2026-06-04), not today
-      final ruleDate = DateTime(2026, 6, 4);
-      final existingTx = Transaction(
-        id: 'existing',
-        amount: 50000,
-        category: 'Ăn ngoài',
-        emoji: '🍜',
-        date: ruleDate,
-        sourceRecurringId: 'rec-1',
-      );
-
+      // D2.1 fix: uses existsBySourceRecurringIdAndDate instead of getAll() loop
       when(() => mockRecurringRepo.getActiveDue(any()))
           .thenAnswer((_) async => [ruleDaily]);
-      when(() => mockTxRepo.getAll()).thenAnswer((_) async => [existingTx]);
+      // Existing transaction found for rule on 2026-06-04
+      when(() => mockTxRepo.existsBySourceRecurringIdAndDate('rec-1', '2026-06-04'))
+          .thenAnswer((_) async => true);
       when(() => mockTxRepo.add(any())).thenAnswer((_) async {});
       when(() => mockRecurringRepo.updateNextRunAt(any(), any()))
           .thenAnswer((_) async {});
@@ -505,18 +501,12 @@ void main() {
       final ruleWithToday = ruleDaily.copyWith(
         nextRunAt: DateTime(now.year, now.month, now.day, now.hour),
       );
-      final existingTx = Transaction(
-        id: 'existing-edit',
-        amount: 50000,
-        category: 'Ăn ngoài',
-        emoji: '🍜',
-        date: ruleWithToday.nextRunAt,
-        sourceRecurringId: 'rec-1',
-      );
+      final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       when(() => mockRecurringRepo.getActiveDue(any()))
           .thenAnswer((_) async => [ruleWithToday]);
-      when(() => mockTxRepo.getAll()).thenAnswer((_) async => [existingTx]);
+      when(() => mockTxRepo.existsBySourceRecurringIdAndDate('rec-1', dateStr))
+          .thenAnswer((_) async => true);
       when(() => mockTxRepo.add(any())).thenAnswer((_) async {});
       when(() => mockRecurringRepo.updateNextRunAt(any(), any()))
           .thenAnswer((_) async {});
@@ -607,6 +597,125 @@ void main() {
       // Inner failure: errorMessage NOT set (per-rule swallow)
       // (Top-level catch only fires for getActiveDue/loadRecurrings failures.)
       expect(viewModel.errorMessage, isNull);
+    });
+
+    test('returns 0 when no due rules', () async {
+      when(() => mockRecurringRepo.getActiveDue(any()))
+          .thenAnswer((_) async => []);
+
+      viewModel = RecurringTransactionViewModel(
+        mockRecurringRepo,
+        mockTxRepo,
+      );
+      await Future.delayed(Duration.zero);
+
+      final result = await viewModel.checkAndGenerate();
+
+      expect(result, 0);
+    });
+
+    test('returns 1 when exactly 1 rule generates', () async {
+      when(() => mockRecurringRepo.getActiveDue(any()))
+          .thenAnswer((_) async => [ruleDaily]);
+      when(() => mockTxRepo.existsBySourceRecurringIdAndDate(any(), any()))
+          .thenAnswer((_) async => false);
+      when(() => mockTxRepo.add(any())).thenAnswer((_) async {});
+      when(() => mockRecurringRepo.updateNextRunAt(any(), any()))
+          .thenAnswer((_) async {});
+
+      viewModel = RecurringTransactionViewModel(
+        mockRecurringRepo,
+        mockTxRepo,
+      );
+      await Future.delayed(Duration.zero);
+
+      final result = await viewModel.checkAndGenerate();
+
+      expect(result, 1);
+    });
+
+    test('returns 2 when 2 rules generate', () async {
+      final ruleA = ruleDaily;
+      final ruleB = RecurringTransaction(
+        id: 'rec-B',
+        categoryName: 'Cà phê',
+        amount: 30000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 4),
+        isActive: true,
+        createdAt: DateTime(2026, 6, 1),
+      );
+
+      when(() => mockRecurringRepo.getActiveDue(any()))
+          .thenAnswer((_) async => [ruleA, ruleB]);
+      when(() => mockTxRepo.existsBySourceRecurringIdAndDate(any(), any()))
+          .thenAnswer((_) async => false);
+      when(() => mockTxRepo.add(any())).thenAnswer((_) async {});
+      when(() => mockRecurringRepo.updateNextRunAt(any(), any()))
+          .thenAnswer((_) async {});
+
+      viewModel = RecurringTransactionViewModel(
+        mockRecurringRepo,
+        mockTxRepo,
+      );
+      await Future.delayed(Duration.zero);
+
+      final result = await viewModel.checkAndGenerate();
+
+      expect(result, 2);
+    });
+
+    test('returns 0 when all due rules already have transactions', () async {
+      when(() => mockRecurringRepo.getActiveDue(any()))
+          .thenAnswer((_) async => [ruleDaily]);
+      when(() => mockTxRepo.existsBySourceRecurringIdAndDate('rec-1', '2026-06-04'))
+          .thenAnswer((_) async => true);
+
+      viewModel = RecurringTransactionViewModel(
+        mockRecurringRepo,
+        mockTxRepo,
+      );
+      await Future.delayed(Duration.zero);
+
+      final result = await viewModel.checkAndGenerate();
+
+      expect(result, 0);
+      verifyNever(() => mockTxRepo.add(any()));
+    });
+
+    test('returns N-M when M of N rules are duplicates', () async {
+      final ruleA = ruleDaily;
+      final ruleB = RecurringTransaction(
+        id: 'rec-B',
+        categoryName: 'Cà phê',
+        amount: 30000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 4),
+        isActive: true,
+        createdAt: DateTime(2026, 6, 1),
+      );
+
+      when(() => mockRecurringRepo.getActiveDue(any()))
+          .thenAnswer((_) async => [ruleA, ruleB]);
+      // rec-1 has dup; rec-B does not
+      when(() => mockTxRepo.existsBySourceRecurringIdAndDate('rec-1', '2026-06-04'))
+          .thenAnswer((_) async => true);
+      when(() => mockTxRepo.existsBySourceRecurringIdAndDate('rec-B', '2026-06-04'))
+          .thenAnswer((_) async => false);
+      when(() => mockTxRepo.add(any())).thenAnswer((_) async {});
+      when(() => mockRecurringRepo.updateNextRunAt(any(), any()))
+          .thenAnswer((_) async {});
+
+      viewModel = RecurringTransactionViewModel(
+        mockRecurringRepo,
+        mockTxRepo,
+      );
+      await Future.delayed(Duration.zero);
+
+      final result = await viewModel.checkAndGenerate();
+
+      expect(result, 1); // only rec-B generated
+      verify(() => mockTxRepo.add(any())).called(1);
     });
   });
 }

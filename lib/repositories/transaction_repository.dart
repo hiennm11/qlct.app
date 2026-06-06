@@ -29,9 +29,21 @@ abstract class TransactionRepository {
   /// Bulk add transactions
   Future<void> bulkAdd(List<Transaction> transactions);
 
-  /// Full-text search via FTS5
+  /// Full-text search via LIKE
   Future<List<Transaction>> search(String query);
 
   /// Bulk delete transactions by IDs
   Future<void> deleteMultiple(List<String> ids);
+
+  /// Check if a transaction exists for a recurring source on a specific date.
+  /// O(1) lookup via idx_transactions_source_recurring + date index.
+  Future<bool> existsBySourceRecurringIdAndDate(
+      String sourceRecurringId, String dateStr);
+
+  /// Get a page of transactions (DB-level pagination, ordered by created_at DESC).
+  /// Used by the viewmodel to lazily load more items as the user scrolls.
+  Future<List<Transaction>> getAllPaginated({
+    required int offset,
+    required int limit,
+  });
 }

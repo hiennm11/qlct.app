@@ -31,6 +31,10 @@ void main() {
   setUp(() {
     mockRepo = MockTransactionRepository();
     mockExport = MockExportService();
+    // Default: pagination returns empty page (needed after ADR-0017 D3.2)
+    when(() => mockRepo.getAllPaginated(
+            offset: any(named: 'offset'), limit: any(named: 'limit')))
+        .thenAnswer((_) async => []);
   });
 
   Widget wrap(
@@ -55,6 +59,8 @@ void main() {
 
   ExpenseViewModel makeVm(List<Transaction> txs) {
     when(() => mockRepo.getAll()).thenAnswer((_) async => txs);
+    when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+        .thenAnswer((_) async => txs);
     return ExpenseViewModel(mockRepo, mockExport);
   }
 

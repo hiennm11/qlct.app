@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
+import '../viewmodels/budget_viewmodel.dart';
 import '../viewmodels/recurring_viewmodel.dart';
 import '../widgets/stats_widget.dart';
 import '../widgets/transaction_list_widget.dart';
@@ -28,27 +29,52 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    final expenseVM = context.read<ExpenseViewModel>();
+    final budgetVM = context.read<BudgetViewModel>();
+
+    // Listen for expense changes — update budget stats only when data settles
+    expenseVM.addListener(_onExpenseChange);
+
+    // Listen for errors from ExpenseViewModel
+    expenseVM.addListener(_onExpenseError);
+
     // Trigger recurring check after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<RecurringTransactionViewModel>().checkAndGenerate().then((_) {
+        context.read<RecurringTransactionViewModel>().checkAndGenerate().then((generated) {
           if (mounted) {
-            context.read<ExpenseViewModel>().refresh();
+            if (generated > 0) {
+              context.read<ExpenseViewModel>().refresh().then((_) {
+                if (mounted) {
+                  budgetVM.updateStats(expenseVM.stats);
+                }
+              });
+            } else {
+              // Push initial stats on cold start
+              budgetVM.updateStats(expenseVM.stats);
+            }
           }
         });
       }
     });
-
-    // Listen for errors from ExpenseViewModel
-    final vm = context.read<ExpenseViewModel>();
-    vm.addListener(_onExpenseError);
   }
 
   @override
   void dispose() {
     final vm = context.read<ExpenseViewModel>();
+    vm.removeListener(_onExpenseChange);
     vm.removeListener(_onExpenseError);
     super.dispose();
+  }
+
+  /// Called whenever ExpenseViewModel notifies. Pushes stats to BudgetViewModel
+  /// only when the data has settled (not during a load). Memoization makes the
+  /// stats getter O(1) on every read after the first, so this is cheap.
+  void _onExpenseChange() {
+    if (!mounted) return;
+    final expenseVM = context.read<ExpenseViewModel>();
+    if (expenseVM.isLoading) return;
+    context.read<BudgetViewModel>().updateStats(expenseVM.stats);
   }
 
   void _onExpenseError() {
@@ -227,80 +253,132 @@ class _HomeScreenState extends State<HomeScreen> {
             onRefresh: () async {
               await context.read<ExpenseViewModel>().refresh();
             },
-            child: SingleChildScrollView(
+            // ADR-0017 Slice 3 D3.1: CustomScrollView with slivers enables
+            // lazy building of the transaction list and proper element
+            // recycling for the whole screen.
+            child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-              child: Column(
-                children: [
-                  // Quick add bar
-                  const QuickAddBar(),
-                  const SizedBox(height: 20),
+              slivers: [
+                // Top padding (replaces the SingleChildScrollView padding top)
+                const SliverPadding(
+                  padding: EdgeInsets.only(top: 16),
+                  sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
+                ),
 
-                  // Budget overview
-                  BudgetOverviewWidget(
-                    onCategoryTap: (categoryName) {
-                      context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
-                      _scrollToSection(_transactionListKey);
-                    },
+                // Quick add bar
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: const QuickAddBar(),
                   ),
-                  const SizedBox(height: 20),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 20),
+                ),
 
-                  // Transactions list
-                  Container(
-                    key: _transactionListKey,
-                    child: const TransactionListWidget(),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Stats section
-                  Container(
-                    key: _statsKey,
-                    child: StatsWidget(
-                      onTapToday: () {
-                        final vm = context.read<ExpenseViewModel>();
-                        vm.clearFilters();
-                        vm.setDateFilter(DateTime.now());
-                        _scrollToSection(_transactionListKey);
-                      },
-                      onTapWeek: () {
-                        final vm = context.read<ExpenseViewModel>();
-                        vm.clearFilters();
-                        final now = DateTime.now();
-                        final startOfWeek =
-                            now.subtract(Duration(days: now.weekday - 1));
-                        vm.setDateRangeFilter(
-                          DateTime(
-                              startOfWeek.year, startOfWeek.month, startOfWeek.day),
-                          DateTime(now.year, now.month, now.day),
-                        );
-                        _scrollToSection(_transactionListKey);
-                      },
-                      onTapMonth: () {
-                        final vm = context.read<ExpenseViewModel>();
-                        vm.clearFilters();
-                        final now = DateTime.now();
-                        final startOfMonth = DateTime(now.year, now.month, 1);
-                        vm.setDateRangeFilter(
-                          startOfMonth,
-                          DateTime(now.year, now.month + 1, 0),
-                        );
+                // Budget overview
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: BudgetOverviewWidget(
+                      onCategoryTap: (categoryName) {
+                        context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
                         _scrollToSection(_transactionListKey);
                       },
                     ),
                   ),
-                  const SizedBox(height: 20),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 20),
+                ),
 
-                  // Chart
-                  const ChartWidget(),
-                  const SizedBox(height: 20),
-
-                  // Recurring transactions
-                  Container(
-                    key: _recurringKey,
-                    child: const RecurringOverviewWidget(),
+                // Transactions list (keeps its own bounded height for lazy build)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      key: _transactionListKey,
+                      child: const TransactionListWidget(),
+                    ),
                   ),
-                ],
-              ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 20),
+                ),
+
+                // Stats section
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      key: _statsKey,
+                      child: StatsWidget(
+                        onTapToday: () {
+                          final vm = context.read<ExpenseViewModel>();
+                          vm.clearFilters();
+                          vm.setDateFilter(DateTime.now());
+                          _scrollToSection(_transactionListKey);
+                        },
+                        onTapWeek: () {
+                          final vm = context.read<ExpenseViewModel>();
+                          vm.clearFilters();
+                          final now = DateTime.now();
+                          final startOfWeek =
+                              now.subtract(Duration(days: now.weekday - 1));
+                          vm.setDateRangeFilter(
+                            DateTime(
+                                startOfWeek.year, startOfWeek.month, startOfWeek.day),
+                            DateTime(now.year, now.month, now.day),
+                          );
+                          _scrollToSection(_transactionListKey);
+                        },
+                        onTapMonth: () {
+                          final vm = context.read<ExpenseViewModel>();
+                          vm.clearFilters();
+                          final now = DateTime.now();
+                          final startOfMonth = DateTime(now.year, now.month, 1);
+                          vm.setDateRangeFilter(
+                            startOfMonth,
+                            DateTime(now.year, now.month + 1, 0),
+                          );
+                          _scrollToSection(_transactionListKey);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 20),
+                ),
+
+                // Chart
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: const ChartWidget(),
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 20),
+                ),
+
+                // Recurring transactions
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      key: _recurringKey,
+                      child: const RecurringOverviewWidget(),
+                    ),
+                  ),
+                ),
+
+                // Bottom padding (replaces SingleChildScrollView padding bottom)
+                const SliverPadding(
+                  padding: EdgeInsets.only(bottom: 80),
+                  sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
+                ),
+              ],
             ),
           ),
           // Jump bar — positioned at bottom center

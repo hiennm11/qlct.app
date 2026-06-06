@@ -169,4 +169,33 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       ids,
     );
   }
+
+  @override
+  Future<bool> existsBySourceRecurringIdAndDate(
+      String sourceRecurringId, String dateStr) async {
+    final db = await _dbHelper.database;
+    // date column is stored as ISO 8601 (e.g. "2026-06-04T00:00:00.000")
+    // so use LIKE prefix to match the day portion.
+    // Index idx_transactions_source_recurring makes the lookup O(K) per rule.
+    final result = await db.rawQuery(
+      'SELECT 1 FROM transactions WHERE source_recurring_id = ? AND date LIKE ? LIMIT 1',
+      [sourceRecurringId, '$dateStr%'],
+    );
+    return result.isNotEmpty;
+  }
+
+  @override
+  Future<List<Transaction>> getAllPaginated({
+    required int offset,
+    required int limit,
+  }) async {
+    final db = await _dbHelper.database;
+    final maps = await db.query(
+      'transactions',
+      orderBy: 'created_at DESC',
+      limit: limit,
+      offset: offset,
+    );
+    return maps.map(_fromMap).toList();
+  }
 }

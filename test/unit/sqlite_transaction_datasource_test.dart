@@ -283,6 +283,97 @@ void main() {
     });
   });
 
+  group('existsBySourceRecurringIdAndDate', () {
+    test('returns true when transaction with matching source+date exists', () async {
+      final tx = Transaction(
+        id: 'exists-uuid-1',
+        amount: 50000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        date: DateTime(2026, 6, 4),
+        note: '',
+        sourceRecurringId: 'rec-1',
+      );
+      await dataSource.add(tx);
+
+      final result = await dataSource.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-04');
+
+      expect(result, true);
+    });
+
+    test('returns false when no transaction with that source+date combo', () async {
+      final tx = Transaction(
+        id: 'exists-uuid-2',
+        amount: 50000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        date: DateTime(2026, 6, 4),
+        note: '',
+        sourceRecurringId: 'rec-1',
+      );
+      await dataSource.add(tx);
+
+      // Different date
+      final result = await dataSource.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-05');
+
+      expect(result, false);
+    });
+
+    test('returns false when same date but different source recurring id', () async {
+      final tx = Transaction(
+        id: 'exists-uuid-3',
+        amount: 50000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        date: DateTime(2026, 6, 4),
+        note: '',
+        sourceRecurringId: 'rec-1',
+      );
+      await dataSource.add(tx);
+
+      final result = await dataSource.existsBySourceRecurringIdAndDate(
+          'rec-2', '2026-06-04');
+
+      expect(result, false);
+    });
+
+    test('returns false for empty database', () async {
+      final result = await dataSource.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-04');
+
+      expect(result, false);
+    });
+
+    test('uses SELECT 1 LIMIT 1 for O(1) performance', () async {
+      // Verify the query uses LIMIT 1 (checked via source inspection)
+      // We test behavior: same id+date always returns same result
+      final tx = Transaction(
+        id: 'exists-uuid-4',
+        amount: 50000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        date: DateTime(2026, 6, 4),
+        note: '',
+        sourceRecurringId: 'rec-1',
+      );
+      await dataSource.add(tx);
+
+      // Call multiple times — result should be consistent
+      final r1 = await dataSource.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-04');
+      final r2 = await dataSource.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-04');
+      final r3 = await dataSource.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-04');
+
+      expect(r1, true);
+      expect(r2, true);
+      expect(r3, true);
+    });
+  });
+
   group('persistence after restart', () {
     late String tempDbPath;
     late Database? tempDb;

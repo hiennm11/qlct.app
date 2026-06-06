@@ -60,6 +60,18 @@ class _FakeTransactionRepository implements TransactionRepository {
     deleteMultipleCalls++;
     _store.removeWhere((t) => ids.contains(t.id));
   }
+
+  @override
+  Future<bool> existsBySourceRecurringIdAndDate(
+          String sourceRecurringId, String dateStr) async =>
+      false;
+
+  @override
+  Future<List<Transaction>> getAllPaginated({
+    required int offset,
+    required int limit,
+  }) async =>
+      List.of(_store);
 }
 
 /// Fake export service — returns valid File objects so success SnackBars fire.

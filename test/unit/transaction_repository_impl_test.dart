@@ -181,4 +181,28 @@ void main() {
       verify(() => mockDataSource.deleteMultiple([])).called(1);
     });
   });
+
+  group('existsBySourceRecurringIdAndDate', () {
+    test('delegates to dataSource.existsBySourceRecurringIdAndDate', () async {
+      when(() => mockDataSource.existsBySourceRecurringIdAndDate('rec-1', '2026-06-04'))
+          .thenAnswer((_) async => true);
+
+      final result = await repository.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-04');
+
+      expect(result, true);
+      verify(() => mockDataSource.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-04')).called(1);
+    });
+
+    test('returns false when no matching transaction', () async {
+      when(() => mockDataSource.existsBySourceRecurringIdAndDate('rec-1', '2026-06-04'))
+          .thenAnswer((_) async => false);
+
+      final result = await repository.existsBySourceRecurringIdAndDate(
+          'rec-1', '2026-06-04');
+
+      expect(result, false);
+    });
+  });
 }
