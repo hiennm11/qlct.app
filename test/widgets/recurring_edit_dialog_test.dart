@@ -38,6 +38,17 @@ void main() {
       expect(find.text('Cập nhật'), findsNothing);
     });
 
+    testWidgets('shows "Bắt đầu:" label in add mode', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: RecurringEditDialog()),
+        ),
+      );
+
+      expect(find.text('Bắt đầu: '), findsOneWidget);
+      expect(find.text('Ngày chạy kế tiếp: '), findsNothing);
+    });
+
     testWidgets('defaults category to first predefined', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -132,6 +143,17 @@ void main() {
         find.byType(SegmentedButton<String>),
       );
       expect(segmented.selected, {'weekly'});
+    });
+
+    testWidgets('shows "Ngày chạy kế tiếp:" label in edit mode', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: RecurringEditDialog(existing: existing)),
+        ),
+      );
+
+      expect(find.text('Ngày chạy kế tiếp: '), findsOneWidget);
+      expect(find.text('Bắt đầu: '), findsNothing);
     });
   });
 

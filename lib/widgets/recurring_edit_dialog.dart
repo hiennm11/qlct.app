@@ -173,7 +173,7 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
               // Start date
               Row(
                 children: [
-                  const Text('Bắt đầu: '),
+                  Text(isEdit ? 'Ngày chạy kế tiếp: ' : 'Bắt đầu: '),
                   TextButton(onPressed: _pickDate, child: Text(dateStr)),
                 ],
               ),

@@ -51,43 +51,47 @@ class RecurringTransactionViewModel extends ChangeNotifier {
     _isGenerating = true;
     try {
       final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      
       final dueRules = await _recurringRepo.getActiveDue(now);
-      
+
       for (final rule in dueRules) {
-        // Safety net: check duplicate via sourceRecurringId + today date
-        final allTx = await _transactionRepo.getAll();
-        final alreadyExists = allTx.any((tx) =>
-          tx.sourceRecurringId == rule.id &&
-          DateTime(tx.date.year, tx.date.month, tx.date.day) == today
-        );
-        if (alreadyExists) continue;
-        
-        // Get emoji from category
-        final category = Category.predefined.firstWhere(
-          (c) => c.name == rule.categoryName,
-          orElse: () => Category.predefined.first,
-        );
-        
-        // Create transaction
-        final tx = Transaction(
-          id: const Uuid().v4(),
-          amount: rule.amount,
-          category: rule.categoryName,
-          emoji: category.emoji,
-          date: now,
-          note: rule.note,
-          sourceRecurringId: rule.id,
-        );
-        
-        await _transactionRepo.add(tx);
-        
-        // Update nextRunAt
-        final next = _calculateNextRun(now, rule.frequency);
-        await _recurringRepo.updateNextRunAt(rule.id, next);
+        try {
+          // Safety net: check duplicate via sourceRecurringId + rule.nextRunAt date
+          final ruleDate = DateTime(rule.nextRunAt.year, rule.nextRunAt.month, rule.nextRunAt.day);
+          final allTx = await _transactionRepo.getAll();
+          final alreadyExists = allTx.any((tx) =>
+            tx.sourceRecurringId == rule.id &&
+            DateTime(tx.date.year, tx.date.month, tx.date.day) == ruleDate
+          );
+          if (alreadyExists) continue;
+
+          // Get emoji from category
+          final category = Category.predefined.firstWhere(
+            (c) => c.name == rule.categoryName,
+            orElse: () => Category.predefined.first,
+          );
+
+          // Create transaction
+          final tx = Transaction(
+            id: const Uuid().v4(),
+            amount: rule.amount,
+            category: rule.categoryName,
+            emoji: category.emoji,
+            date: now,
+            note: rule.note,
+            sourceRecurringId: rule.id,
+          );
+
+          await _transactionRepo.add(tx);
+
+          // Update nextRunAt
+          final next = _calculateNextRun(now, rule.frequency);
+          await _recurringRepo.updateNextRunAt(rule.id, next);
+        } catch (e, stack) {
+          debugPrint('❌ Failed to generate for rule ${rule.id}: $e');
+          // continue to next rule
+        }
       }
-      
+
       // Reload rules (nextRunAt changed)
       await _loadRecurrings();
     } catch (e) {

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart' hide Transaction;
 import 'package:qlct/models/recurring_transaction.dart';
+import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/sqlite_recurring_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_transaction_datasource.dart';
 import 'package:qlct/data/database/database_helper.dart';
@@ -363,6 +364,50 @@ void main() {
 
       final transactions = await transactionRepo.getAll();
       expect(transactions.length, 1);
+    });
+
+    test('edit nextRunAt to future date → cold start generates only 1 tx',
+        () async {
+      // D1 scenario: user edits nextRunAt back to a past date that already
+      // has a tx for this rule. Old code checked `today` and would WRONGLY
+      // generate a duplicate. New code checks `ruleDate` and correctly skips.
+      final ruleId = 'edit-next-runat';
+
+      // Insert rule with nextRunAt in the past (e.g., 2026-06-01)
+      final pastRule = RecurringTransaction(
+        id: ruleId,
+        categoryName: 'Cà phê',
+        amount: 20000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 1),
+        isActive: true,
+        createdAt: DateTime(2026, 6, 1),
+      );
+      await recurringRepo.insert(pastRule);
+
+      // Manually insert a tx for ruleDate (2026-06-01) — simulates tx that
+      // was previously generated for the rule's nextRunAt date.
+      final existingTx = Transaction(
+        id: 'existing-original',
+        amount: 20000,
+        category: 'Cà phê',
+        emoji: '☕',
+        date: DateTime(2026, 6, 1),
+        note: '',
+        sourceRecurringId: ruleId,
+      );
+      await transactionRepo.add(existingTx);
+
+      // Trigger checkAndGenerate. today is 2026-06-06 (test runtime), but
+      // rule.nextRunAt is 2026-06-01.
+      // OLD code: check today (2026-06-06) → no tx → would generate duplicate
+      // NEW code: check ruleDate (2026-06-01) → finds tx → skip
+      await recurringVm.checkAndGenerate();
+
+      // Should still have only 1 tx (not 2)
+      final transactions = await transactionRepo.getAll();
+      expect(transactions.length, 1,
+          reason: 'Safety net should prevent duplicate when tx exists for rule.nextRunAt date');
     });
   });
 }

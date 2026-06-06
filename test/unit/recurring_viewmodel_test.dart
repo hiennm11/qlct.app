@@ -388,14 +388,14 @@ void main() {
 
     test('does NOT generate duplicate when tx with same source+date exists',
         () async {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day, now.hour);
+      // D1 fix: duplicate check uses rule.nextRunAt (2026-06-04), not today
+      final ruleDate = DateTime(2026, 6, 4);
       final existingTx = Transaction(
         id: 'existing',
         amount: 50000,
         category: 'Ăn ngoài',
         emoji: '🍜',
-        date: today,
+        date: ruleDate,
         sourceRecurringId: 'rec-1',
       );
 
@@ -495,6 +495,118 @@ void main() {
       await viewModel.checkAndGenerate();
 
       expect(viewModel.errorMessage, isNotNull);
+    });
+
+    test('does NOT generate duplicate when edit changes nextRunAt to same day',
+        () async {
+      // Edit scenario: user changed nextRunAt to today; tx already exists
+      // for that day from a previous generation.
+      final now = DateTime.now();
+      final ruleWithToday = ruleDaily.copyWith(
+        nextRunAt: DateTime(now.year, now.month, now.day, now.hour),
+      );
+      final existingTx = Transaction(
+        id: 'existing-edit',
+        amount: 50000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        date: ruleWithToday.nextRunAt,
+        sourceRecurringId: 'rec-1',
+      );
+
+      when(() => mockRecurringRepo.getActiveDue(any()))
+          .thenAnswer((_) async => [ruleWithToday]);
+      when(() => mockTxRepo.getAll()).thenAnswer((_) async => [existingTx]);
+      when(() => mockTxRepo.add(any())).thenAnswer((_) async {});
+      when(() => mockRecurringRepo.updateNextRunAt(any(), any()))
+          .thenAnswer((_) async {});
+
+      viewModel = RecurringTransactionViewModel(
+        mockRecurringRepo,
+        mockTxRepo,
+      );
+      await Future.delayed(Duration.zero);
+
+      await viewModel.checkAndGenerate();
+
+      verifyNever(() => mockTxRepo.add(any()));
+      verifyNever(() => mockRecurringRepo.updateNextRunAt(any(), any()));
+    });
+
+    test('per-rule error does not skip remaining rules', () async {
+      // Two due rules; first one throws on updateNextRunAt.
+      // Second rule should still be processed.
+      final ruleA = RecurringTransaction(
+        id: 'rec-A',
+        categoryName: 'Ăn ngoài',
+        amount: 10000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 4),
+        isActive: true,
+        createdAt: DateTime(2026, 6, 1),
+      );
+      final ruleB = RecurringTransaction(
+        id: 'rec-B',
+        categoryName: 'Cà phê',
+        amount: 20000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 4),
+        isActive: true,
+        createdAt: DateTime(2026, 6, 1),
+      );
+
+      when(() => mockRecurringRepo.getActiveDue(any()))
+          .thenAnswer((_) async => [ruleA, ruleB]);
+      when(() => mockTxRepo.add(any())).thenAnswer((_) async {});
+      when(() => mockRecurringRepo.updateNextRunAt('rec-A', any()))
+          .thenThrow(Exception('DB write failed for rec-A'));
+      when(() => mockRecurringRepo.updateNextRunAt('rec-B', any()))
+          .thenAnswer((_) async {});
+
+      viewModel = RecurringTransactionViewModel(
+        mockRecurringRepo,
+        mockTxRepo,
+      );
+      await Future.delayed(Duration.zero);
+
+      await viewModel.checkAndGenerate();
+
+      // Both rules should have attempted add (even though rec-A's updateNextRunAt failed)
+      verify(() => mockTxRepo.add(any())).called(2);
+      // rec-B's updateNextRunAt succeeded
+      verify(() => mockRecurringRepo.updateNextRunAt('rec-B', any())).called(1);
+    });
+
+    test('catches and logs per-rule errors', () async {
+      // D3: per-rule failure should not bubble up to top-level errorMessage
+      // (only the outer try-catch sets errorMessage). Inner failures are
+      // logged via debugPrint and swallowed.
+      final ruleFailing = RecurringTransaction(
+        id: 'rec-fail',
+        categoryName: 'Ăn ngoài',
+        amount: 10000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 4),
+        isActive: true,
+        createdAt: DateTime(2026, 6, 1),
+      );
+
+      when(() => mockRecurringRepo.getActiveDue(any()))
+          .thenAnswer((_) async => [ruleFailing]);
+      when(() => mockTxRepo.add(any()))
+          .thenThrow(Exception('Inner add failed'));
+
+      viewModel = RecurringTransactionViewModel(
+        mockRecurringRepo,
+        mockTxRepo,
+      );
+      await Future.delayed(Duration.zero);
+
+      await viewModel.checkAndGenerate();
+
+      // Inner failure: errorMessage NOT set (per-rule swallow)
+      // (Top-level catch only fires for getActiveDue/loadRecurrings failures.)
+      expect(viewModel.errorMessage, isNull);
     });
   });
 }
