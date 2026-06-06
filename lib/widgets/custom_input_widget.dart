@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../models/category.dart';
@@ -19,6 +20,7 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
   final _voiceService = VoiceInputService();
+  final _categoryKey = GlobalKey();
   String? _selectedCategory;
   bool _isListening = false;
   String _transcript = '';
@@ -220,37 +222,52 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
               inputFormatters: [ThousandSeparatorFormatter()],
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCategory,
-              decoration: const InputDecoration(
-                labelText: 'Danh mục',
-                hintText: 'Chọn danh mục',
-              ),
-              items: Category.predefined.map((category) {
-                return DropdownMenuItem(
-                  value: category.name,
-                  child: Row(
-                    children: [
-                      Text(
-                        category.emoji,
-                        style: const TextStyle(fontSize: 20),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          category.name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+            GestureDetector(
+              key: _categoryKey,
+              onTap: () {
+                final RenderBox box = _categoryKey.currentContext!.findRenderObject() as RenderBox;
+                final Offset offset = box.localToGlobal(Offset.zero);
+                showMenu<String>(
+                  context: context,
+                  position: RelativeRect.fromLTRB(
+                    offset.dx,
+                    offset.dy + box.size.height,
+                    offset.dx + box.size.width,
+                    offset.dy + box.size.height,
                   ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedCategory = value;
+                  items: Category.predefined.map((cat) {
+                    return PopupMenuItem<String>(
+                      value: cat.name,
+                      child: Row(
+                        children: [
+                          Text(cat.emoji, style: const TextStyle(fontSize: 20)),
+                          const SizedBox(width: 8),
+                          Text(cat.name),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ).then((selected) {
+                  if (selected != null && mounted) {
+                    setState(() => _selectedCategory = selected);
+                  }
                 });
               },
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Danh mục',
+                  hintText: 'Chọn danh mục',
+                  suffixIcon: Icon(Icons.arrow_drop_down),
+                ),
+                child: Text(
+                  _selectedCategory != null
+                      ? _selectedCategory!
+                      : 'Chọn danh mục',
+                  style: TextStyle(
+                    color: _selectedCategory != null ? null : Theme.of(context).hintColor,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             TextField(

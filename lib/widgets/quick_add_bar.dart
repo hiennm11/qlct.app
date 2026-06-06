@@ -226,7 +226,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => const _CustomInputSheet(),
+      builder: (_) => _CustomInputSheet(),
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/theme.dart';
 import '../models/transaction.dart';
 import '../services/backup_service.dart';
 import '../viewmodels/backup_viewmodel.dart';
@@ -167,25 +168,22 @@ class BackupRestoreScreen extends StatelessWidget {
     required bool isError,
     required VoidCallback onDismiss,
   }) {
+    final accent = isError ? AppColors.error : AppColors.success;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isError
-            ? Colors.red.shade50
-            : Colors.green.shade50,
+        color: accent.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isError
-              ? Colors.red.shade200
-              : Colors.green.shade200,
+          color: accent.withOpacity(0.4),
         ),
       ),
       child: Row(
         children: [
           Icon(
             isError ? Icons.error_outline : Icons.check_circle_outline,
-            color: isError ? Colors.red.shade700 : Colors.green.shade700,
+            color: accent,
             size: 20,
           ),
           const SizedBox(width: 8),
@@ -193,9 +191,7 @@ class BackupRestoreScreen extends StatelessWidget {
             child: Text(
               message,
               style: TextStyle(
-                color: isError
-                    ? Colors.red.shade900
-                    : Colors.green.shade900,
+                color: accent,
                 fontSize: 14,
               ),
             ),
@@ -205,9 +201,7 @@ class BackupRestoreScreen extends StatelessWidget {
             child: Icon(
               Icons.close,
               size: 18,
-              color: isError
-                  ? Colors.red.shade400
-                  : Colors.green.shade400,
+              color: accent.withOpacity(0.6),
             ),
           ),
         ],
@@ -227,11 +221,11 @@ class BackupRestoreScreen extends StatelessWidget {
     Color? bgColor;
     Color? fgColor;
     if (isDanger) {
-      bgColor = Colors.red.shade50;
-      fgColor = Colors.red.shade700;
+      bgColor = AppColors.error.withOpacity(0.1);
+      fgColor = AppColors.error;
     } else if (isWarning) {
-      bgColor = Colors.orange.shade50;
-      fgColor = Colors.orange.shade800;
+      bgColor = AppColors.warning.withOpacity(0.1);
+      fgColor = AppColors.warning;
     }
 
     return Card(

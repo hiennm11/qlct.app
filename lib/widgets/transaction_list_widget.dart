@@ -323,8 +323,39 @@ class _FilterRow extends StatelessWidget {
 
   const _FilterRow({required this.viewModel});
 
+  bool _isToday(DateTime? d) {
+    if (d == null) return false;
+    final n = DateTime.now();
+    return d.year == n.year && d.month == n.month && d.day == n.day;
+  }
+
+  String _dateChipLabel(DateTime? d) {
+    if (d == null) return 'Ngày';
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd/$mm';
+  }
+
+  String _categoryChipLabel() {
+    final cat = viewModel.filterCategory;
+    if (cat == null) return 'Danh mục';
+    final match = viewModel.categories
+        .where((c) => c.name == cat)
+        .cast<dynamic>()
+        .firstOrNull;
+    final emoji = match?.emoji ?? '🍽';
+    return '$emoji $cat';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final today = _isToday(viewModel.filterDate);
+    final hasDate = viewModel.filterDate != null;
+    final hasCategory = viewModel.filterCategory != null;
+    final hasSearch = viewModel.searchQuery != null &&
+        viewModel.searchQuery!.isNotEmpty;
+    final hasAny = hasDate || hasCategory || hasSearch;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -333,8 +364,7 @@ class _FilterRow extends StatelessWidget {
           decoration: InputDecoration(
             prefixIcon: const Icon(Icons.search),
             hintText: 'Tìm kiếm giao dịch...',
-            suffixIcon: (viewModel.searchQuery != null &&
-                    viewModel.searchQuery!.isNotEmpty)
+            suffixIcon: hasSearch
                 ? IconButton(
                     icon: const Icon(Icons.clear),
                     onPressed: () => viewModel.clearSearch(),
@@ -349,94 +379,120 @@ class _FilterRow extends StatelessWidget {
           onChanged: (value) => viewModel.setSearchQuery(value),
         ),
         const SizedBox(height: 8),
-        // Existing filter chips below
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Hôm nay quick filter
-                ActionChip(
-                  label: const Text('Hôm nay'),
-                  avatar: const Icon(Icons.today, size: 18),
-                  onPressed: () => viewModel.setDateFilter(DateTime.now()),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 160,
-                  child: InkWell(
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: viewModel.filterDate ?? DateTime.now(),
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      if (date != null) {
-                        viewModel.setDateFilter(date);
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Ngày',
-                        isDense: true,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      ),
-                      child: Text(
-                        viewModel.filterDate != null
-                            ? DateFormatter.formatDate(viewModel.filterDate!)
-                            : 'Tất cả',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 200, maxWidth: 320),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: viewModel.filterCategory,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Danh mục',
-                      isDense: true,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                          value: null, child: Text('Tất cả')),
-                      ...viewModel.categories.map((cat) {
-                        return DropdownMenuItem(
-                          value: cat.name,
-                          child: Text(
-                            '${cat.emoji} ${cat.name}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }),
-                    ],
-                    onChanged: (value) => viewModel.setCategoryFilter(value),
-                  ),
-                ),
-                if (viewModel.filterDate != null ||
-                    viewModel.filterCategory != null ||
-                    viewModel.searchQuery != null) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(Icons.clear, size: 20),
-                    padding: const EdgeInsets.all(4),
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
-                    onPressed: () => viewModel.clearFilters(),
-                  ),
-                ],
-              ],
+        // Unified chip row — wraps on narrow screens
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            // "Hôm nay" — ActionChip, toggle: tap sets today, tap-again clears
+            ActionChip(
+              label: const Text('Hôm nay'),
+              avatar: Icon(
+                Icons.today,
+                size: 18,
+                color: today ? Colors.white : AppColors.textSecondary,
+              ),
+              labelStyle: TextStyle(
+                color: today ? Colors.white : AppColors.textPrimary,
+                fontWeight: today ? FontWeight.w600 : FontWeight.normal,
+              ),
+              backgroundColor:
+                  today ? AppColors.primary : AppColors.gray100,
+              side: BorderSide(
+                color: today ? AppColors.primary : AppColors.border,
+              ),
+              onPressed: () {
+                if (today) {
+                  viewModel.setDateFilter(null);
+                } else {
+                  viewModel.setDateFilter(DateTime.now());
+                }
+              },
             ),
-          ),
+            // Date — FilterChip, shows "📅 05/06" or "📅 Ngày"
+            FilterChip(
+              label: Text(_dateChipLabel(viewModel.filterDate)),
+              avatar: Icon(
+                Icons.calendar_today,
+                size: 16,
+                color: hasDate ? Colors.white : AppColors.textSecondary,
+              ),
+              labelStyle: TextStyle(
+                color: hasDate ? Colors.white : AppColors.textPrimary,
+                fontWeight: hasDate ? FontWeight.w600 : FontWeight.normal,
+              ),
+              backgroundColor:
+                  hasDate ? AppColors.primary : AppColors.gray100,
+              selected: hasDate,
+              showCheckmark: false,
+              side: BorderSide(
+                color: hasDate ? AppColors.primary : AppColors.border,
+              ),
+              onSelected: (_) async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: viewModel.filterDate ?? DateTime.now(),
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime.now(),
+                );
+                if (picked != null) {
+                  viewModel.setDateFilter(picked);
+                }
+              },
+            ),
+            // Category — FilterChip with popup menu
+            FilterChip(
+              label: Text(_categoryChipLabel()),
+              avatar: const Text('🍽'),
+              labelStyle: TextStyle(
+                color: hasCategory ? Colors.white : AppColors.textPrimary,
+                fontWeight:
+                    hasCategory ? FontWeight.w600 : FontWeight.normal,
+              ),
+              backgroundColor:
+                  hasCategory ? AppColors.primary : AppColors.gray100,
+              selected: hasCategory,
+              showCheckmark: false,
+              side: BorderSide(
+                color: hasCategory ? AppColors.primary : AppColors.border,
+              ),
+              onSelected: (_) async {
+                final selected = await showMenu<String?>(
+                  context: context,
+                  position: RelativeRect.fromLTRB(16, 120, 16, 0),
+                  items: [
+                    const PopupMenuItem<String?>(
+                      value: null,
+                      child: Text('Tất cả'),
+                    ),
+                    ...viewModel.categories.map(
+                      (cat) => PopupMenuItem<String?>(
+                        value: cat.name,
+                        child: Text('${cat.emoji} ${cat.name}'),
+                      ),
+                    ),
+                  ],
+                );
+                // null = user dismissed OR selected "Tất cả"; both clear the filter
+                viewModel.setCategoryFilter(selected);
+              },
+            ),
+            // Clear — only visible when any filter is active
+            if (hasAny)
+              ActionChip(
+                avatar: Icon(
+                  Icons.close,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+                label: const Text('Xoá'),
+                labelStyle: TextStyle(color: AppColors.textSecondary),
+                backgroundColor: AppColors.gray100,
+                side: BorderSide(color: AppColors.border),
+                onPressed: () => viewModel.clearFilters(),
+              ),
+          ],
         ),
       ],
     );

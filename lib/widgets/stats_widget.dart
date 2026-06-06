@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
+import 'section_header.dart';
 
 /// Widget displaying expense statistics cards
 class StatsWidget extends StatelessWidget {
@@ -34,16 +35,7 @@ class StatsWidget extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Text('💰', style: TextStyle(fontSize: 24)),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Thống kê chi tiêu',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ],
-                  ),
+                  const SectionHeader(emoji: '💰', title: 'Thống kê'),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -70,16 +62,7 @@ class StatsWidget extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Text('💰', style: TextStyle(fontSize: 24)),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Thống kê chi tiêu',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ],
-                  ),
+                  const SectionHeader(emoji: '💰', title: 'Thống kê'),
                   const SizedBox(height: 32),
                   Center(
                     child: Column(
@@ -106,16 +89,7 @@ class StatsWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text('💰', style: TextStyle(fontSize: 24)),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Thống kê chi tiêu',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ],
-                ),
+const SectionHeader(emoji: '💰', title: 'Thống kê'),
                 const SizedBox(height: 16),
                 Row(
                   children: [

@@ -6,6 +6,7 @@ import '../core/formatters.dart';
 import '../core/theme.dart';
 import 'budget_edit_dialog.dart';
 import 'budget_bulk_edit_dialog.dart';
+import 'section_header.dart';
 
 /// Widget displaying budget overview with cards
 class BudgetOverviewWidget extends StatelessWidget {
@@ -32,24 +33,11 @@ class BudgetOverviewWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      '💼',
-                      style: TextStyle(fontSize: 24),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Ngân sách tháng',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.settings),
-                      tooltip: 'Thiết lập ngân sách',
-                      onPressed: () => showBudgetBulkEditDialog(context),
-                    ),
-                  ],
+                SectionHeader(
+                  emoji: '💼',
+                  title: 'Ngân sách tháng',
+                  onAction: () => showBudgetBulkEditDialog(context),
+                  actionIcon: Icons.edit,
                 ),
                 const SizedBox(height: 16),
                 if (viewModel.totalBudget != null) ...[

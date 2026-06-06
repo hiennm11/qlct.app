@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/formatters.dart';
+import '../core/theme.dart';
 import '../models/category.dart';
 import '../models/recurring_transaction.dart';
 import '../viewmodels/recurring_viewmodel.dart';
@@ -55,9 +56,9 @@ class RecurringListSheet extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Giao dịch định kỳ',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   IconButton(
                     icon: const Icon(Icons.add),
@@ -89,7 +90,7 @@ class RecurringListSheet extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               'Chưa có giao dịch định kỳ nào',
-                              style: TextStyle(color: Colors.grey[600]),
+                              style: TextStyle(color: AppColors.textSecondary),
                             ),
                           ],
                         ),
@@ -130,7 +131,7 @@ class RecurringListSheet extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        color: Colors.red,
+        color: AppColors.error,
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       confirmDismiss: (_) async {
@@ -158,7 +159,7 @@ class RecurringListSheet extends StatelessWidget {
         title: Text(category.name),
         subtitle: Text(
           '${_formatAmount(rule.amount)} • ${_frequencyLabel(rule.frequency)} • Tiếp: ${_formatNextRun(rule.nextRunAt)}',
-          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
         ),
         trailing: Switch(
           value: rule.isActive,

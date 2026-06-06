@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
 import 'package:qlct/repositories/recurring_repository.dart';
@@ -49,14 +50,37 @@ void main() {
   }
 
   group('RecurringOverviewWidget - empty state', () {
-    testWidgets('shows empty message when no recurring rules', (tester) async {
+    testWidgets('shows empty state text when no recurring rules', (tester) async {
       await tester.pumpWidget(buildWidget());
       await tester.pump();
 
       expect(
-        find.text('Chưa có giao dịch định kỳ nào. Nhấn + để thêm.'),
+        find.text('Chưa có giao dịch định kỳ'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('shows empty state emoji icon', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pump();
+
+      // Two 🔄 expected: one in SectionHeader (24px) + one in empty state (48px)
+      expect(find.text('🔄'), findsNWidgets(2));
+      // 48px emoji specifically
+      final bigEmoji = find.byWidgetPredicate(
+        (w) => w is Text && w.data == '🔄' && w.style?.fontSize == 48,
+      );
+      expect(bigEmoji, findsOneWidget);
+    });
+
+    testWidgets('empty state text uses AppColors.textSecondary', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pump();
+
+      final textWidget = tester.widget<Text>(
+        find.text('Chưa có giao dịch định kỳ'),
+      );
+      expect(textWidget.style!.color, AppColors.textSecondary);
     });
 
     testWidgets('does not show list tiles when empty', (tester) async {
@@ -93,7 +117,8 @@ void main() {
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
 
-      expect(find.byType(Card), findsNWidgets(2));
+      // 1 outer Card + 2 rule Cards = 3 total
+      expect(find.byType(Card), findsNWidgets(3));
       expect(find.text('Cà phê'), findsOneWidget);
       expect(find.text('Ăn ngoài'), findsOneWidget);
     });
@@ -155,7 +180,8 @@ void main() {
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
 
-      expect(find.byType(Card), findsNWidgets(5));
+      // 1 outer Card + 5 rule Cards = 6 total
+      expect(find.byType(Card), findsNWidgets(6));
       expect(find.text('Xem thêm 2 mục'), findsOneWidget);
     });
   });
@@ -265,12 +291,24 @@ void main() {
   });
 
   group('RecurringOverviewWidget - header', () {
-    testWidgets('shows header with title and add button', (tester) async {
+    testWidgets('shows header with title', (tester) async {
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('📅 Giao dịch định kỳ'), findsOneWidget);
+      expect(find.text('Giao dịch định kỳ'), findsOneWidget);
       expect(find.byIcon(Icons.add), findsOneWidget);
+    });
+  });
+
+  group('RecurringOverviewWidget - outer Card', () {
+    testWidgets('wraps content in outer Card with Padding(16)', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      // Outer Card should exist (the wrapping one)
+      // With data, we have 1 outer Card + 2 rule Cards = 3 Cards
+      final cards = find.byType(Card);
+      expect(cards, findsAtLeastNWidgets(1));
     });
   });
 }

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/formatters.dart';
+import '../core/theme.dart';
 import '../models/category.dart';
 import '../models/recurring_transaction.dart';
 import '../viewmodels/recurring_viewmodel.dart';
 import 'recurring_edit_dialog.dart';
 import 'recurring_list_sheet.dart';
+import 'section_header.dart';
 
 class RecurringOverviewWidget extends StatelessWidget {
   const RecurringOverviewWidget({super.key});
@@ -39,48 +41,46 @@ class RecurringOverviewWidget extends StatelessWidget {
         final hasMore = rules.length > maxDisplay;
 
         if (vm.isLoading && rules.isEmpty) {
-          return const SizedBox(
-            height: 100,
-            child: Center(child: CircularProgressIndicator()),
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox(
+                height: 100,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
           );
         }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '📅 Giao dịch định kỳ',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                SectionHeader(
+                  emoji: '🔄',
+                  title: 'Giao dịch định kỳ',
+                  onAction: () => _showAddDialog(context),
+                  actionIcon: Icons.add,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  onPressed: () => _showAddDialog(context),
-                  tooltip: 'Thêm định kỳ mới',
-                ),
+                const SizedBox(height: 12),
+                if (rules.isEmpty)
+                  const _EmptyState()
+                else ...[
+                  ...displayRules.map((rule) => _buildRuleCard(context, rule)),
+                  if (hasMore)
+                    TextButton(
+                      onPressed: () => RecurringListSheet.show(context),
+                      child: Text(
+                        'Xem thêm ${rules.length - maxDisplay} mục',
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                ],
               ],
             ),
-            if (rules.isEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    'Chưa có giao dịch định kỳ nào. Nhấn + để thêm.',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ),
-              )
-            else ...[
-              ...displayRules.map((rule) => _buildRuleCard(context, rule)),
-              if (hasMore)
-                TextButton(
-                  onPressed: () => RecurringListSheet.show(context),
-                  child: Text('Xem thêm ${rules.length - maxDisplay} mục'),
-                ),
-            ],
-          ],
+          ),
         );
       },
     );
@@ -98,7 +98,7 @@ class RecurringOverviewWidget extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 16),
-        color: Colors.red,
+        color: AppColors.error,
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       confirmDismiss: (_) async {
@@ -172,5 +172,30 @@ class RecurringOverviewWidget extends StatelessWidget {
       );
       await vm.updateRecurring(updated);
     }
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('🔄', style: TextStyle(fontSize: 48)),
+          SizedBox(height: 16),
+          Text(
+            'Chưa có giao dịch định kỳ',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

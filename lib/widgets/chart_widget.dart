@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../core/theme.dart';
 import '../core/formatters.dart';
+import 'section_header.dart';
 
 /// Widget displaying expense chart by category
 class ChartWidget extends StatelessWidget {
@@ -21,9 +22,16 @@ class ChartWidget extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.all(32),
               child: Center(
-                child: Text(
-                  'Chưa có dữ liệu để hiển thị',
-                  style: TextStyle(color: AppColors.textSecondary),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('📊', style: TextStyle(fontSize: 48)),
+                    SizedBox(height: 8),
+                    Text(
+                      'Chưa có dữ liệu để hiển thị',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -36,10 +44,7 @@ class ChartWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '📊 Thống kê theo danh mục (tháng này)',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+                SectionHeader(emoji: '📊', title: 'Chi tiêu theo danh mục'),
                 const SizedBox(height: 24),
                 SizedBox(
                   height: 250,
