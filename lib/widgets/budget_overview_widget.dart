@@ -9,10 +9,17 @@ import 'budget_bulk_edit_dialog.dart';
 import 'section_header.dart';
 
 /// Widget displaying budget overview with cards
-class BudgetOverviewWidget extends StatelessWidget {
+class BudgetOverviewWidget extends StatefulWidget {
   final void Function(String categoryName)? onCategoryTap;
 
   const BudgetOverviewWidget({super.key, this.onCategoryTap});
+
+  @override
+  State<BudgetOverviewWidget> createState() => _BudgetOverviewWidgetState();
+}
+
+class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
+  bool _showAll = false;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +33,14 @@ class BudgetOverviewWidget extends StatelessWidget {
             ),
           );
         }
+
+        final allStatuses = viewModel.budgetStatuses;
+        final alertStatuses = allStatuses
+            .where((s) => s.alertLevel == AlertLevel.warning || s.alertLevel == AlertLevel.exceeded)
+            .toList();
+        final normalStatuses = allStatuses
+            .where((s) => s.alertLevel == AlertLevel.normal)
+            .toList();
 
         return Card(
           child: Padding(
@@ -44,16 +59,38 @@ class BudgetOverviewWidget extends StatelessWidget {
                   _TotalBudgetBar(status: viewModel.totalBudgetStatus!),
                   const SizedBox(height: 16),
                 ],
-                if (viewModel.budgetStatuses.isEmpty && viewModel.totalBudget == null)
+                if (allStatuses.isEmpty && viewModel.totalBudget == null)
                   const _EmptyState()
-                else
-                  ...viewModel.budgetStatuses.map((status) => Padding(
+                else ...[
+                  ...alertStatuses.map((status) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _BudgetCard(
                           status: status,
-                          onCategoryTap: onCategoryTap,
+                          onCategoryTap: widget.onCategoryTap,
                         ),
                       )),
+                  if (normalStatuses.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Center(
+                      child: OutlinedButton.icon(
+                        icon: Icon(_showAll ? Icons.expand_less : Icons.expand_more),
+                        label: Text(_showAll
+                            ? 'Thu gọn'
+                            : 'Xem tất cả ${normalStatuses.length} ngân sách khác'),
+                        onPressed: () => setState(() => _showAll = !_showAll),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (_showAll)
+                    ...normalStatuses.map((status) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _BudgetCard(
+                            status: status,
+                            onCategoryTap: widget.onCategoryTap,
+                          ),
+                        )),
+                ],
               ],
             ),
           ),
