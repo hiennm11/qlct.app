@@ -1,8 +1,44 @@
-# Release Checklist — qlct.app v1.0.0
+# Release Checklist — qlct.app
 
 **Last verified:** 2026-06-06  
 **Test count:** 353 (all pass)  
 **APK size:** 22.2MB (arm64) / 56.8MB (all ABIs)  
+**Release policy:** ADR-0024  
+**Backup/restore contract:** ADR-0023  
+
+> Không có release nào được coi là hoàn tất nếu chưa được test trên device test với ít nhất một migration hoặc restore smoke test.
+
+---
+
+## Versioning
+- [ ] Decide release type: PATCH / MINOR / MAJOR
+- [ ] Bump `version:` in `pubspec.yaml` before build
+- [ ] Increase build number by `+1` for each release candidate/stable build
+- [ ] Record release notes or verification result in this checklist
+- [ ] Confirm version shown in About/release metadata matches intended version
+
+Version decision rule:
+
+```text
+PATCH = bug fix / polish / non-breaking refactor / docs-only release
+MINOR = new feature / new workflow / new read-only module
+MAJOR = breaking schema / breaking restore / breaking data contract
+```
+
+---
+
+## Device Promotion
+- [ ] Install release candidate on **test device** first
+- [ ] Run at least one migration or restore smoke test on test device
+- [ ] Verify no data loss on test device
+- [ ] Keep at least one known-good backup sample for rollback
+- [ ] Only install on **main device** after release gate passes
+
+Release gate:
+
+```text
+Release Allowed = Stable App + Migration Safe + Backup Safe + Restore Safe + Test Device Passed
+```
 
 ---
 
@@ -38,13 +74,20 @@
 
 ## Backup & Restore
 - [ ] Backup: tạo file JSON → share qua system sheet → mở file kiểm tra format đúng 🟡 **DEVICE NEEDED**
+- [ ] Backup JSON includes `appId: "qlct.app"` for schema v3+ 🟡 **DEVICE NEEDED**
+- [ ] Backup JSON includes `schemaVersion: 3` 🟡 **DEVICE NEEDED**
+- [ ] Backup only includes persisted user data: transactions, budgets, recurringTransactions, quickTemplates, totalBudget 🟡 **DEVICE NEEDED**
 - [x] Restore merge: file có 5 transaction mới + 3 trùng ID → chỉ import 5 mới ✅ (unit test: `merge mode INSERT OR IGNORE skips duplicates`)
 - [x] Restore replace: clear all → import từ file → verify đúng data file, không dư ✅ (unit test: `replace mode inserts all rows and clears old data`)
 - [x] Test với file JSON corrupt → hiển thị lỗi rõ ràng, không crash ✅ (unit test: `backup_service_test.dart`)
 - [x] Test với file schema version cao hơn → từ chối + message thân thiện ✅ (unit test)
+- [ ] Test với file v3 sai `appId` → từ chối + message thân thiện 🟡 **DEVICE NEEDED**
 - [x] Test với file >50MB → từ chối + message ✅ (code: `FileTooLargeException` at 50MB, unit test verifies exception)
 - [ ] Test restore với 10K+ transactions → merge < 3 giây, replace < 2 giây 🟡 **DEVICE NEEDED**
 - [ ] Test restore trên máy sạch (mới cài app) → đủ budgets + recurrings + totalBudget 🟡 **DEVICE NEEDED**
+- [ ] Restore merge/replace clears filters/search/date/category and resets pagination 🟡 **DEVICE NEEDED**
+- [ ] Restore replace shows current counts + file counts before destructive action 🟡 **DEVICE NEEDED**
+- [ ] Restore replace asks safety backup prompt before destructive action 🟡 **DEVICE NEEDED**
 
 ## Export
 - [ ] Export CSV: mở file → verify header + ít nhất 1 dòng đúng format 🟡 **DEVICE NEEDED**
@@ -78,7 +121,7 @@
 - [ ] Xoá 1 giao dịch → hiện SnackBar "Đã xoá" với nút "Hoàn tác" (5 giây) 🟡 **DEVICE NEEDED**
 - [ ] Hoàn tác thành công → giao dịch trở lại danh sách 🟡 **DEVICE NEEDED**
 - [ ] Bulk delete (multi-select) → confirm dialog → undo được 🟡 **DEVICE NEEDED**
-- [ ] Xoá toàn bộ dữ liệu (gear menu) → confirm dialog → undo được 🟡 **DEVICE NEEDED**
+- [ ] Xoá toàn bộ dữ liệu (Danger Zone) → confirm dialog + current counts + safety backup prompt, **không có Undo** theo ADR-0023 🟡 **DEVICE NEEDED**
 
 ## Settings / Misc
 - [ ] Gear menu hiển thị đủ: Export CSV, Export JSON, Backup, Restore, About 🟡 **DEVICE NEEDED**
@@ -118,6 +161,6 @@
 | Test all manual flows | Follow checklist items marked 🟡 above |
 
 ### Risks to monitor
-1. **DB version gap v4/v5**: `DatabaseHelper._onUpgrade` jumps from v3 to v6 (drops FTS5). No v4 or v5 migration blocks. If any user is on DB v4/v5, upgrade will crash.
+1. **DB migration/version coverage**: verify upgrade path from previous installed test-device build to current DB version before promoting to main device.
 2. **`withOpacity` deprecation**: `backup_restore_screen.dart` still uses `withOpacity` (4 occurrences). Low priority, does not break build.
 3. **All-ABI APK size**: 56.8MB exceeds 30MB target. Use Android App Bundle (`.aab`) for Play Store distribution.

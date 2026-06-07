@@ -220,4 +220,8 @@ flutter build apk --release --dart-define=SENTRY_DSN=$env:SENTRY_DSN
 
 ## Release
 
-See `RELEASE_CHECKLIST.md` for full pre-release verification checklist.
+See `docs/adr/0024-release-versioning-device-policy.md` for official versioning + device promotion policy.
+
+Release rule: `MAJOR.MINOR.PATCH+BUILD`, build number increments by `+1` for each release candidate/stable build. Main device only receives stable builds after test device passes release gate.
+
+See `RELEASE_CHECKLIST.md` for full pre-release verification checklist. No release is complete until the test device has passed at least one migration or restore smoke test.
