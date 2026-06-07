@@ -13,7 +13,8 @@
 ## Versioning
 - [ ] Decide release type: PATCH / MINOR / MAJOR
 - [ ] Bump `version:` in `pubspec.yaml` before build
-- [ ] Increase build number by `+1` for each release candidate/stable build
+- [ ] Set build number to date-based format: `yyyyMMdd` for stable, `yyyyMMdd01` etc. for same-day release candidates
+- [ ] Create Git tag as `vMAJOR.MINOR.PATCH` without `+BUILD`
 - [ ] Record release notes or verification result in this checklist
 - [ ] Confirm version shown in About/release metadata matches intended version
 

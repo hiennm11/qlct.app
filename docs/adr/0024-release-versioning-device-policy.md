@@ -34,25 +34,36 @@ App version follows:
 MAJOR.MINOR.PATCH+BUILD
 ```
 
+Git release tag follows app version only:
+
+```text
+vMAJOR.MINOR.PATCH
+```
+
 Rules:
 
 - `PATCH`: bug fix, copy/UI polish, non-breaking refactor, test-only/doc-only release.
 - `MINOR`: thêm feature mới, thêm workflow mới, thêm analytics/read-only module.
 - `MAJOR`: breaking data model, breaking DB schema contract, breaking restore contract, destructive migration risk.
-- `BUILD`: tăng `+1` cho mỗi release candidate hoặc stable release build.
+- `BUILD`: dùng dạng ngày `yyyyMMdd` cho stable release; nếu cùng ngày có nhiều release candidate, thêm số thứ tự bằng cách append 2 digits (`yyyyMMdd01`, `yyyyMMdd02`).
 - Trước release, luôn bump `version:` trong `pubspec.yaml`.
 - Trước release, luôn ghi release notes hoặc checklist result trong `RELEASE_CHECKLIST.md`.
+- Git tag không include `+BUILD`; tag `v1.0.1` đại diện cho release `version: 1.0.1+20260608`.
 
 Example:
 
 ```yaml
 version: 1.0.0+1
-version: 1.0.1+2
-version: 1.1.0+3
-version: 2.0.0+4
+version: 1.0.1+20260608
+version: 1.1.0+20260609
+version: 2.0.0+20260610
 ```
 
-Rationale: `+1` build number đơn giản, đủ cho sideload cá nhân, tránh ceremony không cần thiết.
+```text
+git tag: v1.0.0, v1.0.1, v1.1.0, v2.0.0
+```
+
+Rationale: date-based build number dễ đọc hơn `+N`, vẫn tăng đơn điệu theo thời gian, đủ cho sideload cá nhân.
 
 ### 2. Device policy
 
@@ -153,9 +164,9 @@ Checklist must not contradict ADR-0023. Specifically, delete-all has **no Undo**
 
 ## Rejected Options
 
-### Date-based build number
+### Increment-only build number
 
-Rejected for now. `+20260608` is traceable, but unnecessary for personal sideload. `+1` is simpler.
+Rejected. `+1`, `+2`, `+3` ngắn nhưng khó đọc khi nhìn APK/tag history. Date-based build number trace release date tốt hơn.
 
 ### Main device as test device
 
