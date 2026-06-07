@@ -4,7 +4,7 @@ import 'package:path/path.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 7;
+  static const _databaseVersion = 8;
 
   Database? _database;
 
@@ -65,6 +65,25 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('CREATE INDEX idx_recurring_next_run ON recurring_transactions(is_active, next_run_at)');
+    await db.execute('''
+      CREATE TABLE quick_templates (
+        id              TEXT PRIMARY KEY,
+        title           TEXT NOT NULL,
+        amount          INTEGER NOT NULL,
+        category_name   TEXT NOT NULL,
+        note            TEXT NOT NULL DEFAULT '',
+        emoji           TEXT NOT NULL,
+        is_pinned       INTEGER NOT NULL DEFAULT 0,
+        usage_count     INTEGER NOT NULL DEFAULT 0,
+        last_used_at    TEXT,
+        created_at      TEXT NOT NULL,
+        updated_at      TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_quick_templates_pinned ON quick_templates(is_pinned)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_quick_templates_usage ON quick_templates(usage_count DESC, last_used_at DESC)');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -103,6 +122,27 @@ class DatabaseHelper {
     if (oldVersion < 7) {
       await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_source_recurring ON transactions(source_recurring_id)');
+    }
+    if (oldVersion < 8) {
+      await db.execute('''
+        CREATE TABLE quick_templates (
+          id              TEXT PRIMARY KEY,
+          title           TEXT NOT NULL,
+          amount          INTEGER NOT NULL,
+          category_name   TEXT NOT NULL,
+          note            TEXT NOT NULL DEFAULT '',
+          emoji           TEXT NOT NULL,
+          is_pinned       INTEGER NOT NULL DEFAULT 0,
+          usage_count     INTEGER NOT NULL DEFAULT 0,
+          last_used_at    TEXT,
+          created_at      TEXT NOT NULL,
+          updated_at      TEXT NOT NULL
+        )
+      ''');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_quick_templates_pinned ON quick_templates(is_pinned)');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_quick_templates_usage ON quick_templates(usage_count DESC, last_used_at DESC)');
     }
   }
 

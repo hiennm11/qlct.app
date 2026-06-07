@@ -8,6 +8,7 @@ import '../services/storage_service.dart';
 import 'expense_viewmodel.dart';
 import 'budget_viewmodel.dart';
 import 'recurring_viewmodel.dart';
+import 'quick_template_viewmodel.dart';
 
 /// ViewModel for the backup and restore screen
 class BackupViewModel extends ChangeNotifier {
@@ -15,6 +16,7 @@ class BackupViewModel extends ChangeNotifier {
   final ExpenseViewModel _expenseVM;
   final BudgetViewModel _budgetVM;
   final RecurringTransactionViewModel _recurringVM;
+  final QuickTemplateViewModel? _quickTemplateVM;
   final StorageService? _storageService;
 
   bool _isLoading = false;
@@ -27,6 +29,7 @@ class BackupViewModel extends ChangeNotifier {
   int? pendingTransactionCount;
   int? pendingBudgetCount;
   int? pendingRecurringCount;
+  int? pendingQuickTemplateCount;
 
   // Task 3: last backup time
   static const String _lastBackupTimeKey = 'last_backup_time';
@@ -35,7 +38,8 @@ class BackupViewModel extends ChangeNotifier {
     this._backupService,
     this._expenseVM,
     this._budgetVM,
-    this._recurringVM, {
+    this._recurringVM,
+    this._quickTemplateVM, {
     StorageService? storageService,
   }) : _storageService = storageService;
 
@@ -93,6 +97,7 @@ class BackupViewModel extends ChangeNotifier {
     pendingTransactionCount = null;
     pendingBudgetCount = null;
     pendingRecurringCount = null;
+    pendingQuickTemplateCount = null;
     notifyListeners();
   }
 
@@ -135,6 +140,7 @@ class BackupViewModel extends ChangeNotifier {
       pendingTransactionCount = result.data!.transactions.length;
       pendingBudgetCount = result.data!.budgets.length;
       pendingRecurringCount = result.data!.recurringTransactions.length;
+      pendingQuickTemplateCount = result.data!.quickTemplates.length;
       _setLoading(false);
       return result;
     } catch (e, stack) {
@@ -167,6 +173,7 @@ class BackupViewModel extends ChangeNotifier {
       pendingTransactionCount = result.data!.transactions.length;
       pendingBudgetCount = result.data!.budgets.length;
       pendingRecurringCount = result.data!.recurringTransactions.length;
+      pendingQuickTemplateCount = result.data!.quickTemplates.length;
 
       final restoreResult = await _backupService.restore(result.data!, mode);
 
@@ -180,18 +187,21 @@ class BackupViewModel extends ChangeNotifier {
       await _expenseVM.refresh();
       await _budgetVM.forceReload();
       await _recurringVM.forceReload();
+      await _quickTemplateVM?.forceReload();
 
       final modeLabel = mode == RestoreMode.merge ? 'hợp nhất' : 'thay thế';
       _setSuccess(
         'Đã khôi phục ($modeLabel): '
         '${restoreResult.transactionsImported} giao dịch, '
         '${restoreResult.budgetsImported} ngân sách, '
-        '${restoreResult.recurringsImported} định kỳ',
+        '${restoreResult.recurringsImported} định kỳ, '
+        '${restoreResult.quickTemplatesImported} mẫu nhanh',
       );
       // Clear pending counts after successful restore
       pendingTransactionCount = null;
       pendingBudgetCount = null;
       pendingRecurringCount = null;
+      pendingQuickTemplateCount = null;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
       _setError('Thao tác thất bại. Vui lòng thử lại.');
@@ -214,17 +224,20 @@ class BackupViewModel extends ChangeNotifier {
       await _expenseVM.refresh();
       await _budgetVM.forceReload();
       await _recurringVM.forceReload();
+      await _quickTemplateVM?.forceReload();
 
       final modeLabel = mode == RestoreMode.merge ? 'hợp nhất' : 'thay thế';
       _setSuccess(
         'Đã khôi phục ($modeLabel): '
         '${restoreResult.transactionsImported} giao dịch, '
         '${restoreResult.budgetsImported} ngân sách, '
-        '${restoreResult.recurringsImported} định kỳ',
+        '${restoreResult.recurringsImported} định kỳ, '
+        '${restoreResult.quickTemplatesImported} mẫu nhanh',
       );
       pendingTransactionCount = null;
       pendingBudgetCount = null;
       pendingRecurringCount = null;
+      pendingQuickTemplateCount = null;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
       _setError('Thao tác thất bại. Vui lòng thử lại.');
@@ -248,12 +261,14 @@ class BackupViewModel extends ChangeNotifier {
       await _expenseVM.refresh();
       await _budgetVM.forceReload();
       await _recurringVM.forceReload();
+      await _quickTemplateVM?.forceReload();
 
       _setSuccess(
         'Đã tạo dữ liệu mẫu: '
         '${restoreResult.transactionsImported} giao dịch, '
         '${restoreResult.budgetsImported} ngân sách, '
-        '${restoreResult.recurringsImported} định kỳ',
+        '${restoreResult.recurringsImported} định kỳ, '
+        '${restoreResult.quickTemplatesImported} mẫu nhanh',
       );
     } catch (e, stack) {
       debugPrint('Sample data error: $e\n$stack');

@@ -29,6 +29,11 @@ _$BackupDataImpl _$$BackupDataImplFromJson(Map<String, dynamic> json) =>
               )
               .toList() ??
           const [],
+      quickTemplates:
+          (json['quickTemplates'] as List<dynamic>?)
+              ?.map((e) => QuickTemplate.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$BackupDataImplToJson(_$BackupDataImpl instance) =>
@@ -40,4 +45,5 @@ Map<String, dynamic> _$$BackupDataImplToJson(_$BackupDataImpl instance) =>
       'transactions': instance.transactions,
       'budgets': instance.budgets,
       'recurringTransactions': instance.recurringTransactions,
+      'quickTemplates': instance.quickTemplates,
     };

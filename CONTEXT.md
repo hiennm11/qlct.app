@@ -41,6 +41,10 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 | **Phân trang DB** | Pagination | `getAllPaginated(offset, limit)` — load 50 transaction mỗi page từ SQLite. `_transactions` accumulate các page đã load. `hasMore` flag kiểm soát "Xem thêm" |
 | **Splice in-memory** | In-memory mutation | Sau add/update/delete: splice local `_transactions` list thay `_refreshAll()` full DB reload. Chỉ reload DB khi external sync (restore, recurring generate) |
 | **Stream JSON** | Streaming parse | Backup import: `file.openRead()` → `utf8.decoder` → `json.decoder` pipeline. Parse incremental, không load toàn bộ file vào RAM. Giữ 50MB guard trước stream |
+| **Mẫu nhanh** | `QuickTemplate` | Immutable preset transaction shortcut (ADR-0019): id, title, amount, categoryName, note, emoji, isPinned, usageCount, lastUsedAt, createdAt, updatedAt. |
+| **Dải mẫu nhanh** | `QuickTemplatesStrip` | Horizontal strip hiển thị ≤8 mẫu (pinned first, usageCount DESC, lastUsedAt DESC, createdAt DESC). Tap → ExpenseViewModel.addTransaction() + markUsed on success. Empty state `+ Tạo mẫu nhanh`. |
+| **Tạo từ giao dịch** | `Lưu làm mẫu` | Action trong `TransactionDetailSheet`: map transaction → template, title = note.trim() fallback category, chặn exact duplicate. |
+| **Mẫu nhanh backup** | BackupData v2 | Schema v2 bao gồm `quickTemplates`. v1 compatibility: missing field defaults `[]`. Restore merge: INSERT OR IGNORE. Restore replace: clear + insert trong 1 transaction. |
 
 ## Architecture
 
@@ -48,7 +52,7 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 Pattern: MVVM + DataSource (multi-VM) — Repository layer removed per ADR-0018
 State:   Provider + ChangeNotifier + ChangeNotifierProxyProvider<ExpenseVM, BudgetVM>
 Models:  Freezed (immutable, code-gen)
-Storage: SQLite (sqflite) — transactions, budgets, recurring_transactions tables. v7 migration adds 2 perf indexes. SharedPreferences for settings only.
+Storage: SQLite (sqflite) — transactions, budgets, recurring_transactions, quick_templates tables. v8 migration adds quick_templates + 2 indexes. SharedPreferences for settings only.
 ```
 
 ### Layer Map
@@ -57,29 +61,30 @@ Storage: SQLite (sqflite) — transactions, budgets, recurring_transactions tabl
 lib/
 ├── core/           — Constants, theme, formatters, Vietnamese number parser
 ├── data/
-│   ├── database/   — DatabaseHelper (SQLite connection, version 7, migration, runInTransaction)
+│   ├── database/   — DatabaseHelper (SQLite connection, version 8, migration, runInTransaction)
 │   ├── datasources/— TransactionLocalDataSource, BudgetLocalDataSource,
-│   │                 RecurringLocalDataSource (abstract); sqlite impls
+│   │                 RecurringLocalDataSource, QuickTemplateLocalDataSource (abstract); sqlite impls
 │   ├── mappers/    — Top-level row mappers: transactionToRow/FromRow,
-│   │                 budgetToRow/FromRow, recurringToRow/FromRow
+│   │                 budgetToRow/FromRow, recurringToRow/FromRow, quickTemplateToRow/FromRow
 │   └── migrations/ — One-time SharedPreferences → SQLite data import (atomic via transaction)
 ├── models/         — Transaction, Category, ExpenseStats, Budget,
-│                     BudgetStatus, RecurringTransaction, BackupData (Freezed)
+│                     BudgetStatus, RecurringTransaction, QuickTemplate, BackupData (Freezed)
 ├── services/       — StorageService (settings only), ExportService, VoiceInputService,
 │                     BackupService (backup/restore atomic, uses DataSource interfaces)
 ├── viewmodels/     — ExpenseViewModel, BudgetViewModel,
-│                     RecurringTransactionViewModel, BackupViewModel (multi-VM,
-│                     depend on DataSource interfaces, not Repository)
+│                     RecurringTransactionViewModel, QuickTemplateViewModel, BackupViewModel
+│                     (multi-VM, depend on DataSource interfaces, not Repository)
 ├── views/          — HomeScreen, BackupRestoreScreen
 ├── widgets/        — StatsWidget, QuickAddBar, QuickInputWidget, CustomInputWidget,
+│                     QuickTemplatesStrip, ManageTemplatesSheet, QuickTemplateEditSheet,
 │                     TransactionListWidget, ChartWidget, BudgetOverviewWidget,
 │                     RecurringOverviewWidget, RecurringEditDialog,
-│                     RecurringListSheet, TransactionEditDialog,
+│                     RecurringListSheet, TransactionEditDialog, TransactionDetailSheet,
 │                     voice/ (VoiceCoordinator, VoiceResult, VoiceTranscriptParser,
 │                     VoiceInputModal),
 │                     transaction_filter_row, transaction_row,
 │                     transaction_selection_action_bar, transaction_empty_state
-└── main.dart       — DI wiring: 4 Provider + ProxyProvider<Expense, Budget> + Sentry init
+└── main.dart       — DI wiring: 5 Provider + ProxyProvider<Expense, Budget> + Sentry init
 ```
 
 ### Data Flow
@@ -144,6 +149,7 @@ Restore → BackupViewModel.importAndRestore(mode)
 25. **Error & Empty States + Delete Confirm/Undo** — ADR-0016: Audit toàn diện empty/error states + confirm/undo theo ADR-0008. 8 gaps: D1 clear-all undo từ transaction header, D2 recurring error display, D3 empty state guidance, D4 bulk delete undo, D5 chart loading state, D6 snackbar duration consistency, D7 friendly error messages (no raw `$e`), D8 fix misleading "KHÔNG thể hoàn tác" text. Scope out: budget delete (intentional skip).
 26. **Performance Sanity** — ADR-0017: 16 smells → 6 slices. Slice 1: Memoize `transactions`/`stats` getters + 2 DB indexes (v7 migration: `idx_transactions_created_at`, `idx_transactions_source_recurring`) + search debounce 250ms. Slice 2: Recurring dedup từ `getAll()` full table → `SELECT 1 ... LIMIT 1` targeted query + bỏ redundant `refresh()`. Slice 3: List lazy rendering (`SizedBox` bounded height + `ListView.builder` thay `shrinkWrap`), DB pagination 50/page, in-memory splice thay `_refreshAll()`. Slice 4: Backup stream JSON parse (`openRead`→`json.decoder` thay `readAsString`), hoist SharedPreferences read khỏi DB transaction. Slice 5: ~~Bỏ `ProxyProvider<Expense,Budget>` → explicit push từ `HomeScreen._onExpenseChange`~~ Reverted by Slice 4 (re-introduced ProxyProvider) + memoize chart sections. Slice 6: Cleanup stale FTS5 comments → LIKE search docs.
 27. **Architecture Deepening Pass** — Same implementation batch as ADR-0018; only Repository removal required a new ADR. (1) Removed dead `AnalyticsService`. (2) Monthly recurring drift fix: `_calculateNextRun` static factory clamps day to last-day-of-target-month (Jan 31 + 1 month → Feb 28, not Mar 2). (3) `VoiceCoordinator` extracted (`lib/widgets/voice/`) — pure parser `parseVoiceTranscript(transcript, categories)`, `VoiceResult` value type, coordinator owns tap/listen/modal/parse lifecycle. Applied to `quick_add_bar.dart` + `custom_input_widget.dart`. (4) Row mappers extracted (`lib/data/mappers/`) — top-level functions `transactionToRow/FromRow`, `budgetToRow/FromRow`, `recurringToRow/FromRow`. Applied to all 3 datasources + MigrationService + BackupService. (5) `ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>` in main.dart (replaces manual `HomeScreen._onExpenseChange` listener). (6) **Removed Repository layer** per ADR-0018: ViewModels + BackupService depend on DataSource interfaces directly. Deleted `lib/repositories/` + 3 repository impl tests. (7) `TransactionListWidget` split into 4 extracted files: `transaction_filter_row`, `transaction_row`, `transaction_selection_action_bar`, `transaction_empty_state`. State stays in parent for first pass.
+28. **Quick Templates** — ADR-0019: Immutable `QuickTemplate` model (Freezed) + `QuickTemplateLocalDataSource` + `SqliteQuickTemplateDataSource`. DB v8 creates `quick_templates` table with `idx_quick_templates_pinned` and `idx_quick_templates_usage` indexes. `QuickTemplateViewModel` owns all template CRUD. `ExpenseViewModel` NOT touched for template CRUD. Strip (`QuickTemplatesStrip`) appears below `QuickAddBar`: max 8 chips (pinned first, then usage DESC), empty state always shows `+ Tạo mẫu nhanh`. Tap chip → `ExpenseViewModel.addTransaction()` + `markUsed()` on success. `ManageTemplatesSheet` / `QuickTemplateEditSheet` handle create/edit/delete/pin. Delete requires confirm, no undo. "Lưu làm mẫu" action in `TransactionDetailSheet` maps transaction → template, title = note.trim() fallback category, blocks exact duplicate. Backup schema v2 includes `quickTemplates`; v1 missing field defaults `[]`. Restore merge: INSERT OR IGNORE; replace: clear + insert in 1 transaction.
 
 ## Dependencies
 

@@ -7,9 +7,11 @@ import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
+import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/recurring_transaction.dart';
+import 'package:qlct/models/quick_template.dart';
 import 'package:qlct/services/backup_service.dart';
 import 'package:qlct/services/storage_service.dart';
 
@@ -21,6 +23,9 @@ class MockBudgetDataSource extends Mock implements BudgetLocalDataSource {}
 class MockRecurringDataSource extends Mock
     implements RecurringLocalDataSource {}
 
+class MockQuickTemplateDataSource extends Mock
+    implements QuickTemplateLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class MockDatabaseHelper extends Mock implements DatabaseHelper {}
@@ -29,6 +34,7 @@ void main() {
   late MockTransactionDataSource txRepo;
   late MockBudgetDataSource budgetRepo;
   late MockRecurringDataSource recurringRepo;
+  late MockQuickTemplateDataSource quickTemplateRepo;
   late MockStorageService storageService;
   late BackupService service;
 
@@ -36,6 +42,7 @@ void main() {
     txRepo = MockTransactionDataSource();
     budgetRepo = MockBudgetDataSource();
     recurringRepo = MockRecurringDataSource();
+    quickTemplateRepo = MockQuickTemplateDataSource();
     storageService = MockStorageService();
     // _dbHelper is unused by createBackup/validate/generateSampleData but
     // required by the constructor. Pass null-safe stub.
@@ -43,6 +50,7 @@ void main() {
       txRepo,
       budgetRepo,
       recurringRepo,
+      quickTemplateRepo,
       storageService,
       MockDatabaseHelper(), // dummy — not exercised by these tests
     );
@@ -69,9 +77,18 @@ void main() {
       isActive: false,
       createdAt: DateTime.now(),
     ));
+    registerFallbackValue(QuickTemplate(
+      id: 'fallback',
+      title: '',
+      amount: 0,
+      categoryName: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ));
     registerFallbackValue(<Transaction>[]);
     registerFallbackValue(<Budget>[]);
     registerFallbackValue(<RecurringTransaction>[]);
+    registerFallbackValue(<QuickTemplate>[]);
   });
 
   group('validate', () {
@@ -139,6 +156,24 @@ void main() {
       expect(result.errors.any((e) => e.contains('transactions')), isTrue);
     });
 
+    // Issue #5: quickTemplates must be a List if present
+    test('quickTemplates not a list returns error', () {
+      final json = jsonEncode({
+        'schemaVersion': 2,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'quickTemplates': 'not a list',
+      });
+
+      final result = service.validate(json);
+      expect(result.isValid, isFalse);
+      expect(
+          result.errors.any((e) => e.contains('quickTemplates')), isTrue);
+    });
+
     test('valid with full nested data passes validation', () {
       final json = jsonEncode({
         'schemaVersion': 1,
@@ -184,6 +219,24 @@ void main() {
       expect(result.data!.transactions.length, 1);
       expect(result.data!.budgets.length, 1);
       expect(result.data!.recurringTransactions.length, 1);
+    });
+
+    test('v1 JSON (missing quickTemplates) parses with empty templates list', () {
+      final json = jsonEncode({
+        'schemaVersion': 1,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        // no quickTemplates field — v1 compatibility
+      });
+
+      final result = service.validate(json);
+
+      expect(result.isValid, isTrue);
+      expect(result.data!.quickTemplates, isEmpty);
     });
   });
 
@@ -363,15 +416,27 @@ void main() {
               createdAt: DateTime(2026, 6, 1),
             ),
           ]);
+      when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => [
+            QuickTemplate(
+              id: 'q-1',
+              title: 'Cơm trưa',
+              amount: 35000,
+              categoryName: 'Ăn ngoài',
+              createdAt: DateTime(2026, 6, 1),
+              updatedAt: DateTime(2026, 6, 1),
+            ),
+          ]);
       when(() => storageService.loadValue<int>('total_budget'))
           .thenReturn(15000000);
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 1);
+      expect(backup.schemaVersion, 2);
       expect(backup.transactions.length, 1);
       expect(backup.budgets.length, 1);
       expect(backup.recurringTransactions.length, 1);
+      expect(backup.quickTemplates.length, 1);
+      expect(backup.quickTemplates.first.title, 'Cơm trưa');
       expect(backup.totalBudget, 15000000);
       expect(backup.appVersion, isNotEmpty);
       expect(backup.exportedAt, isNotEmpty);
@@ -381,6 +446,7 @@ void main() {
       when(() => txRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
+      when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
           .thenReturn(null);
 
@@ -389,6 +455,7 @@ void main() {
       expect(backup.transactions, isEmpty);
       expect(backup.budgets, isEmpty);
       expect(backup.recurringTransactions, isEmpty);
+      expect(backup.quickTemplates, isEmpty);
       expect(backup.totalBudget, 0);
     });
   });
@@ -397,10 +464,11 @@ void main() {
     test('creates non-empty backup with expected structure', () async {
       final backup = await service.generateSampleData();
 
-      expect(backup.schemaVersion, 1);
+      expect(backup.schemaVersion, 2);
       expect(backup.transactions.length, 20);
       expect(backup.budgets.length, 3);
       expect(backup.recurringTransactions.length, 2);
+      expect(backup.quickTemplates.length, 3);
       expect(backup.totalBudget, 15000000);
 
       final txIds = backup.transactions.map((t) => t.id).toSet();
@@ -409,6 +477,9 @@ void main() {
       final budgetCats = backup.budgets.map((b) => b.categoryName).toSet();
       expect(budgetCats,
           containsAll(['Ăn ngoài', 'Cà phê', 'Mua online']));
+
+      final qtTitles = backup.quickTemplates.map((q) => q.title).toSet();
+      expect(qtTitles, containsAll(['Cơm trưa', 'Cà phê sáng', 'Shopee']));
     });
   });
 }

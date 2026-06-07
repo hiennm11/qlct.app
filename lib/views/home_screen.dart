@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
-import '../viewmodels/budget_viewmodel.dart';
+
 import '../viewmodels/recurring_viewmodel.dart';
 import '../widgets/stats_widget.dart';
 import '../widgets/transaction_list_widget.dart';
@@ -9,6 +9,7 @@ import '../widgets/chart_widget.dart';
 import '../widgets/budget_overview_widget.dart';
 import '../widgets/recurring_overview_widget.dart';
 import '../widgets/quick_add_bar.dart';
+import '../widgets/quick_templates_strip.dart';
 import '../core/theme.dart';
 import 'backup_restore_screen.dart';
 
@@ -246,6 +247,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: const QuickAddBar(),
                   ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 8),
+                ),
+
+                // Quick templates strip (ADR-0019)
+                const SliverToBoxAdapter(
+                  child: QuickTemplatesStrip(),
                 ),
                 const SliverToBoxAdapter(
                   child: SizedBox(height: 20),

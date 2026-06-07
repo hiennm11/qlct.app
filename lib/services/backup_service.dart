@@ -14,13 +14,16 @@ import '../data/database/database_helper.dart';
 import '../data/datasources/transaction_local_datasource.dart';
 import '../data/datasources/budget_local_datasource.dart';
 import '../data/datasources/recurring_local_datasource.dart';
+import '../data/datasources/quick_template_local_datasource.dart';
 import '../data/mappers/transaction_row_mapper.dart';
 import '../data/mappers/budget_row_mapper.dart';
 import '../data/mappers/recurring_row_mapper.dart';
+import '../data/mappers/quick_template_mapper.dart';
 import '../models/backup_data.dart';
 import '../models/transaction.dart';
 import '../models/budget.dart';
 import '../models/recurring_transaction.dart';
+import '../models/quick_template.dart';
 import 'storage_service.dart';
 
 /// Thrown by [BackupService.pickBackupFile] when the selected file exceeds
@@ -56,6 +59,7 @@ class RestoreResult {
   final int transactionsImported;
   final int budgetsImported;
   final int recurringsImported;
+  final int quickTemplatesImported;
   final String? error;
 
   const RestoreResult({
@@ -63,6 +67,7 @@ class RestoreResult {
     required this.transactionsImported,
     required this.budgetsImported,
     required this.recurringsImported,
+    required this.quickTemplatesImported,
     this.error,
   });
 }
@@ -72,6 +77,7 @@ class BackupService {
   final TransactionLocalDataSource _transactionDataSource;
   final BudgetLocalDataSource _budgetDataSource;
   final RecurringLocalDataSource _recurringDataSource;
+  final QuickTemplateLocalDataSource _quickTemplateDataSource;
   final StorageService _storageService;
   final DatabaseHelper _dbHelper;
 
@@ -79,6 +85,7 @@ class BackupService {
     this._transactionDataSource,
     this._budgetDataSource,
     this._recurringDataSource,
+    this._quickTemplateDataSource,
     this._storageService,
     this._dbHelper,
   );
@@ -88,6 +95,7 @@ class BackupService {
     final transactions = await _transactionDataSource.getAll();
     final budgets = await _budgetDataSource.getAll();
     final recurrings = await _recurringDataSource.getAll();
+    final quickTemplates = await _quickTemplateDataSource.getAll();
     final totalBudget = _storageService.loadValue<int>('total_budget') ?? 0;
 
     return BackupData(
@@ -98,6 +106,7 @@ class BackupService {
       transactions: transactions,
       budgets: budgets,
       recurringTransactions: recurrings,
+      quickTemplates: quickTemplates,
     );
   }
 
@@ -112,6 +121,8 @@ class BackupService {
       'budgets': data.budgets.map((b) => b.toJson()).toList(),
       'recurringTransactions':
           data.recurringTransactions.map((r) => r.toJson()).toList(),
+      'quickTemplates':
+          data.quickTemplates.map((q) => q.toJson()).toList(),
     };
   }
 
@@ -223,6 +234,11 @@ class BackupService {
       return ImportResult.error(['"recurringTransactions" không phải là mảng']);
     }
 
+    // Validate quickTemplates array (ADR-0019)
+    if (map['quickTemplates'] != null && map['quickTemplates'] is! List) {
+      return ImportResult.error(['"quickTemplates" không phải là mảng']);
+    }
+
     // Try to deserialize using the Freezed model
     try {
       final backupData = BackupData.fromJson(map);
@@ -265,6 +281,7 @@ class BackupService {
       final transactions = data.transactions;
       final budgets = data.budgets;
       final recurrings = data.recurringTransactions;
+      final quickTemplates = data.quickTemplates;
 
       // Hoist SharedPreferences read OUTSIDE the DB transaction to avoid
       // stalling the transaction with a sync I/O call.
@@ -277,11 +294,13 @@ class BackupService {
           await txn.delete('transactions');
           await txn.delete('budgets');
           await txn.delete('recurring_transactions');
+          await txn.delete('quick_templates');
         }
 
         int txImported = 0;
         int bImported = 0;
         int rImported = 0;
+        int qtImported = 0;
 
         if (mode == RestoreMode.merge) {
           // Use INSERT OR IGNORE — SQLite PRIMARY KEY constraint handles
@@ -314,6 +333,16 @@ class BackupService {
             }
             final results = await batch.commit(noResult: false);
             rImported = results.whereType<int>().where((r) => r > 0).length;
+          }
+
+          if (quickTemplates.isNotEmpty) {
+            final batch = txn.batch();
+            for (final q in quickTemplates) {
+              batch.insert('quick_templates', _quickTemplateToMap(q),
+                  conflictAlgorithm: ConflictAlgorithm.ignore);
+            }
+            final results = await batch.commit(noResult: false);
+            qtImported = results.whereType<int>().where((r) => r > 0).length;
           }
 
           // Use the hoisted value — no SharedPreferences call inside txn
@@ -349,6 +378,15 @@ class BackupService {
             rImported = recurrings.length;
           }
 
+          if (quickTemplates.isNotEmpty) {
+            final batch = txn.batch();
+            for (final q in quickTemplates) {
+              batch.insert('quick_templates', _quickTemplateToMap(q));
+            }
+            await batch.commit(noResult: true);
+            qtImported = quickTemplates.length;
+          }
+
           _storageService.saveValue('total_budget', data.totalBudget);
         }
 
@@ -357,6 +395,7 @@ class BackupService {
           transactionsImported: txImported,
           budgetsImported: bImported,
           recurringsImported: rImported,
+          quickTemplatesImported: qtImported,
         );
       });
     } on FileTooLargeException {
@@ -368,6 +407,7 @@ class BackupService {
         transactionsImported: 0,
         budgetsImported: 0,
         recurringsImported: 0,
+        quickTemplatesImported: 0,
         error: 'Lỗi khi khôi phục dữ liệu: $e',
       );
     }
@@ -457,6 +497,49 @@ class BackupService {
       ),
     ];
 
+    // Generate 3 quick templates (ADR-0019)
+    final quickTemplates = <QuickTemplate>[
+      QuickTemplate(
+        id: uuid.v4(),
+        title: 'Cơm trưa',
+        amount: 35000,
+        categoryName: 'Ăn ngoài',
+        note: '',
+        emoji: '🍜',
+        isPinned: true,
+        usageCount: 12,
+        lastUsedAt: now.subtract(const Duration(hours: 3)),
+        createdAt: now.subtract(const Duration(days: 30)),
+        updatedAt: now.subtract(const Duration(hours: 3)),
+      ),
+      QuickTemplate(
+        id: uuid.v4(),
+        title: 'Cà phê sáng',
+        amount: 25000,
+        categoryName: 'Cà phê',
+        note: '',
+        emoji: '☕',
+        isPinned: false,
+        usageCount: 8,
+        lastUsedAt: now.subtract(const Duration(days: 1)),
+        createdAt: now.subtract(const Duration(days: 20)),
+        updatedAt: now.subtract(const Duration(days: 1)),
+      ),
+      QuickTemplate(
+        id: uuid.v4(),
+        title: 'Shopee',
+        amount: 120000,
+        categoryName: 'Mua online',
+        note: '',
+        emoji: '🛒',
+        isPinned: false,
+        usageCount: 2,
+        lastUsedAt: null,
+        createdAt: now.subtract(const Duration(days: 5)),
+        updatedAt: now.subtract(const Duration(days: 5)),
+      ),
+    ];
+
     return BackupData(
       schemaVersion: currentSchemaVersion,
       exportedAt: now.toUtc().toIso8601String(),
@@ -465,6 +548,7 @@ class BackupService {
       transactions: transactions,
       budgets: budgets,
       recurringTransactions: recurrings,
+      quickTemplates: quickTemplates,
     );
   }
 
@@ -487,4 +571,7 @@ class BackupService {
 
   Map<String, dynamic> _recurringToMap(RecurringTransaction r) =>
       recurringToRow(r);
+
+  Map<String, dynamic> _quickTemplateToMap(QuickTemplate q) =>
+      quickTemplateToRow(q);
 }

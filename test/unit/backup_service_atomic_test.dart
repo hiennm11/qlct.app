@@ -7,6 +7,7 @@
 // - restore(replace) inserts all rows (table was cleared)
 // - restore preserves existing totalBudget in merge when set
 // - restore handles empty data gracefully
+// - ADR-0019: quick templates are restored in both merge and replace modes
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -16,10 +17,12 @@ import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
+import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
 import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/recurring_transaction.dart';
+import 'package:qlct/models/quick_template.dart';
 import 'package:qlct/services/backup_service.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +34,9 @@ class MockBudgetDataSource extends Mock implements BudgetLocalDataSource {}
 
 class MockRecurringDataSource extends Mock
     implements RecurringLocalDataSource {}
+
+class MockQuickTemplateDataSource extends Mock
+    implements QuickTemplateLocalDataSource {}
 
 class MockStorageService extends Mock implements StorageService {}
 
@@ -69,6 +75,14 @@ void main() {
       isActive: true,
       createdAt: DateTime.now(),
     ));
+    registerFallbackValue(QuickTemplate(
+      id: 'fallback',
+      title: '',
+      amount: 0,
+      categoryName: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ));
   });
 
   setUp(() async {
@@ -82,6 +96,7 @@ void main() {
     await db.delete('transactions');
     await db.delete('budgets');
     await db.delete('recurring_transactions');
+    await db.delete('quick_templates');
 
     SharedPreferences.setMockInitialValues({});
 
@@ -94,6 +109,7 @@ void main() {
       mockTxRepo,
       mockBudgetRepo,
       mockRecurringRepo,
+      MockQuickTemplateDataSource(),
       mockStorage,
       dbHelper,
     );
@@ -122,7 +138,7 @@ void main() {
       });
 
       final backupData = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: DateTime.now().toUtc().toIso8601String(),
         appVersion: '1.0.0',
         totalBudget: 15000000,
@@ -138,6 +154,7 @@ void main() {
         ],
         budgets: [],
         recurringTransactions: [],
+        quickTemplates: [],
       );
 
       // Restore no longer calls the repos for the actual write — it goes
@@ -177,7 +194,7 @@ void main() {
 
       // Backup: 1 existing ID (should be skipped) + 1 new ID
       final backupData = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: DateTime.now().toUtc().toIso8601String(),
         appVersion: '1.0.0',
         totalBudget: 15000000,
@@ -201,6 +218,7 @@ void main() {
         ],
         budgets: [],
         recurringTransactions: [],
+        quickTemplates: [],
       );
 
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(0);
@@ -225,7 +243,7 @@ void main() {
 
     test('restore handles empty backup data', () async {
       final backupData = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: DateTime.now().toUtc().toIso8601String(),
         appVersion: '1.0.0',
         transactions: [],
@@ -243,11 +261,12 @@ void main() {
       expect(result.transactionsImported, 0);
       expect(result.budgetsImported, 0);
       expect(result.recurringsImported, 0);
+      expect(result.quickTemplatesImported, 0);
     });
 
     test('merge preserves existing totalBudget if already set', () async {
       final backupData = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: DateTime.now().toUtc().toIso8601String(),
         appVersion: '1.0.0',
         totalBudget: 99999999,
@@ -277,7 +296,7 @@ void main() {
       });
 
       final backupData = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: DateTime.now().toUtc().toIso8601String(),
         appVersion: '1.0.0',
         totalBudget: 5000000,
@@ -311,6 +330,122 @@ void main() {
           'OldCat');
       expect(rows.firstWhere((r) => r['id'] == 'new-budget')['category_name'],
           'NewCat');
+    });
+
+    test('ADR-0019: replace mode restores quick templates', () async {
+      final db = await dbHelper.database;
+
+      final backupData = BackupData(
+        schemaVersion: 2,
+        exportedAt: DateTime.now().toUtc().toIso8601String(),
+        appVersion: '1.0.0',
+        transactions: [],
+        budgets: [],
+        recurringTransactions: [],
+        quickTemplates: [
+          QuickTemplate(
+            id: 'qt-1',
+            title: 'Cơm trưa',
+            amount: 35000,
+            categoryName: 'Ăn ngoài',
+            emoji: '🍜',
+            createdAt: DateTime(2026, 6, 1),
+            updatedAt: DateTime(2026, 6, 1),
+          ),
+          QuickTemplate(
+            id: 'qt-2',
+            title: 'Cà phê sáng',
+            amount: 25000,
+            categoryName: 'Cà phê',
+            emoji: '☕',
+            createdAt: DateTime(2026, 6, 2),
+            updatedAt: DateTime(2026, 6, 2),
+          ),
+        ],
+      );
+
+      when(() => mockStorage.saveValue('total_budget', any()))
+          .thenAnswer((_) async {});
+
+      final result =
+          await backupService.restore(backupData, RestoreMode.replace);
+
+      expect(result.success, isTrue);
+      expect(result.quickTemplatesImported, 2);
+
+      final rows = await db.query('quick_templates', orderBy: 'id');
+      expect(rows.length, 2);
+      expect(rows.first['id'], 'qt-1');
+      expect(rows.first['title'], 'Cơm trưa');
+      expect(rows.first['amount'], 35000);
+      expect(rows.last['id'], 'qt-2');
+      expect(rows.last['title'], 'Cà phê sáng');
+    });
+
+    test('ADR-0019: merge mode skips duplicate quick templates', () async {
+      final db = await dbHelper.database;
+
+      // Pre-existing quick template
+      await db.insert('quick_templates', {
+        'id': 'existing-qt',
+        'title': 'Cơm trưa',
+        'amount': 35000,
+        'category_name': 'Ăn ngoài',
+        'note': '',
+        'emoji': '🍜',
+        'is_pinned': 1,
+        'usage_count': 10,
+        'last_used_at': null,
+        'created_at': DateTime(2026, 6, 1).toIso8601String(),
+        'updated_at': DateTime(2026, 6, 1).toIso8601String(),
+      });
+
+      final backupData = BackupData(
+        schemaVersion: 2,
+        exportedAt: DateTime.now().toUtc().toIso8601String(),
+        appVersion: '1.0.0',
+        transactions: [],
+        budgets: [],
+        recurringTransactions: [],
+        quickTemplates: [
+          QuickTemplate(
+            id: 'existing-qt',
+            title: 'Changed Title',
+            amount: 99999,
+            categoryName: 'Khác',
+            emoji: '📌',
+            createdAt: DateTime(2026, 6, 1),
+            updatedAt: DateTime(2026, 6, 1),
+          ),
+          QuickTemplate(
+            id: 'new-qt',
+            title: 'Cà phê sáng',
+            amount: 25000,
+            categoryName: 'Cà phê',
+            emoji: '☕',
+            createdAt: DateTime(2026, 6, 2),
+            updatedAt: DateTime(2026, 6, 2),
+          ),
+        ],
+      );
+
+      when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(0);
+      when(() => mockStorage.saveValue('total_budget', any()))
+          .thenAnswer((_) async {});
+
+      final result =
+          await backupService.restore(backupData, RestoreMode.merge);
+
+      expect(result.success, isTrue);
+      expect(result.quickTemplatesImported, 1); // only new-qt
+
+      final rows = await db.query('quick_templates', orderBy: 'id');
+      expect(rows.length, 2);
+      // existing-qt should still have original amount (skipped via INSERT OR IGNORE)
+      final existing =
+          rows.firstWhere((r) => r['id'] == 'existing-qt');
+      expect(existing['amount'], 35000);
+      expect(existing['title'], 'Cơm trưa');
     });
   });
 }

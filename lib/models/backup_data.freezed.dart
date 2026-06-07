@@ -29,6 +29,7 @@ mixin _$BackupData {
   List<Budget> get budgets => throw _privateConstructorUsedError;
   List<RecurringTransaction> get recurringTransactions =>
       throw _privateConstructorUsedError;
+  List<QuickTemplate> get quickTemplates => throw _privateConstructorUsedError;
 
   /// Serializes this BackupData to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -55,6 +56,7 @@ abstract class $BackupDataCopyWith<$Res> {
     List<Transaction> transactions,
     List<Budget> budgets,
     List<RecurringTransaction> recurringTransactions,
+    List<QuickTemplate> quickTemplates,
   });
 }
 
@@ -80,6 +82,7 @@ class _$BackupDataCopyWithImpl<$Res, $Val extends BackupData>
     Object? transactions = null,
     Object? budgets = null,
     Object? recurringTransactions = null,
+    Object? quickTemplates = null,
   }) {
     return _then(
       _value.copyWith(
@@ -111,6 +114,10 @@ class _$BackupDataCopyWithImpl<$Res, $Val extends BackupData>
                 ? _value.recurringTransactions
                 : recurringTransactions // ignore: cast_nullable_to_non_nullable
                       as List<RecurringTransaction>,
+            quickTemplates: null == quickTemplates
+                ? _value.quickTemplates
+                : quickTemplates // ignore: cast_nullable_to_non_nullable
+                      as List<QuickTemplate>,
           )
           as $Val,
     );
@@ -134,6 +141,7 @@ abstract class _$$BackupDataImplCopyWith<$Res>
     List<Transaction> transactions,
     List<Budget> budgets,
     List<RecurringTransaction> recurringTransactions,
+    List<QuickTemplate> quickTemplates,
   });
 }
 
@@ -158,6 +166,7 @@ class __$$BackupDataImplCopyWithImpl<$Res>
     Object? transactions = null,
     Object? budgets = null,
     Object? recurringTransactions = null,
+    Object? quickTemplates = null,
   }) {
     return _then(
       _$BackupDataImpl(
@@ -189,6 +198,10 @@ class __$$BackupDataImplCopyWithImpl<$Res>
             ? _value._recurringTransactions
             : recurringTransactions // ignore: cast_nullable_to_non_nullable
                   as List<RecurringTransaction>,
+        quickTemplates: null == quickTemplates
+            ? _value._quickTemplates
+            : quickTemplates // ignore: cast_nullable_to_non_nullable
+                  as List<QuickTemplate>,
       ),
     );
   }
@@ -205,9 +218,11 @@ class _$BackupDataImpl implements _BackupData {
     final List<Transaction> transactions = const [],
     final List<Budget> budgets = const [],
     final List<RecurringTransaction> recurringTransactions = const [],
+    final List<QuickTemplate> quickTemplates = const [],
   }) : _transactions = transactions,
        _budgets = budgets,
-       _recurringTransactions = recurringTransactions;
+       _recurringTransactions = recurringTransactions,
+       _quickTemplates = quickTemplates;
 
   factory _$BackupDataImpl.fromJson(Map<String, dynamic> json) =>
       _$$BackupDataImplFromJson(json);
@@ -249,9 +264,18 @@ class _$BackupDataImpl implements _BackupData {
     return EqualUnmodifiableListView(_recurringTransactions);
   }
 
+  final List<QuickTemplate> _quickTemplates;
+  @override
+  @JsonKey()
+  List<QuickTemplate> get quickTemplates {
+    if (_quickTemplates is EqualUnmodifiableListView) return _quickTemplates;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_quickTemplates);
+  }
+
   @override
   String toString() {
-    return 'BackupData(schemaVersion: $schemaVersion, exportedAt: $exportedAt, appVersion: $appVersion, totalBudget: $totalBudget, transactions: $transactions, budgets: $budgets, recurringTransactions: $recurringTransactions)';
+    return 'BackupData(schemaVersion: $schemaVersion, exportedAt: $exportedAt, appVersion: $appVersion, totalBudget: $totalBudget, transactions: $transactions, budgets: $budgets, recurringTransactions: $recurringTransactions, quickTemplates: $quickTemplates)';
   }
 
   @override
@@ -275,6 +299,10 @@ class _$BackupDataImpl implements _BackupData {
             const DeepCollectionEquality().equals(
               other._recurringTransactions,
               _recurringTransactions,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._quickTemplates,
+              _quickTemplates,
             ));
   }
 
@@ -289,6 +317,7 @@ class _$BackupDataImpl implements _BackupData {
     const DeepCollectionEquality().hash(_transactions),
     const DeepCollectionEquality().hash(_budgets),
     const DeepCollectionEquality().hash(_recurringTransactions),
+    const DeepCollectionEquality().hash(_quickTemplates),
   );
 
   /// Create a copy of BackupData
@@ -314,6 +343,7 @@ abstract class _BackupData implements BackupData {
     final List<Transaction> transactions,
     final List<Budget> budgets,
     final List<RecurringTransaction> recurringTransactions,
+    final List<QuickTemplate> quickTemplates,
   }) = _$BackupDataImpl;
 
   factory _BackupData.fromJson(Map<String, dynamic> json) =
@@ -333,6 +363,8 @@ abstract class _BackupData implements BackupData {
   List<Budget> get budgets;
   @override
   List<RecurringTransaction> get recurringTransactions;
+  @override
+  List<QuickTemplate> get quickTemplates;
 
   /// Create a copy of BackupData
   /// with the given fields replaced by the non-null parameter values.

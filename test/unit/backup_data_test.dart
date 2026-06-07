@@ -3,6 +3,7 @@ import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/recurring_transaction.dart';
+import 'package:qlct/models/quick_template.dart';
 
 void main() {
   group('BackupData', () {
@@ -34,18 +35,29 @@ void main() {
       createdAt: DateTime(2026, 6, 1),
     );
 
+    final sampleTemplate = QuickTemplate(
+      id: 'q-1',
+      title: 'Cơm trưa',
+      amount: 35000,
+      categoryName: 'Ăn ngoài',
+      emoji: '🍜',
+      createdAt: DateTime(2026, 6, 1),
+      updatedAt: DateTime(2026, 6, 1),
+    );
+
     test('can construct with full data and access all fields', () {
       final backup = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: '2026-06-05T10:00:00.000Z',
         appVersion: '1.0.0',
         totalBudget: 15000000,
         transactions: [sampleTx],
         budgets: [sampleBudget],
         recurringTransactions: [sampleRecurring],
+        quickTemplates: [sampleTemplate],
       );
 
-      expect(backup.schemaVersion, 1);
+      expect(backup.schemaVersion, 2);
       expect(backup.exportedAt, '2026-06-05T10:00:00.000Z');
       expect(backup.appVersion, '1.0.0');
       expect(backup.totalBudget, 15000000);
@@ -59,11 +71,14 @@ void main() {
       expect(backup.recurringTransactions.length, 1);
       expect(backup.recurringTransactions.first.frequency, 'monthly');
       expect(backup.recurringTransactions.first.isActive, isTrue);
+      expect(backup.quickTemplates.length, 1);
+      expect(backup.quickTemplates.first.id, 'q-1');
+      expect(backup.quickTemplates.first.title, 'Cơm trưa');
     });
 
     test('defaults for empty data', () {
       final backup = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: '2026-06-05T10:00:00.000Z',
         appVersion: '1.0.0',
       );
@@ -72,6 +87,7 @@ void main() {
       expect(backup.transactions, isEmpty);
       expect(backup.budgets, isEmpty);
       expect(backup.recurringTransactions, isEmpty);
+      expect(backup.quickTemplates, isEmpty);
     });
 
     test('multiple transactions preserve order', () {
@@ -84,7 +100,7 @@ void main() {
       ));
 
       final backup = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: '2026-06-05T10:00:00.000Z',
         appVersion: '1.0.0',
         transactions: txs,
@@ -95,13 +111,13 @@ void main() {
       expect(backup.transactions[4].id, 'tx-4');
     });
 
-    test('currentSchemaVersion is 1', () {
-      expect(currentSchemaVersion, 1);
+    test('currentSchemaVersion is 2 (ADR-0019)', () {
+      expect(currentSchemaVersion, 2);
     });
 
     test('handles mixed data: some default, some provided', () {
       final backup = BackupData(
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: '2026-06-05T10:00:00.000Z',
         appVersion: '1.0.0',
         transactions: [sampleTx],
@@ -111,7 +127,27 @@ void main() {
       expect(backup.transactions.length, 1);
       expect(backup.budgets, isEmpty);
       expect(backup.recurringTransactions, isEmpty);
+      expect(backup.quickTemplates, isEmpty);
       expect(backup.totalBudget, 0);
+    });
+
+    test('v1 JSON parses with missing quickTemplates (defaults to [])', () {
+      // Simulate v1 JSON: no quickTemplates field
+      final v1Json = {
+        'schemaVersion': 1,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        // no 'quickTemplates' field
+      };
+
+      final backup = BackupData.fromJson(v1Json);
+
+      expect(backup.schemaVersion, 1);
+      expect(backup.quickTemplates, isEmpty);
     });
   });
 }

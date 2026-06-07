@@ -2,11 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:qlct/models/backup_data.dart';
+
 import 'package:qlct/viewmodels/backup_viewmodel.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
+import 'package:qlct/viewmodels/quick_template_viewmodel.dart';
 import 'package:qlct/services/backup_service.dart';
 
 class MockBackupService extends Mock implements BackupService {}
@@ -17,11 +18,14 @@ class MockBudgetVM extends Mock implements BudgetViewModel {}
 
 class MockRecurringVM extends Mock implements RecurringTransactionViewModel {}
 
+class MockQuickTemplateVM extends Mock implements QuickTemplateViewModel {}
+
 void main() {
   late MockBackupService backupService;
   late MockExpenseVM expenseVM;
   late MockBudgetVM budgetVM;
   late MockRecurringVM recurringVM;
+  late MockQuickTemplateVM quickTemplateVM;
   late BackupViewModel viewModel;
 
   setUp(() {
@@ -29,8 +33,14 @@ void main() {
     expenseVM = MockExpenseVM();
     budgetVM = MockBudgetVM();
     recurringVM = MockRecurringVM();
-    viewModel =
-        BackupViewModel(backupService, expenseVM, budgetVM, recurringVM);
+    quickTemplateVM = MockQuickTemplateVM();
+    viewModel = BackupViewModel(
+      backupService,
+      expenseVM,
+      budgetVM,
+      recurringVM,
+      quickTemplateVM,
+    );
 
     registerFallbackValue(RestoreMode.merge);
     registerFallbackValue(RestoreMode.replace);
