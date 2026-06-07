@@ -4,20 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/transaction.dart';
-import 'package:qlct/repositories/transaction_repository.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/widgets/transaction_list_widget.dart';
 
-/// In-memory fake repository — returns empty list by default.
-class _FakeTransactionRepository implements TransactionRepository {
+/// In-memory fake data source — returns empty list by default.
+class _FakeTransactionDataSource implements TransactionLocalDataSource {
   final List<Transaction> _store = [];
 
   /// Operations recorded for assertion in tests.
   int clearAllCalls = 0;
   int deleteMultipleCalls = 0;
   int addCalls = 0;
-  int bulkAddCalls = 0;
+  int bulkInsertCalls = 0;
 
   @override
   Future<List<Transaction>> getAll() async => List.of(_store);
@@ -49,8 +49,8 @@ class _FakeTransactionRepository implements TransactionRepository {
   @override
   Future<List<Transaction>> getByDateRange(DateTime s, DateTime e) async => [];
   @override
-  Future<void> bulkAdd(List<Transaction> ts) async {
-    bulkAddCalls++;
+  Future<void> bulkInsert(List<Transaction> ts) async {
+    bulkInsertCalls++;
     _store.addAll(ts);
   }
   @override
@@ -121,10 +121,10 @@ Transaction _makeTx(String id, {int amount = 10000, String category = 'Ăn ngoà
 
 void main() {
   late ExpenseViewModel vm;
-  late _FakeTransactionRepository repo;
+  late _FakeTransactionDataSource repo;
 
   setUp(() {
-    repo = _FakeTransactionRepository();
+    repo = _FakeTransactionDataSource();
     vm = ExpenseViewModel(repo, _FakeExportService());
   });
 
@@ -364,9 +364,9 @@ void main() {
       await tester.pumpWidget(_wrap(vm));
       await tester.pumpAndSettle();
 
-      expect(find.text('Chưa có ghi chép nào'), findsOneWidget);
+      expect(find.text('Chưa có giao dịch nào'), findsOneWidget);
       expect(
-        find.text('Dùng thanh nhập nhanh bên trên để thêm'),
+        find.textContaining('Dùng thanh nhập nhanh'),
         findsOneWidget,
       );
     });

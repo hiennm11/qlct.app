@@ -4,12 +4,12 @@ import '../models/budget.dart';
 import '../models/budget_status.dart';
 import '../models/category.dart';
 import '../models/expense_stats.dart';
-import '../repositories/budget_repository.dart';
+import '../data/datasources/budget_local_datasource.dart';
 import '../services/storage_service.dart';
 
 /// ViewModel for managing budget state and operations
 class BudgetViewModel extends ChangeNotifier {
-  final BudgetRepository _budgetRepository;
+  final BudgetLocalDataSource _dataSource;
   final StorageService _storageService;
 
   List<Budget> _budgets = [];
@@ -18,7 +18,7 @@ class BudgetViewModel extends ChangeNotifier {
   String? _errorMessage;
   int? _totalBudget;
 
-  BudgetViewModel(this._budgetRepository, this._storageService) {
+  BudgetViewModel(this._dataSource, this._storageService) {
     _totalBudget = _storageService.loadValue<int>('total_budget');
     Future.microtask(() => _loadBudgets());
   }
@@ -58,11 +58,11 @@ class BudgetViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       for (final budget in budgets) {
-        final existing = await _budgetRepository.getByCategory(budget.categoryName);
+        final existing = await _dataSource.getByCategory(budget.categoryName);
         final upserted = existing != null
             ? budget.copyWith(id: existing.id, createdAt: existing.createdAt)
             : budget;
-        await _budgetRepository.upsert(upserted);
+        await _dataSource.upsert(upserted);
       }
       await _loadBudgets();
     } catch (e) {
@@ -81,7 +81,7 @@ class BudgetViewModel extends ChangeNotifier {
 
     try {
       // Check if budget already exists for this category
-      final existingBudget = await _budgetRepository.getByCategory(categoryName);
+      final existingBudget = await _dataSource.getByCategory(categoryName);
       final budget = Budget(
         id: existingBudget?.id ?? const Uuid().v4(),
         categoryName: categoryName,
@@ -90,7 +90,7 @@ class BudgetViewModel extends ChangeNotifier {
         createdAt: existingBudget?.createdAt ?? DateTime.now(),
       );
 
-      await _budgetRepository.upsert(budget);
+      await _dataSource.upsert(budget);
       await _loadBudgets();
     } catch (e) {
       debugPrint('Error saving budget: $e');
@@ -111,7 +111,7 @@ class BudgetViewModel extends ChangeNotifier {
         (b) => b.categoryName == categoryName,
         orElse: () => throw Exception('Budget not found'),
       );
-      await _budgetRepository.delete(budget.id);
+      await _dataSource.delete(budget.id);
       await _loadBudgets();
     } catch (e) {
       debugPrint('Error deleting budget: $e');
@@ -133,7 +133,7 @@ class BudgetViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _budgets = await _budgetRepository.getAll();
+      _budgets = await _dataSource.getAll();
     } catch (e) {
       debugPrint('Error loading budgets: $e');
       _errorMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.';

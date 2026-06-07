@@ -2,25 +2,13 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../models/recurring_transaction.dart';
 import '../database/database_helper.dart';
+import '../mappers/recurring_row_mapper.dart';
 import 'recurring_local_datasource.dart';
 
 class SqliteRecurringDataSource implements RecurringLocalDataSource {
   final DatabaseHelper _dbHelper;
 
   SqliteRecurringDataSource(this._dbHelper);
-
-  RecurringTransaction _fromMap(Map<String, dynamic> map) {
-    return RecurringTransaction(
-      id: map['id'] as String,
-      categoryName: map['category_name'] as String,
-      amount: map['amount'] as int,
-      note: map['note'] as String,
-      frequency: map['frequency'] as String,
-      nextRunAt: DateTime.parse(map['next_run_at'] as String),
-      isActive: (map['is_active'] as int) == 1,
-      createdAt: DateTime.parse(map['created_at'] as String),
-    );
-  }
 
   @override
   Future<List<RecurringTransaction>> getAll() async {
@@ -29,20 +17,7 @@ class SqliteRecurringDataSource implements RecurringLocalDataSource {
       'recurring_transactions',
       orderBy: 'created_at DESC',
     );
-    return maps.map(_fromMap).toList();
-  }
-
-  Map<String, dynamic> _toMap(RecurringTransaction recurring) {
-    return {
-      'id': recurring.id,
-      'category_name': recurring.categoryName,
-      'amount': recurring.amount,
-      'note': recurring.note,
-      'frequency': recurring.frequency,
-      'next_run_at': recurring.nextRunAt.toIso8601String(),
-      'is_active': recurring.isActive ? 1 : 0,
-      'created_at': recurring.createdAt.toIso8601String(),
-    };
+    return maps.map(recurringFromRow).toList();
   }
 
   @override
@@ -50,7 +25,7 @@ class SqliteRecurringDataSource implements RecurringLocalDataSource {
     final db = await _dbHelper.database;
     await db.insert(
       'recurring_transactions',
-      _toMap(recurring),
+      recurringToRow(recurring),
     );
   }
 
@@ -59,7 +34,7 @@ class SqliteRecurringDataSource implements RecurringLocalDataSource {
     final db = await _dbHelper.database;
     final batch = db.batch();
     for (final r in recurrings) {
-      batch.insert('recurring_transactions', _toMap(r),
+      batch.insert('recurring_transactions', recurringToRow(r),
           conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);
@@ -68,16 +43,13 @@ class SqliteRecurringDataSource implements RecurringLocalDataSource {
   @override
   Future<void> update(RecurringTransaction recurring) async {
     final db = await _dbHelper.database;
+    // Note: 'id' is in the row map; the WHERE clause filters by id, so
+    // we use a partial map (everything except id) for the SET clause.
+    final row = recurringToRow(recurring);
+    row.remove('id');
     await db.update(
       'recurring_transactions',
-      {
-        'category_name': recurring.categoryName,
-        'amount': recurring.amount,
-        'note': recurring.note,
-        'frequency': recurring.frequency,
-        'next_run_at': recurring.nextRunAt.toIso8601String(),
-        'is_active': recurring.isActive ? 1 : 0,
-      },
+      row,
       where: 'id = ?',
       whereArgs: [recurring.id],
     );
@@ -101,7 +73,7 @@ class SqliteRecurringDataSource implements RecurringLocalDataSource {
       where: 'is_active = 1 AND next_run_at <= ?',
       whereArgs: [now.toIso8601String()],
     );
-    return maps.map(_fromMap).toList();
+    return maps.map(recurringFromRow).toList();
   }
 
   @override

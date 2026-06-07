@@ -1,37 +1,13 @@
 import 'package:sqflite/sqflite.dart' hide Transaction;
 import '../../models/transaction.dart';
 import '../database/database_helper.dart';
+import '../mappers/transaction_row_mapper.dart';
 import 'transaction_local_datasource.dart';
 
 class SqliteTransactionDataSource implements TransactionLocalDataSource {
   final DatabaseHelper _dbHelper;
 
   SqliteTransactionDataSource(this._dbHelper);
-
-  Transaction _fromMap(Map<String, dynamic> map) {
-    return Transaction(
-      id: map['id'] as String,
-      amount: map['amount'] as int,
-      category: map['category'] as String,
-      emoji: map['emoji'] as String,
-      date: DateTime.parse(map['date'] as String),
-      note: map['note'] as String,
-      sourceRecurringId: map['source_recurring_id'] as String?,
-    );
-  }
-
-  Map<String, dynamic> _toMap(Transaction transaction) {
-    return {
-      'id': transaction.id,
-      'amount': transaction.amount,
-      'category': transaction.category,
-      'emoji': transaction.emoji,
-      'date': transaction.date.toIso8601String(),
-      'note': transaction.note,
-      'source_recurring_id': transaction.sourceRecurringId,
-      'created_at': DateTime.now().millisecondsSinceEpoch,
-    };
-  }
 
   // ===== CRUD operations =====
 
@@ -42,13 +18,13 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       'transactions',
       orderBy: 'created_at DESC',
     );
-    return maps.map(_fromMap).toList();
+    return maps.map(transactionFromRow).toList();
   }
 
   @override
   Future<void> add(Transaction transaction) async {
     final db = await _dbHelper.database;
-    final map = _toMap(transaction);
+    final map = transactionToRow(transaction);
     await db.insert(
       'transactions',
       map,
@@ -59,7 +35,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
   @override
   Future<void> update(Transaction transaction) async {
     final db = await _dbHelper.database;
-    final map = _toMap(transaction);
+    final map = transactionToRow(transaction);
     await db.update(
       'transactions',
       map,
@@ -74,7 +50,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
     final db = await _dbHelper.database;
     final batch = db.batch();
     for (final t in transactions) {
-      batch.insert('transactions', _toMap(t),
+      batch.insert('transactions', transactionToRow(t),
           conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);
@@ -111,7 +87,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       ],
       orderBy: 'created_at DESC',
     );
-    return maps.map(_fromMap).toList();
+    return maps.map(transactionFromRow).toList();
   }
 
   @override
@@ -123,7 +99,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       whereArgs: [category],
       orderBy: 'created_at DESC',
     );
-    return maps.map(_fromMap).toList();
+    return maps.map(transactionFromRow).toList();
   }
 
   @override
@@ -138,7 +114,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       ],
       orderBy: 'created_at DESC',
     );
-    return maps.map(_fromMap).toList();
+    return maps.map(transactionFromRow).toList();
   }
 
   @override
@@ -155,7 +131,7 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       orderBy: 'created_at DESC',
     );
 
-    return maps.map(_fromMap).toList();
+    return maps.map(transactionFromRow).toList();
   }
 
   @override
@@ -196,6 +172,6 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
       limit: limit,
       offset: offset,
     );
-    return maps.map(_fromMap).toList();
+    return maps.map(transactionFromRow).toList();
   }
 }

@@ -29,30 +29,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    final expenseVM = context.read<ExpenseViewModel>();
-    final budgetVM = context.read<BudgetViewModel>();
-
-    // Listen for expense changes — update budget stats only when data settles
-    expenseVM.addListener(_onExpenseChange);
-
     // Listen for errors from ExpenseViewModel
-    expenseVM.addListener(_onExpenseError);
+    context.read<ExpenseViewModel>().addListener(_onExpenseError);
 
-    // Trigger recurring check after first frame
+    // Trigger recurring check after first frame.
+    // Budget stats are kept in sync via ChangeNotifierProxyProvider in main.dart,
+    // not via a manual listener.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<RecurringTransactionViewModel>().checkAndGenerate().then((generated) {
-          if (mounted) {
-            if (generated > 0) {
-              context.read<ExpenseViewModel>().refresh().then((_) {
-                if (mounted) {
-                  budgetVM.updateStats(expenseVM.stats);
-                }
-              });
-            } else {
-              // Push initial stats on cold start
-              budgetVM.updateStats(expenseVM.stats);
-            }
+          if (mounted && generated > 0) {
+            context.read<ExpenseViewModel>().refresh();
           }
         });
       }
@@ -61,20 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    final vm = context.read<ExpenseViewModel>();
-    vm.removeListener(_onExpenseChange);
-    vm.removeListener(_onExpenseError);
+    context.read<ExpenseViewModel>().removeListener(_onExpenseError);
     super.dispose();
-  }
-
-  /// Called whenever ExpenseViewModel notifies. Pushes stats to BudgetViewModel
-  /// only when the data has settled (not during a load). Memoization makes the
-  /// stats getter O(1) on every read after the first, so this is cheap.
-  void _onExpenseChange() {
-    if (!mounted) return;
-    final expenseVM = context.read<ExpenseViewModel>();
-    if (expenseVM.isLoading) return;
-    context.read<BudgetViewModel>().updateStats(expenseVM.stats);
   }
 
   void _onExpenseError() {

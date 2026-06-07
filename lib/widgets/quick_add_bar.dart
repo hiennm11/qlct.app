@@ -4,9 +4,8 @@ import '../viewmodels/expense_viewmodel.dart';
 import '../models/category.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
-import '../services/voice_input_service.dart';
-import '../core/vietnamese_number_parser.dart';
-import 'voice_input_modal.dart';
+import 'voice/voice_coordinator.dart';
+import 'voice/voice_result.dart';
 import 'quick_input_widget.dart';
 import 'custom_input_widget.dart';
 
@@ -27,16 +26,7 @@ class QuickAddBar extends StatefulWidget {
 }
 
 class _QuickAddBarState extends State<QuickAddBar> {
-  final _voiceService = VoiceInputService();
-  bool _isListening = false;
   bool _isGridExpanded = false;
-  String _transcript = '';
-
-  @override
-  void dispose() {
-    _voiceService.dispose();
-    super.dispose();
-  }
 
   /// Returns the top N most-used categories by transaction count.
   /// Falls back to predefined order when counts are equal.
@@ -57,64 +47,12 @@ class _QuickAddBarState extends State<QuickAddBar> {
     return indexed.take(widget.topCategoryCount).map((e) => e.value).toList();
   }
 
-  // === VOICE FLOW ===
+  // === VOICE FLOW (delegated to VoiceCoordinator) ===
 
-  void _startVoiceInput() async {
-    setState(() {
-      _isListening = true;
-      _transcript = '';
-    });
-    _showVoiceModal();
-    await _voiceService.startListening(
-      onResult: (t) {
-        if (!context.mounted) return;
-        setState(() {
-          _transcript = t;
-          _isListening = false;
-        });
-        Navigator.of(context).pop();
-        if (!context.mounted) return;
-        _showVoiceModal();
-      },
-      onError: (e) {
-        if (!context.mounted) return;
-        setState(() {
-          _isListening = false;
-          _transcript = 'Lỗi: $e';
-        });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e)));
-      },
-    );
-  }
-
-  void _showVoiceModal() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dCtx) => VoiceInputModal(
-        isListening: _isListening,
-        transcript: _transcript,
-        onClose: () {
-          _voiceService.stopListening();
-          setState(() => _isListening = false);
-          Navigator.of(dCtx).pop();
-        },
-        onCancel: () {
-          _voiceService.cancel();
-          setState(() {
-            _isListening = false;
-            _transcript = '';
-          });
-          Navigator.of(dCtx).pop();
-        },
-        onConfirm: _handleVoiceConfirm,
-      ),
-    );
-  }
-
-  void _handleVoiceConfirm(String transcript) async {
+  void _onVoiceResult(VoiceResult result) async {
     final vm = context.read<ExpenseViewModel>();
-    final amount = VietnameseNumberParser.extractAmount(transcript);
+    final amount = result.amount;
+    final matchedCat = result.category;
 
     if (amount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -123,27 +61,19 @@ class _QuickAddBarState extends State<QuickAddBar> {
       return;
     }
 
-    // Match category via predefined phrases
-    String matchedName = 'Khác';
-    final lower = transcript.toLowerCase();
-    for (final cat in vm.categories) {
-      for (final phrase in cat.phrases) {
-        if (lower.contains(phrase.toLowerCase())) {
-          matchedName = cat.name;
-          break;
-        }
-      }
-      if (matchedName != 'Khác') break;
-    }
-
-    final matchedCat = vm.categories.firstWhere((c) => c.name == matchedName);
+    // Fallback to 'Khác' category if parser didn't match anything
+    final category = matchedCat ??
+        vm.categories.firstWhere(
+          (c) => c.name == 'Khác',
+          orElse: () => vm.categories.first,
+        );
 
     try {
       await vm.addTransaction(
         amount: amount,
-        category: matchedCat.name,
-        note: transcript,
-        emoji: matchedCat.emoji,
+        category: category.name,
+        note: result.transcript,
+        emoji: category.emoji,
       );
       if (!context.mounted) return;
       if (vm.errorMessage != null) {
@@ -158,7 +88,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Đã thêm: ${matchedCat.emoji} ${matchedCat.name} - ${CurrencyFormatter.format(amount)} ₫',
+              'Đã thêm: ${category.emoji} ${category.name} - ${CurrencyFormatter.format(amount)} ₫',
             ),
             duration: const Duration(seconds: 2),
           ),
@@ -251,11 +181,14 @@ class _QuickAddBarState extends State<QuickAddBar> {
               child: Row(
                 children: [
                   // LEFT: voice
-                  _SectionButton(
-                    icon: Icons.mic,
-                    label: 'Nói nhanh',
-                    color: AppColors.primary,
-                    onTap: _startVoiceInput,
+                  VoiceCoordinator(
+                    onResult: _onVoiceResult,
+                    categories: Category.predefined,
+                    child: const _SectionButton(
+                      icon: Icons.mic,
+                      label: 'Nói nhanh',
+                      color: AppColors.primary,
+                    ),
                   ),
                   const VerticalDivider(width: 1, thickness: 1),
                   // CENTER: category chips
@@ -314,13 +247,13 @@ class _SectionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _SectionButton({
     required this.icon,
     required this.label,
     required this.color,
-    required this.onTap,
+    this.onTap,
   });
 
   @override

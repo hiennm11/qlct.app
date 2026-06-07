@@ -3,19 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
+import 'package:qlct/data/datasources/recurring_local_datasource.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
-import 'package:qlct/repositories/recurring_repository.dart';
-import 'package:qlct/repositories/transaction_repository.dart';
 import 'package:qlct/widgets/recurring_list_sheet.dart';
 
-class MockRecurringRepository extends Mock implements RecurringRepository {}
+class MockRecurringLocalDataSource extends Mock
+    implements RecurringLocalDataSource {}
 
-class MockTransactionRepository extends Mock implements TransactionRepository {}
+class MockTransactionLocalDataSource extends Mock
+    implements TransactionLocalDataSource {}
 
 void main() {
-  late MockRecurringRepository mockRecurringRepo;
-  late MockTransactionRepository mockTransactionRepo;
+  late MockRecurringLocalDataSource mockRecurringRepo;
+  late MockTransactionLocalDataSource mockTransactionRepo;
   late RecurringTransactionViewModel vm;
 
   setUpAll(() {
@@ -29,8 +31,8 @@ void main() {
   });
 
   setUp(() {
-    mockRecurringRepo = MockRecurringRepository();
-    mockTransactionRepo = MockTransactionRepository();
+    mockRecurringRepo = MockRecurringLocalDataSource();
+    mockTransactionRepo = MockTransactionLocalDataSource();
 
     when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockTransactionRepo.getAll()).thenAnswer((_) async => []);

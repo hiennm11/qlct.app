@@ -4,13 +4,13 @@ import 'package:uuid/uuid.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/expense_stats.dart';
-import '../repositories/transaction_repository.dart';
+import '../data/datasources/transaction_local_datasource.dart';
 import '../services/export_service.dart';
 import 'dart:io';
 
 /// ViewModel for managing expense tracking state and operations
 class ExpenseViewModel extends ChangeNotifier {
-  final TransactionRepository _repository;
+  final TransactionLocalDataSource _dataSource;
   final ExportService _exportService;
 
   List<Transaction> _transactions = [];
@@ -40,7 +40,7 @@ class ExpenseViewModel extends ChangeNotifier {
     _statsDirty = true;
   }
 
-  ExpenseViewModel(this._repository, this._exportService) {
+  ExpenseViewModel(this._dataSource, this._exportService) {
     Future.microtask(() => _loadInitialPage());
   }
 
@@ -91,7 +91,7 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _transactions = await _repository.getAllPaginated(offset: 0, limit: _pageSize);
+      _transactions = await _dataSource.getAllPaginated(offset: 0, limit: _pageSize);
       _hasMore = _transactions.length == _pageSize;
       _invalidateCaches();
     } catch (e) {
@@ -110,7 +110,7 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final nextPage = await _repository.getAllPaginated(
+      final nextPage = await _dataSource.getAllPaginated(
         offset: _transactions.length,
         limit: _pageSize,
       );
@@ -128,10 +128,10 @@ class ExpenseViewModel extends ChangeNotifier {
   /// Refresh both _transactions and _searchResults (if search active).
   /// Used for external-trigger reloads (restore from backup, recurring generation).
   Future<void> _refreshAll() async {
-    _transactions = await _repository.getAll();
+    _transactions = await _dataSource.getAll();
     _hasMore = false; // We've loaded everything; no more pages to fetch
     if (_searchQuery != null) {
-      _searchResults = await _repository.search(_searchQuery!);
+      _searchResults = await _dataSource.search(_searchQuery!);
     }
     _invalidateCaches();
   }
@@ -194,7 +194,7 @@ class ExpenseViewModel extends ChangeNotifier {
         note: note,
       );
 
-      await _repository.add(transaction);
+      await _dataSource.add(transaction);
       _spliceInsert(transaction);
     } catch (e) {
       debugPrint('Error adding transaction: $e');
@@ -212,7 +212,7 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _repository.delete(id);
+      await _dataSource.delete(id);
       _spliceRemove(id);
     } catch (e) {
       debugPrint('Error deleting transaction: $e');
@@ -232,7 +232,7 @@ class ExpenseViewModel extends ChangeNotifier {
     try {
       final txn = _transactions.firstWhere((t) => t.id == id);
       final jsonString = jsonEncode(txn.toJson());
-      await _repository.delete(id);
+      await _dataSource.delete(id);
       _spliceRemove(id);
       return jsonString;
     } catch (e) {
@@ -257,7 +257,7 @@ class ExpenseViewModel extends ChangeNotifier {
       final txn = Transaction.fromJson(
         jsonDecode(jsonString) as Map<String, dynamic>,
       );
-      await _repository.add(txn);
+      await _dataSource.add(txn);
       _spliceInsert(txn);
     } catch (e) {
       debugPrint('Error undoing delete: $e');
@@ -275,7 +275,7 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _repository.clearAll();
+      await _dataSource.clearAll();
       _transactions.clear();
       _invalidateCaches();
     } catch (e) {
@@ -314,7 +314,7 @@ class ExpenseViewModel extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      _searchResults = await _repository.search(trimmed);
+      _searchResults = await _dataSource.search(trimmed);
       _invalidateCaches();
     } catch (e) {
       debugPrint('Error searching: $e');
@@ -343,7 +343,7 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       final deleted = _transactions.where((t) => ids.contains(t.id)).toList();
-      await _repository.deleteMultiple(ids);
+      await _dataSource.deleteMultiple(ids);
       for (final id in ids) {
         _spliceRemove(id);
       }
@@ -391,13 +391,13 @@ class ExpenseViewModel extends ChangeNotifier {
 
   /// Export transactions to CSV and share via system share sheet
   Future<void> exportAndShareCsv() async {
-    final transactions = await _repository.getAll();
+    final transactions = await _dataSource.getAll();
     await _exportService.exportAndShareCsv(transactions);
   }
 
   /// Export transactions to JSON and share via system share sheet
   Future<void> exportAndShareJson() async {
-    final transactions = await _repository.getAll();
+    final transactions = await _dataSource.getAll();
     await _exportService.exportAndShareJson(transactions);
   }
 
@@ -514,7 +514,7 @@ class ExpenseViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _repository.add(transaction);
+      await _dataSource.add(transaction);
       _spliceInsert(transaction);
     } catch (e) {
       debugPrint('Error adding transaction from model: $e');
@@ -531,7 +531,7 @@ class ExpenseViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _repository.update(transaction);
+      await _dataSource.update(transaction);
       _spliceReplace(transaction);
     } catch (e) {
       debugPrint('Error updating transaction: $e');

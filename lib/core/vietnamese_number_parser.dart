@@ -24,6 +24,7 @@ class VietnameseNumberParser {
   static const Map<String, int> _scales = {
     'ngàn': 1000,
     'nghìn': 1000,
+    'k': 1000, // Vietnamese slang: "30k" = 30 nghìn
     'triệu': 1000000,
     'tỷ': 1000000000,
   };
@@ -116,24 +117,36 @@ class VietnameseNumberParser {
     return _parseNumeric(lowerText);
   }
 
-  /// Parse numeric digit + optional scale word: "50 ngàn" → 50000, "2 triệu" → 2000000
+  /// Parse numeric digit + optional scale word: "50 ngàn" → 50000, "2 triệu" → 2000000, "30k" → 30000.
+  /// Returns the FIRST amount found (left-to-right).
   static int? _parseNumericWithScales(String text) {
     final words = text.split(RegExp(r'\s+'));
 
-    int? numericValue;
-    int scaleMultiplier = 1;
-
-    for (final word in words) {
+    for (int i = 0; i < words.length; i++) {
+      final word = words[i];
       final cleaned = word.replaceAll(RegExp(r'[.,]'), '');
-      final num = int.tryParse(cleaned);
 
+      // "30k" pattern
+      if (cleaned.length > 1 && cleaned.endsWith('k')) {
+        final prefix = cleaned.substring(0, cleaned.length - 1);
+        final num = int.tryParse(prefix);
+        if (num != null && num > 0) {
+          return num * 1000;
+        }
+      }
+
+      // Pure number
+      final num = int.tryParse(cleaned);
       if (num != null && num > 0) {
-        numericValue = num;
-      } else if (_scales.containsKey(word)) {
-        scaleMultiplier *= _scales[word]!;
+        // Check if next word is a scale multiplier
+        int scale = 1;
+        if (i + 1 < words.length) {
+          scale = _scales[words[i + 1].toLowerCase()] ?? 1;
+        }
+        return num * scale;
       }
     }
 
-    return numericValue != null ? numericValue * scaleMultiplier : null;
+    return null;
   }
 }

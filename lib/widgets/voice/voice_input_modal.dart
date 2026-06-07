@@ -85,11 +85,11 @@ class _VoiceInputModalState extends State<VoiceInputModal>
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
-decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                  ),
                   child: Row(
                     children: [
                       FadeTransition(

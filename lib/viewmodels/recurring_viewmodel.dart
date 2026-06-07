@@ -3,19 +3,19 @@ import 'package:uuid/uuid.dart';
 import '../models/recurring_transaction.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
-import '../repositories/recurring_repository.dart';
-import '../repositories/transaction_repository.dart';
+import '../data/datasources/recurring_local_datasource.dart';
+import '../data/datasources/transaction_local_datasource.dart';
 
 class RecurringTransactionViewModel extends ChangeNotifier {
-  final RecurringRepository _recurringRepo;
-  final TransactionRepository _transactionRepo;
+  final RecurringLocalDataSource _recurringDataSource;
+  final TransactionLocalDataSource _transactionDataSource;
 
   List<RecurringTransaction> _recurrings = [];
   bool _isLoading = false;
   String? _errorMessage;
   bool _isGenerating = false;
 
-  RecurringTransactionViewModel(this._recurringRepo, this._transactionRepo) {
+  RecurringTransactionViewModel(this._recurringDataSource, this._transactionDataSource) {
     Future.microtask(() => _loadRecurrings());
   }
 
@@ -35,7 +35,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      _recurrings = await _recurringRepo.getAll();
+      _recurrings = await _recurringDataSource.getAll();
     } catch (e) {
       debugPrint('Error loading recurrings: $e');
       _errorMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.';
@@ -55,14 +55,14 @@ class RecurringTransactionViewModel extends ChangeNotifier {
     int generated = 0;
     try {
       final now = DateTime.now();
-      final dueRules = await _recurringRepo.getActiveDue(now);
+      final dueRules = await _recurringDataSource.getActiveDue(now);
 
       for (final rule in dueRules) {
         try {
           // Safety net: check duplicate via sourceRecurringId + rule.nextRunAt date
           final ruleDate = DateTime(rule.nextRunAt.year, rule.nextRunAt.month, rule.nextRunAt.day);
           final dateStr = '${ruleDate.year}-${ruleDate.month.toString().padLeft(2, '0')}-${ruleDate.day.toString().padLeft(2, '0')}';
-          final alreadyExists = await _transactionRepo.existsBySourceRecurringIdAndDate(rule.id, dateStr);
+          final alreadyExists = await _transactionDataSource.existsBySourceRecurringIdAndDate(rule.id, dateStr);
           if (alreadyExists) continue;
 
           // Get emoji from category
@@ -82,12 +82,12 @@ class RecurringTransactionViewModel extends ChangeNotifier {
             sourceRecurringId: rule.id,
           );
 
-          await _transactionRepo.add(tx);
+          await _transactionDataSource.add(tx);
           generated++;
 
           // Update nextRunAt
-          final next = _calculateNextRun(now, rule.frequency);
-          await _recurringRepo.updateNextRunAt(rule.id, next);
+          final next = calculateNextRun(now, rule.frequency);
+          await _recurringDataSource.updateNextRunAt(rule.id, next);
         } catch (e, stack) {
           debugPrint('❌ Failed to generate for rule ${rule.id}: $e');
           // continue to next rule
@@ -107,13 +107,28 @@ class RecurringTransactionViewModel extends ChangeNotifier {
     return generated;
   }
 
-  /// Calculate next run based on frequency
-  DateTime _calculateNextRun(DateTime from, String frequency) {
+  /// Calculate next run based on frequency.
+  ///
+  /// Exposed as a static factory for testability. The [from] parameter is
+  /// the "current" date/time used as the basis for the next run.
+  static DateTime calculateNextRun(DateTime from, String frequency) {
     switch (frequency) {
-      case 'daily':   return from.add(const Duration(days: 1));
-      case 'weekly':  return from.add(const Duration(days: 7));
-      case 'monthly': return from.add(const Duration(days: 30));
-      default:        return from.add(const Duration(days: 1));
+      case 'daily':
+        return from.add(const Duration(days: 1));
+      case 'weekly':
+        return from.add(const Duration(days: 7));
+      case 'monthly': {
+        // Clamp to last day of target month to avoid drift.
+        // e.g. Jan 31 + 1 month → Feb 28, not Mar 2 or Mar 3.
+        final rawMonth = from.month + 1;
+        final targetYear = rawMonth > 12 ? from.year + 1 : from.year;
+        final targetMonth = rawMonth > 12 ? rawMonth - 12 : rawMonth;
+        final lastDayOfTarget = DateTime(targetYear, targetMonth + 1, 0).day;
+        final day = from.day > lastDayOfTarget ? lastDayOfTarget : from.day;
+        return DateTime(targetYear, targetMonth, day, from.hour, from.minute);
+      }
+      default:
+        return from.add(const Duration(days: 1));
     }
   }
 
@@ -139,7 +154,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
         isActive: true,
         createdAt: DateTime.now(),
       );
-      await _recurringRepo.insert(rule);
+      await _recurringDataSource.insert(rule);
       await _loadRecurrings();
     } catch (e) {
       debugPrint('Error adding recurring: $e');
@@ -155,7 +170,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _recurringRepo.update(updated);
+      await _recurringDataSource.update(updated);
       await _loadRecurrings();
     } catch (e) {
       debugPrint('Error updating recurring: $e');
@@ -171,7 +186,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      await _recurringRepo.delete(id);
+      await _recurringDataSource.delete(id);
       await _loadRecurrings();
     } catch (e) {
       debugPrint('Error deleting recurring: $e');

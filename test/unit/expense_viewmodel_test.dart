@@ -2,16 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/category.dart';
-import 'package:qlct/repositories/transaction_repository.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 
-class MockTransactionRepository extends Mock implements TransactionRepository {}
+class MockTransactionLocalDataSource extends Mock
+    implements TransactionLocalDataSource {}
 
 class MockExportService extends Mock implements ExportService {}
 
 void main() {
-  late MockTransactionRepository mockRepo;
+  late MockTransactionLocalDataSource mockRepo;
   late MockExportService mockExport;
   late ExpenseViewModel viewModel;
 
@@ -40,7 +41,7 @@ void main() {
   }
 
   setUp(() {
-    mockRepo = MockTransactionRepository();
+    mockRepo = MockTransactionLocalDataSource();
     mockExport = MockExportService();
     when(() => mockRepo.getAll()).thenAnswer((_) async => []);
     // Default: pagination returns empty page for any offset/limit

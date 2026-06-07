@@ -4,18 +4,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/transaction.dart';
-import 'package:qlct/repositories/transaction_repository.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/widgets/chart_widget.dart';
 import 'package:qlct/widgets/section_header.dart';
 
-class MockTransactionRepository extends Mock implements TransactionRepository {}
+class MockTransactionLocalDataSource extends Mock
+    implements TransactionLocalDataSource {}
 
 class MockExportService extends Mock implements ExportService {}
 
 void main() {
-  late MockTransactionRepository mockRepo;
+  late MockTransactionLocalDataSource mockRepo;
   late MockExportService mockExport;
 
   setUpAll(() {
@@ -30,7 +31,7 @@ void main() {
   });
 
   setUp(() {
-    mockRepo = MockTransactionRepository();
+    mockRepo = MockTransactionLocalDataSource();
     mockExport = MockExportService();
     // Default: pagination returns empty page (needed after ADR-0017 D3.2)
     when(() => mockRepo.getAllPaginated(

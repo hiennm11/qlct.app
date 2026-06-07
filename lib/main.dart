@@ -6,20 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme.dart';
 import 'data/database/database_helper.dart';
 import 'data/datasources/sqlite_transaction_datasource.dart';
-import 'data/datasources/budget_local_datasource.dart';
 import 'data/datasources/sqlite_budget_datasource.dart';
-import 'data/datasources/recurring_local_datasource.dart';
 import 'data/datasources/sqlite_recurring_datasource.dart';
+import 'data/datasources/transaction_local_datasource.dart';
+import 'data/datasources/budget_local_datasource.dart';
+import 'data/datasources/recurring_local_datasource.dart';
 import 'data/migrations/shared_prefs_to_sqlite.dart';
 import 'services/storage_service.dart';
 import 'services/export_service.dart';
 import 'services/backup_service.dart';
-import 'repositories/transaction_repository.dart';
-import 'repositories/transaction_repository_impl.dart';
-import 'repositories/budget_repository.dart';
-import 'repositories/budget_repository_impl.dart';
-import 'repositories/recurring_repository.dart';
-import 'repositories/recurring_repository_impl.dart';
 import 'viewmodels/expense_viewmodel.dart';
 import 'viewmodels/budget_viewmodel.dart';
 import 'viewmodels/recurring_viewmodel.dart';
@@ -66,7 +61,7 @@ Future<void> _initApp() async {
 
   debugPrint('💾 Setting up database...');
   final dbHelper = DatabaseHelper();
-  final dataSource = SqliteTransactionDataSource(dbHelper);
+  final transactionDataSource = SqliteTransactionDataSource(dbHelper);
   debugPrint('✅ Database ready');
 
   debugPrint('🔄 Running migration...');
@@ -78,25 +73,22 @@ Future<void> _initApp() async {
   final exportService = ExportService();
   debugPrint('✅ Export service ready');
 
-  debugPrint('💾 Setting up repository...');
-  final TransactionRepository repository = TransactionRepositoryImpl(dataSource);
-  debugPrint('✅ Repository ready');
+  debugPrint('💾 Setting up transaction data source...');
+  debugPrint('✅ Transaction data source ready');
 
-  debugPrint('💰 Setting up budget repository...');
-  final BudgetLocalDataSource budgetDataSource = SqliteBudgetDataSource(dbHelper);
-  final BudgetRepository budgetRepository = BudgetRepositoryImpl(budgetDataSource);
-  debugPrint('✅ Budget repository ready');
+  debugPrint('💰 Setting up budget data source...');
+  final budgetDataSource = SqliteBudgetDataSource(dbHelper);
+  debugPrint('✅ Budget data source ready');
 
-  debugPrint('🔄 Setting up recurring repository...');
-  final RecurringLocalDataSource recurringDataSource = SqliteRecurringDataSource(dbHelper);
-  final RecurringRepository recurringRepository = RecurringRepositoryImpl(recurringDataSource);
-  debugPrint('✅ Recurring repository ready');
+  debugPrint('🔄 Setting up recurring data source...');
+  final recurringDataSource = SqliteRecurringDataSource(dbHelper);
+  debugPrint('✅ Recurring data source ready');
 
   debugPrint('📦 Setting up backup service...');
   final backupService = BackupService(
-    repository,
-    budgetRepository,
-    recurringRepository,
+    transactionDataSource,
+    budgetDataSource,
+    recurringDataSource,
     storageService,
     dbHelper,
   );
@@ -104,9 +96,9 @@ Future<void> _initApp() async {
 
   debugPrint('Starting app...');
   runApp(MyApp(
-    repository: repository,
-    budgetRepository: budgetRepository,
-    recurringRepository: recurringRepository,
+    transactionDataSource: transactionDataSource,
+    budgetDataSource: budgetDataSource,
+    recurringDataSource: recurringDataSource,
     exportService: exportService,
     storageService: storageService,
     backupService: backupService,
@@ -144,18 +136,18 @@ Widget _buildErrorApp() {
 }
 
 class MyApp extends StatelessWidget {
-  final TransactionRepository repository;
-  final BudgetRepository budgetRepository;
-  final RecurringRepository recurringRepository;
+  final TransactionLocalDataSource transactionDataSource;
+  final BudgetLocalDataSource budgetDataSource;
+  final RecurringLocalDataSource recurringDataSource;
   final ExportService exportService;
   final StorageService storageService;
   final BackupService backupService;
 
   const MyApp({
     super.key,
-    required this.repository,
-    required this.budgetRepository,
-    required this.recurringRepository,
+    required this.transactionDataSource,
+    required this.budgetDataSource,
+    required this.recurringDataSource,
     required this.exportService,
     required this.storageService,
     required this.backupService,
@@ -166,13 +158,15 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => ExpenseViewModel(repository, exportService),
+          create: (_) => ExpenseViewModel(transactionDataSource, exportService),
         ),
-        ChangeNotifierProvider<BudgetViewModel>(
-          create: (_) => BudgetViewModel(budgetRepository, storageService),
+        ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
+          create: (_) => BudgetViewModel(budgetDataSource, storageService),
+          update: (_, expenseVM, budgetVM) => budgetVM!
+            ..updateStats(expenseVM.stats),
         ),
         ChangeNotifierProvider(
-          create: (_) => RecurringTransactionViewModel(recurringRepository, repository),
+          create: (_) => RecurringTransactionViewModel(recurringDataSource, transactionDataSource),
         ),
         ChangeNotifierProvider(
           create: (context) => BackupViewModel(

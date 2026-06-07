@@ -1,22 +1,13 @@
 import 'package:sqflite/sqflite.dart';
 import '../../models/budget.dart';
 import '../database/database_helper.dart';
+import '../mappers/budget_row_mapper.dart';
 import 'budget_local_datasource.dart';
 
 class SqliteBudgetDataSource implements BudgetLocalDataSource {
   final DatabaseHelper _dbHelper;
 
   SqliteBudgetDataSource(this._dbHelper);
-
-  Budget _fromMap(Map<String, dynamic> map) {
-    return Budget(
-      id: map['id'] as String,
-      categoryName: map['category_name'] as String,
-      monthlyLimit: map['monthly_limit'] as int,
-      alertThreshold: map['alert_threshold'] as int,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
-    );
-  }
 
   @override
   Future<List<Budget>> getAll() async {
@@ -25,17 +16,7 @@ class SqliteBudgetDataSource implements BudgetLocalDataSource {
       'budgets',
       orderBy: 'created_at DESC',
     );
-    return maps.map(_fromMap).toList();
-  }
-
-  Map<String, dynamic> _toMap(Budget budget) {
-    return {
-      'id': budget.id,
-      'category_name': budget.categoryName,
-      'monthly_limit': budget.monthlyLimit,
-      'alert_threshold': budget.alertThreshold,
-      'created_at': budget.createdAt.millisecondsSinceEpoch,
-    };
+    return maps.map(budgetFromRow).toList();
   }
 
   @override
@@ -43,7 +24,7 @@ class SqliteBudgetDataSource implements BudgetLocalDataSource {
     final db = await _dbHelper.database;
     await db.insert(
       'budgets',
-      _toMap(budget),
+      budgetToRow(budget),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -53,7 +34,7 @@ class SqliteBudgetDataSource implements BudgetLocalDataSource {
     final db = await _dbHelper.database;
     final batch = db.batch();
     for (final b in budgets) {
-      batch.insert('budgets', _toMap(b),
+      batch.insert('budgets', budgetToRow(b),
           conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);
@@ -79,6 +60,6 @@ class SqliteBudgetDataSource implements BudgetLocalDataSource {
       limit: 1,
     );
     if (maps.isEmpty) return null;
-    return _fromMap(maps.first);
+    return budgetFromRow(maps.first);
   }
 }

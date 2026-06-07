@@ -11,13 +11,16 @@ import 'package:uuid/uuid.dart';
 
 import '../core/constants.dart';
 import '../data/database/database_helper.dart';
+import '../data/datasources/transaction_local_datasource.dart';
+import '../data/datasources/budget_local_datasource.dart';
+import '../data/datasources/recurring_local_datasource.dart';
+import '../data/mappers/transaction_row_mapper.dart';
+import '../data/mappers/budget_row_mapper.dart';
+import '../data/mappers/recurring_row_mapper.dart';
 import '../models/backup_data.dart';
 import '../models/transaction.dart';
 import '../models/budget.dart';
 import '../models/recurring_transaction.dart';
-import '../repositories/transaction_repository.dart';
-import '../repositories/budget_repository.dart';
-import '../repositories/recurring_repository.dart';
 import 'storage_service.dart';
 
 /// Thrown by [BackupService.pickBackupFile] when the selected file exceeds
@@ -66,25 +69,25 @@ class RestoreResult {
 
 /// Service for full backup and restore operations
 class BackupService {
-  final TransactionRepository _transactionRepo;
-  final BudgetRepository _budgetRepo;
-  final RecurringRepository _recurringRepo;
+  final TransactionLocalDataSource _transactionDataSource;
+  final BudgetLocalDataSource _budgetDataSource;
+  final RecurringLocalDataSource _recurringDataSource;
   final StorageService _storageService;
   final DatabaseHelper _dbHelper;
 
   BackupService(
-    this._transactionRepo,
-    this._budgetRepo,
-    this._recurringRepo,
+    this._transactionDataSource,
+    this._budgetDataSource,
+    this._recurringDataSource,
     this._storageService,
     this._dbHelper,
   );
 
   /// Create a full backup payload from current app state
   Future<BackupData> createBackup() async {
-    final transactions = await _transactionRepo.getAll();
-    final budgets = await _budgetRepo.getAll();
-    final recurrings = await _recurringRepo.getAll();
+    final transactions = await _transactionDataSource.getAll();
+    final budgets = await _budgetDataSource.getAll();
+    final recurrings = await _recurringDataSource.getAll();
     final totalBudget = _storageService.loadValue<int>('total_budget') ?? 0;
 
     return BackupData(
@@ -473,39 +476,15 @@ class BackupService {
   //                     created_at=TEXT(ISO) — NOT millisecondsSinceEpoch.
   // -------------------------------------------------------------------------
 
-  Map<String, dynamic> _transactionToMap(Transaction t) {
-    return {
-      'id': t.id,
-      'amount': t.amount,
-      'category': t.category,
-      'emoji': t.emoji,
-      'date': t.date.toIso8601String(),
-      'note': t.note,
-      'source_recurring_id': t.sourceRecurringId,
-      'created_at': DateTime.now().millisecondsSinceEpoch,
-    };
-  }
+  // -------------------------------------------------------------------------
+  // Row mappers: delegate to shared top-level functions from data/mappers/.
+  // -------------------------------------------------------------------------
 
-  Map<String, dynamic> _budgetToMap(Budget b) {
-    return {
-      'id': b.id,
-      'category_name': b.categoryName,
-      'monthly_limit': b.monthlyLimit,
-      'alert_threshold': b.alertThreshold,
-      'created_at': b.createdAt.millisecondsSinceEpoch,
-    };
-  }
+  Map<String, dynamic> _transactionToMap(Transaction t) =>
+      transactionToRow(t);
 
-  Map<String, dynamic> _recurringToMap(RecurringTransaction r) {
-    return {
-      'id': r.id,
-      'category_name': r.categoryName,
-      'amount': r.amount,
-      'note': r.note,
-      'frequency': r.frequency,
-      'next_run_at': r.nextRunAt.toIso8601String(),
-      'is_active': r.isActive ? 1 : 0,
-      'created_at': r.createdAt.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> _budgetToMap(Budget b) => budgetToRow(b);
+
+  Map<String, dynamic> _recurringToMap(RecurringTransaction r) =>
+      recurringToRow(r);
 }

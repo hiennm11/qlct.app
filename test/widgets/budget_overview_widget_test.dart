@@ -4,18 +4,18 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/expense_stats.dart';
-import 'package:qlct/repositories/budget_repository.dart';
+import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
 import 'package:qlct/widgets/budget_overview_widget.dart';
 import 'package:qlct/widgets/section_header.dart';
 
-class MockBudgetRepository extends Mock implements BudgetRepository {}
+class MockBudgetLocalDataSource extends Mock implements BudgetLocalDataSource {}
 
 class MockStorageService extends Mock implements StorageService {}
 
 void main() {
-  late MockBudgetRepository mockRepo;
+  late MockBudgetLocalDataSource mockRepo;
   late MockStorageService mockStorage;
   late BudgetViewModel vm;
 
@@ -30,7 +30,7 @@ void main() {
   });
 
   setUp(() {
-    mockRepo = MockBudgetRepository();
+    mockRepo = MockBudgetLocalDataSource();
     mockStorage = MockStorageService();
     when(() => mockRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);

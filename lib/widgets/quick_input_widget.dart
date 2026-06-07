@@ -6,7 +6,7 @@ import '../core/formatters.dart';
 import '../core/theme.dart';
 import '../services/voice_input_service.dart';
 import '../core/vietnamese_number_parser.dart';
-import 'voice_input_modal.dart';
+import 'voice/voice_input_modal.dart';
 
 /// Widget for quick transaction input with category sliders
 class QuickInputWidget extends StatefulWidget {

@@ -13,31 +13,33 @@ import 'package:mocktail/mocktail.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart'
     show sqfliteFfiInit, databaseFactoryFfi, databaseFactory;
 import 'package:qlct/data/database/database_helper.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/recurring_transaction.dart';
-import 'package:qlct/repositories/transaction_repository.dart';
-import 'package:qlct/repositories/budget_repository.dart';
-import 'package:qlct/repositories/recurring_repository.dart';
 import 'package:qlct/services/backup_service.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class MockTransactionRepo extends Mock implements TransactionRepository {}
+class MockTransactionDataSource extends Mock
+    implements TransactionLocalDataSource {}
 
-class MockBudgetRepo extends Mock implements BudgetRepository {}
+class MockBudgetDataSource extends Mock implements BudgetLocalDataSource {}
 
-class MockRecurringRepo extends Mock implements RecurringRepository {}
+class MockRecurringDataSource extends Mock
+    implements RecurringLocalDataSource {}
 
 class MockStorageService extends Mock implements StorageService {}
 
 void main() {
   late DatabaseHelper dbHelper;
   late BackupService backupService;
-  late MockTransactionRepo mockTxRepo;
-  late MockBudgetRepo mockBudgetRepo;
-  late MockRecurringRepo mockRecurringRepo;
+  late MockTransactionDataSource mockTxRepo;
+  late MockBudgetDataSource mockBudgetRepo;
+  late MockRecurringDataSource mockRecurringRepo;
   late MockStorageService mockStorage;
 
   setUpAll(() {
@@ -83,9 +85,9 @@ void main() {
 
     SharedPreferences.setMockInitialValues({});
 
-    mockTxRepo = MockTransactionRepo();
-    mockBudgetRepo = MockBudgetRepo();
-    mockRecurringRepo = MockRecurringRepo();
+    mockTxRepo = MockTransactionDataSource();
+    mockBudgetRepo = MockBudgetDataSource();
+    mockRecurringRepo = MockRecurringDataSource();
     mockStorage = MockStorageService();
 
     backupService = BackupService(

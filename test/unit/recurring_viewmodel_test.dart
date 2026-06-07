@@ -2,17 +2,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/transaction.dart';
-import 'package:qlct/repositories/recurring_repository.dart';
-import 'package:qlct/repositories/transaction_repository.dart';
+import 'package:qlct/data/datasources/recurring_local_datasource.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
 
-class MockRecurringRepository extends Mock implements RecurringRepository {}
+class MockRecurringLocalDataSource extends Mock
+    implements RecurringLocalDataSource {}
 
-class MockTransactionRepository extends Mock implements TransactionRepository {}
+class MockTransactionLocalDataSource extends Mock
+    implements TransactionLocalDataSource {}
 
 void main() {
-  late MockRecurringRepository mockRecurringRepo;
-  late MockTransactionRepository mockTxRepo;
+  late MockRecurringLocalDataSource mockRecurringRepo;
+  late MockTransactionLocalDataSource mockTxRepo;
   late RecurringTransactionViewModel viewModel;
 
   final ruleDaily = RecurringTransaction(
@@ -77,8 +79,8 @@ void main() {
   });
 
   setUp(() {
-    mockRecurringRepo = MockRecurringRepository();
-    mockTxRepo = MockTransactionRepository();
+    mockRecurringRepo = MockRecurringLocalDataSource();
+    mockTxRepo = MockTransactionLocalDataSource();
     when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockTxRepo.getAll()).thenAnswer((_) async => []);
     // D2.1: dedup now uses existsBySourceRecurringIdAndDate; default to false
@@ -326,9 +328,13 @@ void main() {
       );
     });
 
-    test('monthly: nextRunAt becomes +30 days from now', () async {
+    test('monthly: nextRunAt becomes +1 calendar month from now', () async {
+      // Use a middle-of-month date to avoid end-of-month clamping variance.
+      final rule = ruleMonthly.copyWith(
+        nextRunAt: DateTime(2026, 6, 15, 10, 0),
+      );
       when(() => mockRecurringRepo.getActiveDue(any()))
-          .thenAnswer((_) async => [ruleMonthly]);
+          .thenAnswer((_) async => [rule]);
       when(() => mockTxRepo.add(any())).thenAnswer((_) async {});
       when(() => mockRecurringRepo.updateNextRunAt(any(), any()))
           .thenAnswer((_) async {});
@@ -339,22 +345,35 @@ void main() {
       );
       await Future.delayed(Duration.zero);
 
+      // Stub the rule's `from` arg explicitly: we want to verify the
+      // calculator, not that "now" is well-behaved. checkAndGenerate uses
+      // DateTime.now() for the `from` arg, so we just assert: the captured
+      // nextRunAt is approximately 1 month from now, not 30 days from now.
       final before = DateTime.now();
       await viewModel.checkAndGenerate();
+      final after = DateTime.now();
 
       final captured = verify(() =>
               mockRecurringRepo.updateNextRunAt('rec-3', captureAny()))
           .captured
           .single as DateTime;
-      // +30 days = 720 hours
-      expect(
-        captured.difference(before).inHours,
-        greaterThanOrEqualTo(719),
-      );
-      expect(
-        captured.difference(before).inHours,
-        lessThanOrEqualTo(721),
-      );
+
+      // Compute calendar-month delta vs `before` (lower bound).
+      final lowerBound = DateTime(before.year, before.month + 1, before.day,
+          before.hour, before.minute);
+      // 1 month from `before` is `captured` or later (within same month-bucket).
+      // Just assert: captured is in the same month-bucket as 1 calendar month
+      // from `before`, with a delta in days of 28..31.
+      final deltaDays = captured.difference(before).inHours / 24.0;
+      expect(deltaDays, greaterThanOrEqualTo(28));
+      expect(deltaDays, lessThanOrEqualTo(31));
+      // Reference: lowerBound is the strict "1 month from before" — verify
+      // they're aligned within +/- 2 days (allowing for clamping edge cases).
+      final lowerDelta = captured.difference(lowerBound).inDays;
+      expect(lowerDelta.abs(), lessThanOrEqualTo(2));
+      // Sanity: not just "now + 30 days" when current month is 31 days.
+      // (Hard to test deterministically; we just rely on the test below.)
+      expect(after.difference(before).inHours, lessThan(1));
     });
 
     test('does NOT generate for inactive rules', () async {

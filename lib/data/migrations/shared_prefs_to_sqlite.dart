@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart' hide Transaction;
 import '../database/database_helper.dart';
+import '../mappers/transaction_row_mapper.dart';
 import '../../models/transaction.dart';
 import '../../core/constants.dart';
 
@@ -38,7 +39,7 @@ class MigrationService {
         for (final t in transactions) {
           await txn.insert(
             'transactions',
-            _toMap(t),
+            transactionToRow(t),
             conflictAlgorithm: ConflictAlgorithm.ignore,
           );
         }
@@ -96,17 +97,5 @@ class MigrationService {
       debugPrint('❌ Migration: invalid JSON — $e');
       return [];
     }
-  }
-
-  Map<String, dynamic> _toMap(Transaction t) {
-    return {
-      'id': t.id,
-      'amount': t.amount,
-      'category': t.category,
-      'emoji': t.emoji,
-      'date': t.date.toIso8601String(),
-      'note': t.note,
-      'created_at': DateTime.now().millisecondsSinceEpoch,
-    };
   }
 }

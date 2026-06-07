@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/transaction.dart';
 import '../viewmodels/expense_viewmodel.dart';
-import '../core/formatters.dart';
 import '../core/theme.dart';
 import 'transaction_edit_dialog.dart';
 import 'transaction_detail_sheet.dart';
+import 'transaction_row.dart';
+import 'transaction_filter_row.dart';
+import 'transaction_empty_state.dart';
+import 'transaction_selection_action_bar.dart';
 
 /// Widget displaying list of transactions with filters
 class TransactionListWidget extends StatefulWidget {
@@ -142,10 +145,10 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _FilterRow(viewModel: viewModel),
+                TransactionFilterRow(viewModel: viewModel),
                 const SizedBox(height: 16),
                 if (viewModel.transactions.isEmpty)
-                  const _EmptyState()
+                  const TransactionEmptyState()
                 else
                   _TransactionList(
                     transactions: viewModel.transactions,
@@ -166,7 +169,7 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
                       }
                     },
                   ),
-                if (_selectionMode) _SelectionActionBar(
+                if (_selectionMode) TransactionSelectionActionBar(
                   selectedCount: _selectedIds.length,
                   onExport: () => _exportSelected(context),
                   onDelete: () => _bulkDelete(context),
@@ -367,207 +370,6 @@ class _TransactionListWidgetState extends State<TransactionListWidget> {
   }
 }
 
-class _FilterRow extends StatefulWidget {
-  final ExpenseViewModel viewModel;
-
-  const _FilterRow({required this.viewModel});
-
-  @override
-  State<_FilterRow> createState() => _FilterRowState();
-}
-
-class _FilterRowState extends State<_FilterRow> {
-  Timer? _searchDebounce;
-
-  @override
-  void dispose() {
-    _searchDebounce?.cancel();
-    super.dispose();
-  }
-
-  void _onSearchChanged(String value) {
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
-      widget.viewModel.setSearchQuery(value);
-    });
-  }
-
-  bool _isToday(DateTime? d) {
-    if (d == null) return false;
-    final n = DateTime.now();
-    return d.year == n.year && d.month == n.month && d.day == n.day;
-  }
-
-  String _dateChipLabel(DateTime? d) {
-    if (d == null) return 'Ngày';
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
-    return '$dd/$mm';
-  }
-
-  String _categoryChipLabel() {
-    final cat = widget.viewModel.filterCategory;
-    if (cat == null) return 'Danh mục';
-    final match = widget.viewModel.categories
-        .where((c) => c.name == cat)
-        .cast<dynamic>()
-        .firstOrNull;
-    final emoji = match?.emoji ?? '🍽';
-    return '$emoji $cat';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final today = _isToday(widget.viewModel.filterDate);
-    final hasDate = widget.viewModel.filterDate != null;
-    final hasCategory = widget.viewModel.filterCategory != null;
-    final hasSearch = widget.viewModel.searchQuery != null &&
-        widget.viewModel.searchQuery!.isNotEmpty;
-    final hasAny = hasDate || hasCategory || hasSearch;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Search TextField at top
-        TextField(
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.search),
-            hintText: 'Tìm kiếm giao dịch...',
-            suffixIcon: hasSearch
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => widget.viewModel.clearSearch(),
-                  )
-                : null,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          onChanged: _onSearchChanged,
-        ),
-        const SizedBox(height: 8),
-        // Unified chip row — wraps on narrow screens
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            // "Hôm nay" — ActionChip, toggle: tap sets today, tap-again clears
-            ActionChip(
-              label: const Text('Hôm nay'),
-              avatar: Icon(
-                Icons.today,
-                size: 18,
-                color: today ? Colors.white : AppColors.textSecondary,
-              ),
-              labelStyle: TextStyle(
-                color: today ? Colors.white : AppColors.textPrimary,
-                fontWeight: today ? FontWeight.w600 : FontWeight.normal,
-              ),
-              backgroundColor:
-                  today ? AppColors.primary : AppColors.gray100,
-              side: BorderSide(
-                color: today ? AppColors.primary : AppColors.border,
-              ),
-              onPressed: () {
-                if (today) {
-                  widget.viewModel.setDateFilter(null);
-                } else {
-                  widget.viewModel.setDateFilter(DateTime.now());
-                }
-              },
-            ),
-            // Date — FilterChip, shows "📅 05/06" or "📅 Ngày"
-            FilterChip(
-              label: Text(_dateChipLabel(widget.viewModel.filterDate)),
-              avatar: Icon(
-                Icons.calendar_today,
-                size: 16,
-                color: hasDate ? Colors.white : AppColors.textSecondary,
-              ),
-              labelStyle: TextStyle(
-                color: hasDate ? Colors.white : AppColors.textPrimary,
-                fontWeight: hasDate ? FontWeight.w600 : FontWeight.normal,
-              ),
-              backgroundColor:
-                  hasDate ? AppColors.primary : AppColors.gray100,
-              selected: hasDate,
-              showCheckmark: false,
-              side: BorderSide(
-                color: hasDate ? AppColors.primary : AppColors.border,
-              ),
-              onSelected: (_) async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: widget.viewModel.filterDate ?? DateTime.now(),
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now(),
-                );
-                if (picked != null) {
-                  widget.viewModel.setDateFilter(picked);
-                }
-              },
-            ),
-            // Category — FilterChip with popup menu
-            FilterChip(
-              label: Text(_categoryChipLabel()),
-              avatar: const Text('🍽'),
-              labelStyle: TextStyle(
-                color: hasCategory ? Colors.white : AppColors.textPrimary,
-                fontWeight:
-                    hasCategory ? FontWeight.w600 : FontWeight.normal,
-              ),
-              backgroundColor:
-                  hasCategory ? AppColors.primary : AppColors.gray100,
-              selected: hasCategory,
-              showCheckmark: false,
-              side: BorderSide(
-                color: hasCategory ? AppColors.primary : AppColors.border,
-              ),
-              onSelected: (_) async {
-                final selected = await showMenu<String?>(
-                  context: context,
-                  position: RelativeRect.fromLTRB(16, 120, 16, 0),
-                  items: [
-                    const PopupMenuItem<String?>(
-                      value: null,
-                      child: Text('Tất cả'),
-                    ),
-                    ...widget.viewModel.categories.map(
-                      (cat) => PopupMenuItem<String?>(
-                        value: cat.name,
-                        child: Text('${cat.emoji} ${cat.name}'),
-                      ),
-                    ),
-                  ],
-                );
-                // null = user dismissed OR selected "Tất cả"; both clear the filter
-                widget.viewModel.setCategoryFilter(selected);
-              },
-            ),
-            // Clear — only visible when any filter is active
-            if (hasAny)
-              ActionChip(
-                avatar: Icon(
-                  Icons.close,
-                  size: 18,
-                  color: AppColors.textSecondary,
-                ),
-                label: const Text('Xoá'),
-                labelStyle: TextStyle(color: AppColors.textSecondary),
-                backgroundColor: AppColors.gray100,
-                side: BorderSide(color: AppColors.border),
-                onPressed: () => widget.viewModel.clearFilters(),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
 class _TransactionList extends StatelessWidget {
   final List<Transaction> transactions;
   final int pageSize;
@@ -611,7 +413,7 @@ class _TransactionList extends StatelessWidget {
             itemBuilder: (context, index) {
               final transaction = visible[index];
               final isSelected = selectedIds.contains(transaction.id);
-              return _TransactionRow(
+              return TransactionRow(
                 transaction: transaction,
                 selectionMode: selectionMode,
                 isSelected: isSelected,
@@ -640,244 +442,6 @@ class _TransactionList extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _TransactionRow extends StatelessWidget {
-  final Transaction transaction;
-  final bool selectionMode;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
-
-  const _TransactionRow({
-    required this.transaction,
-    required this.selectionMode,
-    required this.isSelected,
-    required this.onTap,
-    required this.onLongPress,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final categoryWidget = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(
-          child: Text(
-            transaction.category,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        if (transaction.sourceRecurringId != null) ...[
-          const SizedBox(width: 4),
-          Tooltip(
-            message: 'Từ giao dịch định kỳ',
-            child: const Icon(Icons.loop, size: 14, color: AppColors.primary),
-          ),
-        ],
-      ],
-    );
-
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Row(
-          children: [
-            if (selectionMode)
-              Checkbox(
-                value: isSelected,
-                onChanged: (_) => onTap(),
-              ),
-            Text(
-              transaction.emoji,
-              style: const TextStyle(fontSize: 32),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  categoryWidget,
-                  Text(
-                    DateFormatter.getRelativeTimeString(transaction.date),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  if (transaction.note.isNotEmpty)
-                    Text(
-                      transaction.note,
-                      style: const TextStyle(fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-            Text(
-              CurrencyFormatter.format(transaction.amount),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: AppColors.error,
-              ),
-            ),
-            // Hide delete button in selection mode
-            if (!selectionMode) ...[
-              const SizedBox(width: 4),
-              Builder(
-                builder: (innerContext) => IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  color: AppColors.textSecondary,
-                  onPressed: () async {
-                    final viewModel = innerContext.read<ExpenseViewModel>();
-                    await _confirmAndDeleteSingle(
-                      innerContext,
-                      viewModel,
-                      transaction,
-                    );
-                  },
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _confirmAndDeleteSingle(
-    BuildContext context,
-    ExpenseViewModel viewModel,
-    Transaction transaction,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Xoá giao dịch?'),
-        content: const Text('Bạn có chắc chắn muốn xoá giao dịch này?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Huỷ'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Xoá', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    final savedJson =
-        await viewModel.deleteTransactionWithUndo(transaction.id);
-    if (savedJson.isEmpty) return;
-
-    messenger.showSnackBar(
-      SnackBar(
-        content: const Text('Đã xoá'),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'Hoàn tác',
-          onPressed: () async {
-            await viewModel.undoDeleteTransaction(savedJson);
-            if (!navigator.mounted) return;
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _SelectionActionBar extends StatelessWidget {
-  final int selectedCount;
-  final VoidCallback onExport;
-  final VoidCallback onDelete;
-  final VoidCallback onClose;
-
-  const _SelectionActionBar({
-    required this.selectedCount,
-    required this.onExport,
-    required this.onDelete,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasSelection = selectedCount > 0;
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border(
-          top: BorderSide(color: AppColors.border),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
-        children: [
-          Text('Đã chọn $selectedCount'),
-          const Spacer(),
-          TextButton.icon(
-            onPressed: hasSelection ? onExport : null,
-            icon: const Icon(Icons.download, size: 18),
-            label: const Text('Xuất CSV'),
-          ),
-          TextButton.icon(
-            onPressed: hasSelection ? onDelete : null,
-            icon: const Icon(Icons.delete, size: 18, color: AppColors.error),
-            label: const Text(
-              'Xoá',
-              style: TextStyle(color: AppColors.error),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: onClose,
-            tooltip: 'Huỷ',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(32),
-        child: Column(
-          children: [
-            Text('📝', style: TextStyle(fontSize: 48)),
-            SizedBox(height: 16),
-            Text(
-              'Chưa có ghi chép nào',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 16,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Dùng thanh nhập nhanh bên trên để thêm',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

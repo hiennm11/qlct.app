@@ -5,8 +5,6 @@ import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/sqlite_recurring_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_transaction_datasource.dart';
 import 'package:qlct/data/database/database_helper.dart';
-import 'package:qlct/repositories/recurring_repository_impl.dart';
-import 'package:qlct/repositories/transaction_repository_impl.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/services/export_service.dart';
@@ -20,8 +18,8 @@ void main() {
   late DatabaseHelper dbHelper;
   late SqliteRecurringDataSource recurringDs;
   late SqliteTransactionDataSource transactionDs;
-  late RecurringRepositoryImpl recurringRepo;
-  late TransactionRepositoryImpl transactionRepo;
+  late SqliteRecurringDataSource recurringRepo;
+  late SqliteTransactionDataSource transactionRepo;
   late RecurringTransactionViewModel recurringVm;
   late ExpenseViewModel expenseVm;
 
@@ -75,13 +73,13 @@ void main() {
     recurringDs = SqliteRecurringDataSource(dbHelper);
     transactionDs = SqliteTransactionDataSource(dbHelper);
 
-    recurringRepo = RecurringRepositoryImpl(recurringDs);
-    transactionRepo = TransactionRepositoryImpl(transactionDs);
+    recurringDs = SqliteRecurringDataSource(dbHelper);
+    transactionDs = SqliteTransactionDataSource(dbHelper);
 
     recurringVm =
-        RecurringTransactionViewModel(recurringRepo, transactionRepo);
+        RecurringTransactionViewModel(recurringDs, transactionDs);
     expenseVm = ExpenseViewModel(
-      transactionRepo,
+      transactionDs,
       ExportService(),
     );
   });
@@ -103,7 +101,7 @@ void main() {
       );
 
       // Verify rule exists
-      final rules = await recurringRepo.getAll();
+      final rules = await recurringDs.getAll();
       expect(rules.length, 1);
       expect(rules.first.categoryName, 'Cà phê');
       expect(rules.first.amount, 20000);
@@ -114,7 +112,7 @@ void main() {
       await recurringVm.checkAndGenerate();
 
       // Verify transaction was created
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions.length, 1);
       expect(transactions.first.amount, 20000);
       expect(transactions.first.category, 'Cà phê');
@@ -122,7 +120,7 @@ void main() {
       expect(transactions.first.sourceRecurringId, rules.first.id);
 
       // Verify nextRunAt advanced
-      final updatedRules = await recurringRepo.getAll();
+      final updatedRules = await recurringDs.getAll();
       expect(
         updatedRules.first.nextRunAt.isAfter(DateTime(2026, 6, 1)),
         true,
@@ -146,7 +144,7 @@ void main() {
       await recurringVm.checkAndGenerate();
 
       // Should still have only 1 transaction
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions.length, 1);
     });
 
@@ -172,7 +170,7 @@ void main() {
 
       await recurringVm.checkAndGenerate();
 
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions.length, 3);
 
       final amounts = transactions.map((t) => t.amount).toSet();
@@ -190,13 +188,13 @@ void main() {
         isActive: false,
         createdAt: DateTime(2026, 6, 1),
       );
-      await recurringRepo.insert(inactiveRule);
+      await recurringDs.insert(inactiveRule);
 
       // Generate
       await recurringVm.checkAndGenerate();
 
       // No transaction created
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions, isEmpty);
     });
 
@@ -212,17 +210,17 @@ void main() {
         isActive: true,
         createdAt: DateTime(2026, 5, 1),
       );
-      await recurringRepo.insert(missedRule);
+      await recurringDs.insert(missedRule);
 
       // Generate on 2026-06-06
       await recurringVm.checkAndGenerate();
 
       // Only 1 transaction (not 5) - generates once per checkAndGenerate call
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions.length, 1);
 
       // nextRunAt advanced to next day (from today, not from missed date)
-      final updatedRules = await recurringRepo.getAll();
+      final updatedRules = await recurringDs.getAll();
       expect(updatedRules.first.isActive, true);
       expect(
         updatedRules.first.nextRunAt.isAfter(DateTime(2026, 6, 5)),
@@ -240,22 +238,22 @@ void main() {
       );
       await recurringVm.checkAndGenerate();
 
-      final transactionsBefore = await transactionRepo.getAll();
+      final transactionsBefore = await transactionDs.getAll();
       expect(transactionsBefore.length, 1);
       final txId = transactionsBefore.first.id;
 
       // Delete the rule
-      final rule = (await recurringRepo.getAll()).first;
+      final rule = (await recurringDs.getAll()).first;
       await recurringVm.deleteRecurring(rule.id);
 
       // Transactions remain
-      final transactionsAfter = await transactionRepo.getAll();
+      final transactionsAfter = await transactionDs.getAll();
       expect(transactionsAfter.length, 1);
       expect(transactionsAfter.first.id, txId);
       expect(transactionsAfter.first.sourceRecurringId, rule.id);
 
       // Rule is gone
-      final rules = await recurringRepo.getAll();
+      final rules = await recurringDs.getAll();
       expect(rules, isEmpty);
     });
 
@@ -270,7 +268,7 @@ void main() {
 
       await recurringVm.checkAndGenerate();
 
-      final rules = await recurringRepo.getAll();
+      final rules = await recurringDs.getAll();
       // nextRunAt should be 7 days after generation time (today ~2026-06-05)
       final diff = rules.first.nextRunAt.difference(DateTime(2026, 6, 1)).inDays;
       expect(diff, greaterThanOrEqualTo(6)); // at least 6 days (flexible on exact time)
@@ -287,7 +285,7 @@ void main() {
 
       await recurringVm.checkAndGenerate();
 
-      final rules = await recurringRepo.getAll();
+      final rules = await recurringDs.getAll();
       final diff = rules.first.nextRunAt.difference(DateTime(2026, 6, 1)).inDays;
       expect(diff, greaterThanOrEqualTo(29)); // ~30 days
     });
@@ -320,11 +318,11 @@ void main() {
         isActive: true,
         createdAt: DateTime(2026, 6, 1),
       );
-      await recurringRepo.insert(futureRule);
+      await recurringDs.insert(futureRule);
 
       await recurringVm.checkAndGenerate();
 
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions, isEmpty);
     });
 
@@ -336,12 +334,12 @@ void main() {
         startDate: DateTime(2026, 6, 1),
       );
 
-      final ruleId = (await recurringRepo.getAll()).first.id;
+      final ruleId = (await recurringDs.getAll()).first.id;
       await recurringVm.toggleActive(ruleId);
 
       await recurringVm.checkAndGenerate();
 
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions, isEmpty);
     });
 
@@ -355,14 +353,14 @@ void main() {
         isActive: false,
         createdAt: DateTime(2026, 6, 1),
       );
-      await recurringRepo.insert(inactiveRule);
+      await recurringDs.insert(inactiveRule);
 
       // Toggle to active
       await recurringVm.toggleActive('was-inactive');
 
       await recurringVm.checkAndGenerate();
 
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions.length, 1);
     });
 
@@ -383,7 +381,7 @@ void main() {
         isActive: true,
         createdAt: DateTime(2026, 6, 1),
       );
-      await recurringRepo.insert(pastRule);
+      await recurringDs.insert(pastRule);
 
       // Manually insert a tx for ruleDate (2026-06-01) — simulates tx that
       // was previously generated for the rule's nextRunAt date.
@@ -396,7 +394,7 @@ void main() {
         note: '',
         sourceRecurringId: ruleId,
       );
-      await transactionRepo.add(existingTx);
+      await transactionDs.add(existingTx);
 
       // Trigger checkAndGenerate. today is 2026-06-06 (test runtime), but
       // rule.nextRunAt is 2026-06-01.
@@ -405,7 +403,7 @@ void main() {
       await recurringVm.checkAndGenerate();
 
       // Should still have only 1 tx (not 2)
-      final transactions = await transactionRepo.getAll();
+      final transactions = await transactionDs.getAll();
       expect(transactions.length, 1,
           reason: 'Safety net should prevent duplicate when tx exists for rule.nextRunAt date');
     });
