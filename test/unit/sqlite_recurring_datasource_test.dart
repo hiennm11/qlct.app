@@ -294,4 +294,114 @@ void main() {
       expect(result.length, 1);
     });
   });
+
+  group('clearAll', () {
+    test('deletes all recurring transactions', () async {
+      await dataSource.insert(RecurringTransaction(
+        id: 'clear-r-1',
+        categoryName: 'Cà phê',
+        amount: 20000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+      ));
+      await dataSource.insert(RecurringTransaction(
+        id: 'clear-r-2',
+        categoryName: 'Ăn ngoài',
+        amount: 50000,
+        frequency: 'monthly',
+        nextRunAt: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+      ));
+
+      await dataSource.clearAll();
+
+      final result = await dataSource.getAll();
+      expect(result, isEmpty);
+    });
+
+    test('clearAll on empty table is safe', () async {
+      await dataSource.clearAll();
+      final result = await dataSource.getAll();
+      expect(result, isEmpty);
+    });
+  });
+
+  group('count', () {
+    // ADR-0023 §8: count uses SQL COUNT(*) not getAll().length
+    test('returns 0 when no recurring transactions', () async {
+      final result = await dataSource.count();
+      expect(result, 0);
+    });
+
+    test('returns correct count after inserting recurring transactions', () async {
+      await dataSource.insert(RecurringTransaction(
+        id: 'count-r-1',
+        categoryName: 'Cà phê',
+        amount: 20000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+      ));
+      await dataSource.insert(RecurringTransaction(
+        id: 'count-r-2',
+        categoryName: 'Ăn ngoài',
+        amount: 50000,
+        frequency: 'monthly',
+        nextRunAt: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+      ));
+      await dataSource.insert(RecurringTransaction(
+        id: 'count-r-3',
+        categoryName: 'Mua sắm',
+        amount: 100000,
+        frequency: 'weekly',
+        nextRunAt: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+      ));
+
+      final result = await dataSource.count();
+      expect(result, 3);
+    });
+
+    test('returns correct count after deleting a recurring transaction', () async {
+      await dataSource.insert(RecurringTransaction(
+        id: 'count-del-r-1',
+        categoryName: 'Cà phê',
+        amount: 20000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+      ));
+      await dataSource.insert(RecurringTransaction(
+        id: 'count-del-r-2',
+        categoryName: 'Ăn ngoài',
+        amount: 50000,
+        frequency: 'monthly',
+        nextRunAt: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+      ));
+
+      await dataSource.delete('count-del-r-1');
+
+      final result = await dataSource.count();
+      expect(result, 1);
+    });
+
+    test('returns 0 after clearAll', () async {
+      await dataSource.insert(RecurringTransaction(
+        id: 'count-clear-r-1',
+        categoryName: 'Cà phê',
+        amount: 20000,
+        frequency: 'daily',
+        nextRunAt: DateTime(2026, 6, 1),
+        createdAt: DateTime(2026, 6, 1),
+      ));
+
+      await dataSource.clearAll();
+
+      final result = await dataSource.count();
+      expect(result, 0);
+    });
+  });
 }

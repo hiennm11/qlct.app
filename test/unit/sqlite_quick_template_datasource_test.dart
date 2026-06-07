@@ -325,4 +325,41 @@ void main() {
       expect(all, isEmpty);
     });
   });
+
+  group('count', () {
+    // ADR-0023 §8: count uses SQL COUNT(*) not getAll().length
+    test('returns 0 when no templates', () async {
+      final result = await dataSource.count();
+      expect(result, 0);
+    });
+
+    test('returns correct count after inserting templates', () async {
+      await dataSource.insert(makeTemplate(id: 'count-qt-1', title: 'A'));
+      await dataSource.insert(makeTemplate(id: 'count-qt-2', title: 'B'));
+      await dataSource.insert(makeTemplate(id: 'count-qt-3', title: 'C'));
+
+      final result = await dataSource.count();
+      expect(result, 3);
+    });
+
+    test('returns correct count after deleting a template', () async {
+      await dataSource.insert(makeTemplate(id: 'count-del-qt-1'));
+      await dataSource.insert(makeTemplate(id: 'count-del-qt-2'));
+
+      await dataSource.delete('count-del-qt-1');
+
+      final result = await dataSource.count();
+      expect(result, 1);
+    });
+
+    test('returns 0 after clearAll', () async {
+      await dataSource.insert(makeTemplate(id: 'count-clear-qt-1'));
+      await dataSource.insert(makeTemplate(id: 'count-clear-qt-2'));
+
+      await dataSource.clearAll();
+
+      final result = await dataSource.count();
+      expect(result, 0);
+    });
+  });
 }

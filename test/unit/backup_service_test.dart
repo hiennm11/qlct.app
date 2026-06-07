@@ -8,6 +8,7 @@ import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
+import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/recurring_transaction.dart';
@@ -238,6 +239,119 @@ void main() {
       expect(result.isValid, isTrue);
       expect(result.data!.quickTemplates, isEmpty);
     });
+
+    // ADR-0023 Slice 1: appId validation rules
+    test('v2 backup without appId still validates', () {
+      final json = jsonEncode({
+        'schemaVersion': 2,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'quickTemplates': [],
+        // no appId — v1/v2 compatibility
+      });
+
+      final result = service.validate(json);
+
+      expect(result.isValid, isTrue);
+    });
+
+    test('v3 backup missing appId fails validation', () {
+      final json = jsonEncode({
+        'schemaVersion': 3,
+        'exportedAt': '2026-06-07T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'quickTemplates': [],
+        // no appId — required for v3
+      });
+
+      final result = service.validate(json);
+
+      expect(result.isValid, isFalse);
+      expect(result.errors.any((e) => e.contains('appId')), isTrue);
+    });
+
+    test('v3 backup with wrong appId fails validation', () {
+      final json = jsonEncode({
+        'appId': 'wrong-app',
+        'schemaVersion': 3,
+        'exportedAt': '2026-06-07T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'quickTemplates': [],
+      });
+
+      final result = service.validate(json);
+
+      expect(result.isValid, isFalse);
+      expect(result.errors.any((e) => e.contains('appId')), isTrue);
+    });
+
+    test('v3 backup with correct appId validates', () {
+      final json = jsonEncode({
+        'appId': 'qlct.app',
+        'schemaVersion': 3,
+        'exportedAt': '2026-06-07T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'quickTemplates': [],
+      });
+
+      final result = service.validate(json);
+
+      expect(result.isValid, isTrue);
+    });
+
+    test('unknown top-level fields are ignored for v1', () {
+      final json = jsonEncode({
+        'schemaVersion': 1,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'unknownField': 'should be ignored',
+        'someOtherUnknown': 42,
+      });
+
+      final result = service.validate(json);
+
+      expect(result.isValid, isTrue);
+      expect(result.data, isNotNull);
+    });
+
+    test('unknown top-level fields are ignored for v3', () {
+      final json = jsonEncode({
+        'appId': 'qlct.app',
+        'schemaVersion': 3,
+        'exportedAt': '2026-06-07T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'quickTemplates': [],
+        'futureField': {'nested': 'data'},
+      });
+
+      final result = service.validate(json);
+
+      expect(result.isValid, isTrue);
+    });
   });
 
   group('validateFile (streaming parse)', () {
@@ -431,7 +545,8 @@ void main() {
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 2);
+      expect(backup.schemaVersion, 3);
+      expect(backup.appId, 'qlct.app');
       expect(backup.transactions.length, 1);
       expect(backup.budgets.length, 1);
       expect(backup.recurringTransactions.length, 1);
@@ -464,7 +579,7 @@ void main() {
     test('creates non-empty backup with expected structure', () async {
       final backup = await service.generateSampleData();
 
-      expect(backup.schemaVersion, 2);
+      expect(backup.schemaVersion, 3);
       expect(backup.transactions.length, 20);
       expect(backup.budgets.length, 3);
       expect(backup.recurringTransactions.length, 2);
@@ -480,6 +595,88 @@ void main() {
 
       final qtTitles = backup.quickTemplates.map((q) => q.title).toSet();
       expect(qtTitles, containsAll(['Cơm trưa', 'Cà phê sáng', 'Shopee']));
+    });
+  });
+
+  group('createBackup v3', () {
+    test('appId is qlct.app and schemaVersion is 3', () async {
+      when(() => txRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
+      when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
+      when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
+      when(() => storageService.loadValue<int>('total_budget'))
+          .thenReturn(null);
+
+      final backup = await service.createBackup();
+
+      expect(backup.appId, 'qlct.app');
+      expect(backup.schemaVersion, 3);
+    });
+  });
+
+  // Slice 1 stable JSON field order test.
+  // We test the public toJsonMap() (now public, was _toJsonMap) to exercise
+  // the production serialization path rather than a manually-constructed map.
+  // ADR-0023 §3 requires: appId, schemaVersion, exportedAt, appVersion,
+  // totalBudget, transactions, budgets, recurringTransactions, quickTemplates
+  group('export JSON order (ADR-0023 §3)', () {
+    test('toJsonMap preserves stable field order matching ADR-0023 contract',
+        () {
+      // Create a minimal BackupData that exercises the full toJsonMap path.
+      final data = BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 3,
+        exportedAt: '2026-06-07T10:00:00.000Z',
+        appVersion: '1.0.0',
+        totalBudget: 0,
+        transactions: const [],
+        budgets: const [],
+        recurringTransactions: const [],
+        quickTemplates: const [],
+      );
+
+      // toJsonMap() is the production serialization entry point.
+      final jsonMap = service.toJsonMap(data);
+
+      // Extract key order from the JSON string produced by JsonEncoder.
+      // Dart map literal insertion order is preserved by JsonEncoder.
+      final encoded = jsonEncode(jsonMap);
+      final keyOrder = <String>[];
+      final keyPattern = RegExp(r'"(\w+)":');
+      for (final m in keyPattern.allMatches(encoded)) {
+        final key = m.group(1)!;
+        if (!keyOrder.contains(key)) keyOrder.add(key);
+      }
+
+      expect(
+        keyOrder,
+        equals([
+          'appId',
+          'schemaVersion',
+          'exportedAt',
+          'appVersion',
+          'totalBudget',
+          'transactions',
+          'budgets',
+          'recurringTransactions',
+          'quickTemplates',
+        ]),
+      );
+    });
+  });
+
+  group('export filename (ADR-0023 §4)', () {
+    test(
+        'generateBackupFilename returns qlct-backup-yyyy-MM-dd-HHmmss.json format',
+        () {
+      // Test the public static method directly — no path_provider mocking needed.
+      final fileName = BackupService.generateBackupFilename();
+      final pattern = RegExp(
+        r'^qlct-backup-\d{4}-\d{2}-\d{2}-\d{6}\.json$',
+      );
+      expect(pattern.hasMatch(fileName), isTrue,
+          reason:
+              'filename "$fileName" should match yyyy-MM-dd-HHmmss pattern');
     });
   });
 }

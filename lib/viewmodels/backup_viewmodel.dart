@@ -184,10 +184,24 @@ class BackupViewModel extends ChangeNotifier {
 
       _lastRestoreResult = restoreResult;
 
-      await _expenseVM.refresh();
+      // ADR-0023 Slice 3 §10: clear filters + reset pagination + reload fresh
+      // data after restore. Plain refresh() would preserve stale filter state.
+      await _expenseVM.refreshAfterExternalDataChange();
       await _budgetVM.forceReload();
       await _recurringVM.forceReload();
       await _quickTemplateVM?.forceReload();
+
+      // Handle partial success: DB restored but totalBudget save failed.
+      // restoreResult.success==true means DB work is done.
+      // restoreResult.error!=null means totalBudget save failed.
+      if (restoreResult.error != null) {
+        _setError(restoreResult.error!);
+        pendingTransactionCount = null;
+        pendingBudgetCount = null;
+        pendingRecurringCount = null;
+        pendingQuickTemplateCount = null;
+        return;
+      }
 
       final modeLabel = mode == RestoreMode.merge ? 'hợp nhất' : 'thay thế';
       _setSuccess(
@@ -221,10 +235,22 @@ class BackupViewModel extends ChangeNotifier {
 
       _lastRestoreResult = restoreResult;
 
-      await _expenseVM.refresh();
+      // ADR-0023 Slice 3 §10: clear filters + reset pagination + reload fresh
+      // data after restore. Plain refresh() would preserve stale filter state.
+      await _expenseVM.refreshAfterExternalDataChange();
       await _budgetVM.forceReload();
       await _recurringVM.forceReload();
       await _quickTemplateVM?.forceReload();
+
+      // Handle partial success: DB restored but totalBudget save failed.
+      if (restoreResult.error != null) {
+        _setError(restoreResult.error!);
+        pendingTransactionCount = null;
+        pendingBudgetCount = null;
+        pendingRecurringCount = null;
+        pendingQuickTemplateCount = null;
+        return;
+      }
 
       final modeLabel = mode == RestoreMode.merge ? 'hợp nhất' : 'thay thế';
       _setSuccess(
@@ -258,7 +284,8 @@ class BackupViewModel extends ChangeNotifier {
       }
 
       _lastRestoreResult = restoreResult;
-      await _expenseVM.refresh();
+      // ADR-0023 Slice 3 §10: clear filters + reset pagination + reload fresh
+      await _expenseVM.refreshAfterExternalDataChange();
       await _budgetVM.forceReload();
       await _recurringVM.forceReload();
       await _quickTemplateVM?.forceReload();
@@ -272,6 +299,50 @@ class BackupViewModel extends ChangeNotifier {
       );
     } catch (e, stack) {
       debugPrint('Sample data error: $e\n$stack');
+      _setError('Thao tác thất bại. Vui lòng thử lại.');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ADR-0023 Slice 2: destructive-action API
+  // getCurrentCounts + clearAllUserData power the Danger Zone delete-all
+  // and restore-replace preview flows. No UI in this slice.
+  // ---------------------------------------------------------------------------
+
+  /// Fetch current user-data counts via SQL COUNT(*). ADR-0023 §8.
+  /// UI uses this to preview how many rows a destructive action will affect.
+  Future<CurrentCounts> getCurrentCounts() async {
+    return await _backupService.getCurrentCounts();
+  }
+
+  /// Delete all user data: transactions, budgets, recurring transactions,
+  /// quick templates, and reset totalBudget. ADR-0023 §7.
+  /// Atomic for DB tables; SharedPreferences totalBudget reset after the
+  /// transaction succeeds. If totalBudget reset fails, [ClearDataPartialFailure]
+  /// is surfaced as a user-visible error. No undo.
+  Future<void> clearAllUserData() async {
+    _setLoading(true);
+    try {
+      await _backupService.clearAllUserData();
+      // Refresh all view models so the UI reflects the cleared state.
+      // Use refreshAfterExternalDataChange to clear any stale filter state
+      // (consistent with restore per ADR-0023 §10).
+      await _expenseVM.refreshAfterExternalDataChange();
+      await _budgetVM.forceReload();
+      await _recurringVM.forceReload();
+      await _quickTemplateVM?.forceReload();
+      _isLoading = false;
+      notifyListeners();
+    } on ClearDataPartialFailure catch (e) {
+      // DB cleared but totalBudget reset failed — partial success.
+      // Refresh VMs so UI shows cleared state; report the partial failure.
+      await _expenseVM.refreshAfterExternalDataChange();
+      await _budgetVM.forceReload();
+      await _recurringVM.forceReload();
+      await _quickTemplateVM?.forceReload();
+      _setError(e.message);
+    } catch (e, stack) {
+      debugPrint('clearAllUserData error: $e\n$stack');
       _setError('Thao tác thất bại. Vui lòng thử lại.');
     }
   }

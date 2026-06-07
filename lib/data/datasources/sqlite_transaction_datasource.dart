@@ -180,4 +180,12 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
     );
     return maps.map(transactionFromRow).toList();
   }
+
+  @override
+  Future<int> count() async {
+    final db = await _dbHelper.database;
+    final result =
+        await db.rawQuery('SELECT COUNT(*) AS c FROM transactions');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 }

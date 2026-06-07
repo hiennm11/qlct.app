@@ -86,4 +86,18 @@ class SqliteRecurringDataSource implements RecurringLocalDataSource {
       whereArgs: [id],
     );
   }
+
+  @override
+  Future<void> clearAll() async {
+    final db = await _dbHelper.database;
+    await db.delete('recurring_transactions');
+  }
+
+  @override
+  Future<int> count() async {
+    final db = await _dbHelper.database;
+    final result = await db.rawQuery(
+        'SELECT COUNT(*) AS c FROM recurring_transactions');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 }

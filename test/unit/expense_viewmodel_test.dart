@@ -963,4 +963,186 @@ void main() {
       expect(viewModel.allTransactions.length, 2);
     });
   });
+
+  // ===========================================================================
+  // ADR-0023 Slice 3 — post-restore filter/pagination reset
+  // ===========================================================================
+
+  group('ADR-0023 Slice 3: refreshAfterExternalDataChange', () {
+    test('FAILS: refreshAfterExternalDataChange clears category filter', () async {
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setCategoryFilter('Ăn ngoài');
+      expect(viewModel.filterCategory, 'Ăn ngoài');
+
+      await viewModel.refreshAfterExternalDataChange();
+
+      expect(viewModel.filterCategory, isNull,
+          reason: 'post-restore must clear category filter');
+    });
+
+    test('FAILS: refreshAfterExternalDataChange clears single date filter', () async {
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+      expect(viewModel.filterDate, isNotNull);
+
+      await viewModel.refreshAfterExternalDataChange();
+
+      expect(viewModel.filterDate, isNull,
+          reason: 'post-restore must clear single date filter');
+    });
+
+    test('FAILS: refreshAfterExternalDataChange clears date range filter', () async {
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
+      expect(viewModel.filterStartDate, isNotNull);
+
+      await viewModel.refreshAfterExternalDataChange();
+
+      expect(viewModel.filterStartDate, isNull,
+          reason: 'post-restore must clear date range filter');
+      expect(viewModel.filterEndDate, isNull);
+    });
+
+    test('FAILS: refreshAfterExternalDataChange clears search query', () async {
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.search(any())).thenAnswer((_) async => []);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      await viewModel.setSearchQuery('test query');
+      expect(viewModel.searchQuery, 'test query');
+
+      await viewModel.refreshAfterExternalDataChange();
+
+      expect(viewModel.searchQuery, isNull,
+          reason: 'post-restore must clear search query');
+    });
+
+    test('FAILS: refreshAfterExternalDataChange resets pagination to page 1', () async {
+      // Simulate: user scrolled to page 2 (hasMore=false after full load)
+      final allItems = List.generate(51, (i) => makeTransaction(id: 'tx-$i'));
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => allItems.take(50).toList());
+      when(() => mockRepo.getAllPaginated(offset: 50, limit: 50))
+          .thenAnswer((_) async => [allItems[50]]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => allItems);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      // Load more to accumulate pages
+      expect(viewModel.hasMore, isTrue);
+      await viewModel.loadMoreTransactions();
+      expect(viewModel.allTransactions.length, 51);
+      expect(viewModel.hasMore, isFalse); // exhausted all data
+
+      // Simulate restore: fresh DB data (same amount but reset pagination)
+      final freshItems = allItems;
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => freshItems.take(50).toList());
+      when(() => mockRepo.getAllPaginated(offset: 50, limit: 50))
+          .thenAnswer((_) async => [freshItems[50]]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => freshItems);
+
+      await viewModel.refreshAfterExternalDataChange();
+
+      expect(viewModel.hasMore, isTrue,
+          reason: 'post-restore must reset pagination so user can load pages normally');
+    });
+
+    test('FAILS: refreshAfterExternalDataChange calls getAllPaginated to reload fresh DB data and reset pagination',
+        () async {
+      final oldData = [makeTransaction(id: 'old')];
+      final newData = [makeTransaction(id: 'new')];
+      // First call: initial load returns old data.
+      // Subsequent calls (after reset): first page returns new data.
+      var firstPageCalls = 0;
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async {
+        firstPageCalls++;
+        return firstPageCalls == 1 ? oldData : newData;
+      });
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.allTransactions.first.id, 'old');
+
+      await viewModel.refreshAfterExternalDataChange();
+
+      // Uses getAllPaginated (reset pagination to page 1), NOT getAll()
+      verify(() => mockRepo.getAllPaginated(offset: 0, limit: 50)).called(2);
+      verifyNever(() => mockRepo.getAll());
+      expect(viewModel.allTransactions.first.id, 'new',
+          reason: 'post-restore must show fresh data from DB');
+    });
+
+    test('FAILS: refreshAfterExternalDataChange clears all filters simultaneously', () async {
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.search(any())).thenAnswer((_) async => []);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      // Set ALL filter types
+      viewModel.setCategoryFilter('Cà phê');
+      viewModel.setDateFilter(DateTime(2026, 6, 3));
+      viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
+      await viewModel.setSearchQuery('morning');
+
+      expect(viewModel.hasActiveFilters, isTrue);
+
+      await viewModel.refreshAfterExternalDataChange();
+
+      expect(viewModel.hasActiveFilters, isFalse,
+          reason: 'post-restore must clear all filter types at once');
+      expect(viewModel.filterCategory, isNull);
+      expect(viewModel.filterDate, isNull);
+      expect(viewModel.filterStartDate, isNull);
+      expect(viewModel.filterEndDate, isNull);
+      expect(viewModel.searchQuery, isNull);
+    });
+
+    test('FAILS: hasActiveFilters returns false after refreshAfterExternalDataChange', () async {
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
+      when(() => mockRepo.search(any())).thenAnswer((_) async => []);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      await Future.delayed(Duration.zero);
+
+      viewModel.setCategoryFilter('Ăn ngoài');
+      await viewModel.setSearchQuery('lunch');
+
+      expect(viewModel.hasActiveFilters, isTrue);
+
+      await viewModel.refreshAfterExternalDataChange();
+
+      expect(viewModel.hasActiveFilters, isFalse);
+    });
+  });
 }

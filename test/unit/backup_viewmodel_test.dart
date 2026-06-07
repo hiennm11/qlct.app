@@ -8,6 +8,7 @@ import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
 import 'package:qlct/viewmodels/quick_template_viewmodel.dart';
+import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/services/backup_service.dart';
 
 class MockBackupService extends Mock implements BackupService {}
@@ -19,6 +20,12 @@ class MockBudgetVM extends Mock implements BudgetViewModel {}
 class MockRecurringVM extends Mock implements RecurringTransactionViewModel {}
 
 class MockQuickTemplateVM extends Mock implements QuickTemplateViewModel {}
+
+class FakeRestoreResult extends Fake implements RestoreResult {}
+
+class FakeFile extends Fake implements File {}
+
+class FakeBackupData extends Fake implements BackupData {}
 
 void main() {
   late MockBackupService backupService;
@@ -44,6 +51,7 @@ void main() {
 
     registerFallbackValue(RestoreMode.merge);
     registerFallbackValue(RestoreMode.replace);
+    registerFallbackValue(FakeRestoreResult());
   });
 
   group('initial state', () {
@@ -87,6 +95,258 @@ void main() {
       expect(viewModel.isLoading, isFalse);
       expect(viewModel.errorMessage, isNotNull);
       expect(viewModel.errorMessage!.contains('Thao tác thất bại'), isTrue);
+    });
+  });
+
+  // ADR-0023 Slice 2: getCurrentCounts + clearAllUserData ViewModel API
+  group('getCurrentCounts', () {
+    test('returns CurrentCounts from BackupService', () async {
+      const expected = CurrentCounts(
+        transactionCount: 10,
+        budgetCount: 3,
+        recurringCount: 2,
+        quickTemplateCount: 5,
+      );
+      when(() => backupService.getCurrentCounts())
+          .thenAnswer((_) async => expected);
+
+      final result = await viewModel.getCurrentCounts();
+
+      expect(result, equals(expected));
+      expect(result.total, 20);
+      expect(result.isEmpty, isFalse);
+    });
+
+    test('returns empty CurrentCounts on empty database', () async {
+      const expected = CurrentCounts(
+        transactionCount: 0,
+        budgetCount: 0,
+        recurringCount: 0,
+        quickTemplateCount: 0,
+      );
+      when(() => backupService.getCurrentCounts())
+          .thenAnswer((_) async => expected);
+
+      final result = await viewModel.getCurrentCounts();
+
+      expect(result.isEmpty, isTrue);
+      expect(result.total, 0);
+    });
+  });
+
+  group('clearAllUserData', () {
+    test('delegates to service and refreshes all view models on success',
+        () async {
+      when(() => backupService.clearAllUserData()).thenAnswer((_) async {});
+      when(() => expenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => budgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => recurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => quickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      await viewModel.clearAllUserData();
+
+      verify(() => backupService.clearAllUserData()).called(1);
+      verify(() => expenseVM.refreshAfterExternalDataChange()).called(1);
+      verify(() => budgetVM.forceReload()).called(1);
+      verify(() => recurringVM.forceReload()).called(1);
+      verify(() => quickTemplateVM.forceReload()).called(1);
+      expect(viewModel.isLoading, isFalse);
+      expect(viewModel.errorMessage, isNull);
+    });
+
+    test('surfaces ClearDataPartialFailure as user-visible error',
+        () async {
+      when(() => backupService.clearAllUserData())
+          .thenThrow(ClearDataPartialFailure(
+        'Xoá dữ liệu hoàn tất nhưng không reset được tổng ngân sách.',
+      ));
+      when(() => expenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => budgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => recurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => quickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      await viewModel.clearAllUserData();
+
+      expect(viewModel.errorMessage, isNotNull);
+      expect(viewModel.errorMessage, contains('tổng ngân sách'));
+    });
+
+    test('sets error on service failure', () async {
+      when(() => backupService.clearAllUserData())
+          .thenThrow(Exception('Test error'));
+
+      await viewModel.clearAllUserData();
+
+      expect(viewModel.isLoading, isFalse);
+      expect(viewModel.errorMessage, isNotNull);
+      expect(viewModel.errorMessage!.contains('Thao tác thất bại'), isTrue);
+      // ViewModels should NOT be refreshed on failure
+      verifyNever(() => expenseVM.refresh());
+      verifyNever(() => budgetVM.forceReload());
+      verifyNever(() => recurringVM.forceReload());
+      verifyNever(() => quickTemplateVM.forceReload());
+    });
+  });
+
+  // ===========================================================================
+  // ADR-0023 Slice 3 — post-restore filter/pagination reset
+  // Tests verify that restore paths call the new
+  // refreshAfterExternalDataChange() method on ExpenseVM, not plain refresh().
+  // ===========================================================================
+
+  group('ADR-0023 Slice 3: restore calls refreshAfterExternalDataChange', () {
+    late MockBackupService mockBackupService;
+    late MockExpenseVM mockExpenseVM;
+    late MockBudgetVM mockBudgetVM;
+    late MockRecurringVM mockRecurringVM;
+    late MockQuickTemplateVM mockQuickTemplateVM;
+    late BackupViewModel restoreVM;
+
+    setUp(() {
+      mockBackupService = MockBackupService();
+      mockExpenseVM = MockExpenseVM();
+      mockBudgetVM = MockBudgetVM();
+      mockRecurringVM = MockRecurringVM();
+      mockQuickTemplateVM = MockQuickTemplateVM();
+
+      restoreVM = BackupViewModel(
+        mockBackupService,
+        mockExpenseVM,
+        mockBudgetVM,
+        mockRecurringVM,
+        mockQuickTemplateVM,
+      );
+
+      registerFallbackValue(RestoreMode.merge);
+      registerFallbackValue(RestoreMode.replace);
+      registerFallbackValue(FakeRestoreResult());
+      registerFallbackValue(FakeFile());
+      registerFallbackValue(FakeBackupData());
+    });
+
+    test('importAndRestore calls expenseVM.refreshAfterExternalDataChange (not plain refresh)',
+        () async {
+      // Setup file pick + parse
+      when(() => mockBackupService.pickBackupFile())
+          .thenAnswer((_) async => File('test.json'));
+      when(() => mockBackupService.validateFile(any()))
+          .thenAnswer((_) async => ImportResult.valid(BackupData(
+                appId: 'qlct.app',
+                schemaVersion: 3,
+                exportedAt: DateTime.now().toIso8601String(),
+                appVersion: '1.0.0',
+                transactions: [],
+                budgets: [],
+                recurringTransactions: [],
+                quickTemplates: [],
+              )));
+      when(() => mockBackupService.restore(any(), any()))
+          .thenAnswer((_) async => const RestoreResult(
+                success: true,
+                transactionsImported: 0,
+                budgetsImported: 0,
+                recurringsImported: 0,
+                quickTemplatesImported: 0,
+              ));
+      when(() => mockExpenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => mockBudgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockRecurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockQuickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      await restoreVM.importAndRestore(RestoreMode.merge);
+
+      // MUST call the new reset-refresh method
+      verify(() => mockExpenseVM.refreshAfterExternalDataChange()).called(1);
+      // MUST NOT call plain refresh (which preserves filters)
+      verifyNever(() => mockExpenseVM.refresh());
+    });
+
+    test('executeRestore calls expenseVM.refreshAfterExternalDataChange', () async {
+      when(() => mockBackupService.restore(any(), any()))
+          .thenAnswer((_) async => const RestoreResult(
+                success: true,
+                transactionsImported: 5,
+                budgetsImported: 2,
+                recurringsImported: 1,
+                quickTemplatesImported: 3,
+              ));
+      when(() => mockExpenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => mockBudgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockRecurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockQuickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      final importResult = ImportResult.valid(BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 3,
+        exportedAt: DateTime.now().toIso8601String(),
+        appVersion: '1.0.0',
+        transactions: [],
+        budgets: [],
+        recurringTransactions: [],
+        quickTemplates: [],
+      ));
+
+      await restoreVM.executeRestore(importResult, RestoreMode.replace);
+
+      verify(() => mockExpenseVM.refreshAfterExternalDataChange()).called(1);
+      verifyNever(() => mockExpenseVM.refresh());
+    });
+
+    test('restore still refreshes Budget/Recurring/QuickTemplate VMs', () async {
+      when(() => mockBackupService.pickBackupFile())
+          .thenAnswer((_) async => File('test.json'));
+      when(() => mockBackupService.validateFile(any()))
+          .thenAnswer((_) async => ImportResult.valid(BackupData(
+                appId: 'qlct.app',
+                schemaVersion: 3,
+                exportedAt: DateTime.now().toIso8601String(),
+                appVersion: '1.0.0',
+                transactions: [],
+                budgets: [],
+                recurringTransactions: [],
+                quickTemplates: [],
+              )));
+      when(() => mockBackupService.restore(any(), any()))
+          .thenAnswer((_) async => const RestoreResult(
+                success: true,
+                transactionsImported: 0,
+                budgetsImported: 0,
+                recurringsImported: 0,
+                quickTemplatesImported: 0,
+              ));
+      when(() => mockExpenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => mockBudgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockRecurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockQuickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      await restoreVM.importAndRestore(RestoreMode.merge);
+
+      verify(() => mockBudgetVM.forceReload()).called(1);
+      verify(() => mockRecurringVM.forceReload()).called(1);
+      verify(() => mockQuickTemplateVM.forceReload()).called(1);
+    });
+
+    test('clearAllUserData calls expenseVM.refreshAfterExternalDataChange', () async {
+      // ADR-0023 §10 wording: clearAll is structurally identical to
+      // restore-replace (atomic DB delete), so post-action filter reset
+      // applies the same way. This guards against the Slice 2 contract
+      // regressing to plain refresh() which preserves stale filter state.
+      when(() => mockBackupService.clearAllUserData()).thenAnswer((_) async {});
+      when(() => mockExpenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => mockBudgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockRecurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockQuickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      await restoreVM.clearAllUserData();
+
+      verify(() => mockExpenseVM.refreshAfterExternalDataChange()).called(1);
+      verifyNever(() => mockExpenseVM.refresh());
     });
   });
 }

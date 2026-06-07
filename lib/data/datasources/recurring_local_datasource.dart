@@ -10,4 +10,10 @@ abstract class RecurringLocalDataSource {
 
   /// Bulk insert recurring transactions using batch for performance
   Future<void> bulkInsert(List<RecurringTransaction> recurrings);
+
+  /// Clear all recurring rules (used in delete-all and replace restore).
+  Future<void> clearAll();
+
+  /// Current row count via SQL COUNT(*). ADR-0023 §8.
+  Future<int> count();
 }

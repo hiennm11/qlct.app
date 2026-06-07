@@ -285,7 +285,94 @@ void main() {
     });
   });
 
-  group('existsBySourceRecurringIdAndDate', () {
+group('count', () {
+    // ADR-0023 §8: count uses SQL COUNT(*) not getAll().length
+    test('returns 0 when no transactions', () async {
+      final result = await dataSource.count();
+      expect(result, 0);
+    });
+
+    test('returns correct count after inserting transactions', () async {
+      await dataSource.add(Transaction(
+        id: 'count-tx-1',
+        amount: 10000,
+        category: 'Cà phê',
+        emoji: '☕',
+        date: DateTime(2026, 6, 1),
+      ));
+      await dataSource.add(Transaction(
+        id: 'count-tx-2',
+        amount: 20000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        date: DateTime(2026, 6, 2),
+      ));
+      await dataSource.add(Transaction(
+        id: 'count-tx-3',
+        amount: 30000,
+        category: 'Mua sắm',
+        emoji: '🛒',
+        date: DateTime(2026, 6, 3),
+      ));
+
+      final result = await dataSource.count();
+      expect(result, 3);
+    });
+
+    test('returns correct count after deleting some transactions', () async {
+      await dataSource.add(Transaction(
+        id: 'count-del-1',
+        amount: 10000,
+        category: 'Cà phê',
+        emoji: '☕',
+        date: DateTime(2026, 6, 1),
+      ));
+      await dataSource.add(Transaction(
+        id: 'count-del-2',
+        amount: 20000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        date: DateTime(2026, 6, 2),
+      ));
+      await dataSource.add(Transaction(
+        id: 'count-del-3',
+        amount: 30000,
+        category: 'Mua sắm',
+        emoji: '🛒',
+        date: DateTime(2026, 6, 3),
+      ));
+
+      await dataSource.delete('count-del-1');
+      await dataSource.delete('count-del-3');
+
+      final result = await dataSource.count();
+      expect(result, 1);
+    });
+
+    test('returns 0 after clearAll', () async {
+      await dataSource.add(Transaction(
+        id: 'count-clear-1',
+        amount: 10000,
+        category: 'Cà phê',
+        emoji: '☕',
+        date: DateTime(2026, 6, 1),
+      ));
+      await dataSource.add(Transaction(
+        id: 'count-clear-2',
+        amount: 20000,
+        category: 'Ăn ngoài',
+        emoji: '🍜',
+        date: DateTime(2026, 6, 2),
+      ));
+
+      await dataSource.clearAll();
+
+      final result = await dataSource.count();
+      expect(result, 0);
+    });
+  });
+
+group('existsBySourceRecurringIdAndDate', () {
     test('returns true when transaction with matching source+date exists', () async {
       final tx = Transaction(
         id: 'exists-uuid-1',

@@ -33,4 +33,7 @@ abstract class QuickTemplateLocalDataSource {
 
   /// Delete all templates (used in replace restore).
   Future<void> clearAll();
+
+  /// Current row count via SQL COUNT(*). ADR-0023 §8.
+  Future<int> count();
 }

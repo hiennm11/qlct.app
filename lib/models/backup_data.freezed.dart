@@ -21,6 +21,7 @@ BackupData _$BackupDataFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$BackupData {
+  String get appId => throw _privateConstructorUsedError;
   int get schemaVersion => throw _privateConstructorUsedError;
   String get exportedAt => throw _privateConstructorUsedError;
   String get appVersion => throw _privateConstructorUsedError;
@@ -49,6 +50,7 @@ abstract class $BackupDataCopyWith<$Res> {
   ) = _$BackupDataCopyWithImpl<$Res, BackupData>;
   @useResult
   $Res call({
+    String appId,
     int schemaVersion,
     String exportedAt,
     String appVersion,
@@ -75,6 +77,7 @@ class _$BackupDataCopyWithImpl<$Res, $Val extends BackupData>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? appId = null,
     Object? schemaVersion = null,
     Object? exportedAt = null,
     Object? appVersion = null,
@@ -86,6 +89,10 @@ class _$BackupDataCopyWithImpl<$Res, $Val extends BackupData>
   }) {
     return _then(
       _value.copyWith(
+            appId: null == appId
+                ? _value.appId
+                : appId // ignore: cast_nullable_to_non_nullable
+                      as String,
             schemaVersion: null == schemaVersion
                 ? _value.schemaVersion
                 : schemaVersion // ignore: cast_nullable_to_non_nullable
@@ -134,6 +141,7 @@ abstract class _$$BackupDataImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String appId,
     int schemaVersion,
     String exportedAt,
     String appVersion,
@@ -159,6 +167,7 @@ class __$$BackupDataImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? appId = null,
     Object? schemaVersion = null,
     Object? exportedAt = null,
     Object? appVersion = null,
@@ -170,6 +179,10 @@ class __$$BackupDataImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$BackupDataImpl(
+        appId: null == appId
+            ? _value.appId
+            : appId // ignore: cast_nullable_to_non_nullable
+                  as String,
         schemaVersion: null == schemaVersion
             ? _value.schemaVersion
             : schemaVersion // ignore: cast_nullable_to_non_nullable
@@ -211,6 +224,7 @@ class __$$BackupDataImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$BackupDataImpl implements _BackupData {
   const _$BackupDataImpl({
+    this.appId = '',
     required this.schemaVersion,
     required this.exportedAt,
     required this.appVersion,
@@ -227,6 +241,9 @@ class _$BackupDataImpl implements _BackupData {
   factory _$BackupDataImpl.fromJson(Map<String, dynamic> json) =>
       _$$BackupDataImplFromJson(json);
 
+  @override
+  @JsonKey()
+  final String appId;
   @override
   final int schemaVersion;
   @override
@@ -275,7 +292,7 @@ class _$BackupDataImpl implements _BackupData {
 
   @override
   String toString() {
-    return 'BackupData(schemaVersion: $schemaVersion, exportedAt: $exportedAt, appVersion: $appVersion, totalBudget: $totalBudget, transactions: $transactions, budgets: $budgets, recurringTransactions: $recurringTransactions, quickTemplates: $quickTemplates)';
+    return 'BackupData(appId: $appId, schemaVersion: $schemaVersion, exportedAt: $exportedAt, appVersion: $appVersion, totalBudget: $totalBudget, transactions: $transactions, budgets: $budgets, recurringTransactions: $recurringTransactions, quickTemplates: $quickTemplates)';
   }
 
   @override
@@ -283,6 +300,7 @@ class _$BackupDataImpl implements _BackupData {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$BackupDataImpl &&
+            (identical(other.appId, appId) || other.appId == appId) &&
             (identical(other.schemaVersion, schemaVersion) ||
                 other.schemaVersion == schemaVersion) &&
             (identical(other.exportedAt, exportedAt) ||
@@ -310,6 +328,7 @@ class _$BackupDataImpl implements _BackupData {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    appId,
     schemaVersion,
     exportedAt,
     appVersion,
@@ -336,6 +355,7 @@ class _$BackupDataImpl implements _BackupData {
 
 abstract class _BackupData implements BackupData {
   const factory _BackupData({
+    final String appId,
     required final int schemaVersion,
     required final String exportedAt,
     required final String appVersion,
@@ -349,6 +369,8 @@ abstract class _BackupData implements BackupData {
   factory _BackupData.fromJson(Map<String, dynamic> json) =
       _$BackupDataImpl.fromJson;
 
+  @override
+  String get appId;
   @override
   int get schemaVersion;
   @override

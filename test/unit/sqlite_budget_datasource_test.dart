@@ -202,6 +202,108 @@ void main() {
     });
   });
 
+  group('clearAll', () {
+    test('deletes all budgets', () async {
+      await dataSource.upsert(Budget(
+        id: 'clear-b-1',
+        categoryName: 'Ăn ngoài',
+        monthlyLimit: 1000000,
+        alertThreshold: 80,
+        createdAt: DateTime.now(),
+      ));
+      await dataSource.upsert(Budget(
+        id: 'clear-b-2',
+        categoryName: 'Cà phê',
+        monthlyLimit: 500000,
+        alertThreshold: 80,
+        createdAt: DateTime.now(),
+      ));
+
+      await dataSource.clearAll();
+
+      final result = await dataSource.getAll();
+      expect(result, isEmpty);
+    });
+
+    test('clearAll on empty table is safe', () async {
+      await dataSource.clearAll();
+      final result = await dataSource.getAll();
+      expect(result, isEmpty);
+    });
+  });
+
+  group('count', () {
+    // ADR-0023 §8: count uses SQL COUNT(*) not getAll().length
+    test('returns 0 when no budgets', () async {
+      final result = await dataSource.count();
+      expect(result, 0);
+    });
+
+    test('returns correct count after upserting budgets', () async {
+      await dataSource.upsert(Budget(
+        id: 'count-b-1',
+        categoryName: 'Ăn ngoài',
+        monthlyLimit: 1000000,
+        alertThreshold: 80,
+        createdAt: DateTime(2026, 1, 1),
+      ));
+      await dataSource.upsert(Budget(
+        id: 'count-b-2',
+        categoryName: 'Cà phê',
+        monthlyLimit: 500000,
+        alertThreshold: 80,
+        createdAt: DateTime(2026, 2, 1),
+      ));
+      await dataSource.upsert(Budget(
+        id: 'count-b-3',
+        categoryName: 'Mua sắm',
+        monthlyLimit: 2000000,
+        alertThreshold: 80,
+        createdAt: DateTime(2026, 3, 1),
+      ));
+
+      final result = await dataSource.count();
+      expect(result, 3);
+    });
+
+    test('returns correct count after deleting a budget', () async {
+      await dataSource.upsert(Budget(
+        id: 'count-del-b-1',
+        categoryName: 'Ăn ngoài',
+        monthlyLimit: 1000000,
+        alertThreshold: 80,
+        createdAt: DateTime(2026, 1, 1),
+      ));
+      await dataSource.upsert(Budget(
+        id: 'count-del-b-2',
+        categoryName: 'Cà phê',
+        monthlyLimit: 500000,
+        alertThreshold: 80,
+        createdAt: DateTime(2026, 2, 1),
+      ));
+
+      await dataSource.delete('count-del-b-1');
+
+      final result = await dataSource.count();
+      expect(result, 1);
+    });
+
+    test('returns 0 after clearAll', () async {
+      await dataSource.upsert(Budget(
+        id: 'count-clear-b-1',
+        categoryName: 'Ăn ngoài',
+        monthlyLimit: 1000000,
+        alertThreshold: 80,
+        createdAt: DateTime.now(),
+      ));
+
+      await dataSource.clearAll();
+
+      final result = await dataSource.count();
+      expect(result, 0);
+    });
+  });
+
   group('getByCategory', () {
     test('returns budget for matching categoryName', () async {
       final budget = Budget(

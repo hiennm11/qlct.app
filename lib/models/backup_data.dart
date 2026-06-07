@@ -10,12 +10,18 @@ part 'backup_data.g.dart';
 /// Current backup schema version.
 /// v1: initial release (transactions + budgets + recurrings + totalBudget).
 /// v2: adds quickTemplates (ADR-0019).
-const int currentSchemaVersion = 2;
+/// v3: adds top-level appId identifier (ADR-0023).
+const int currentSchemaVersion = 3;
+
+/// App identifier stamped into every v3+ backup so a stray foreign backup
+/// file (e.g. from a different app) is rejected at validation time.
+const String backupAppId = 'qlct.app';
 
 /// Full backup payload containing all app data
 @freezed
 class BackupData with _$BackupData {
   const factory BackupData({
+    @Default('') String appId,
     required int schemaVersion,
     required String exportedAt,
     required String appVersion,

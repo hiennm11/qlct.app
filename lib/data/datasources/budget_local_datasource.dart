@@ -8,4 +8,10 @@ abstract class BudgetLocalDataSource {
 
   /// Bulk upsert budgets using batch for performance
   Future<void> bulkUpsert(List<Budget> budgets);
+
+  /// Clear all budgets (used in delete-all and replace restore).
+  Future<void> clearAll();
+
+  /// Current row count via SQL COUNT(*). ADR-0023 §8.
+  Future<int> count();
 }

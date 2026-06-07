@@ -53,6 +53,42 @@ class ImportResult {
 /// Restore mode for backup restore
 enum RestoreMode { merge, replace }
 
+/// Aggregate count of user-data rows. ADR-0023 §8: used by destructive-action
+/// preview dialogs to show how many rows will be cleared.
+@immutable
+class CurrentCounts {
+  final int transactionCount;
+  final int budgetCount;
+  final int recurringCount;
+  final int quickTemplateCount;
+
+  const CurrentCounts({
+    required this.transactionCount,
+    required this.budgetCount,
+    required this.recurringCount,
+    required this.quickTemplateCount,
+  });
+
+  /// True when no user data exists.
+  bool get isEmpty =>
+      transactionCount == 0 &&
+      budgetCount == 0 &&
+      recurringCount == 0 &&
+      quickTemplateCount == 0;
+
+  /// Sum of all counts.
+  int get total =>
+      transactionCount +
+      budgetCount +
+      recurringCount +
+      quickTemplateCount;
+
+  @override
+  String toString() =>
+      'CurrentCounts(tx=$transactionCount, b=$budgetCount, '
+      'r=$recurringCount, qt=$quickTemplateCount)';
+}
+
 /// Result of a restore operation
 class RestoreResult {
   final bool success;
@@ -70,6 +106,16 @@ class RestoreResult {
     required this.quickTemplatesImported,
     this.error,
   });
+}
+
+/// Thrown by [BackupService.clearAllUserData] when totalBudget reset fails
+/// after the DB transaction succeeded. DB rows are gone; the caller should
+/// report this to the user.
+class ClearDataPartialFailure implements Exception {
+  final String message;
+  const ClearDataPartialFailure(this.message);
+  @override
+  String toString() => message;
 }
 
 /// Service for full backup and restore operations
@@ -99,6 +145,7 @@ class BackupService {
     final totalBudget = _storageService.loadValue<int>('total_budget') ?? 0;
 
     return BackupData(
+      appId: backupAppId,
       schemaVersion: currentSchemaVersion,
       exportedAt: DateTime.now().toUtc().toIso8601String(),
       appVersion: AppConstants.appVersion,
@@ -110,9 +157,13 @@ class BackupService {
     );
   }
 
-  /// Serialize BackupData to a JSON-serializable Map with nested objects
-  Map<String, dynamic> _toJsonMap(BackupData data) {
+  /// Serialize BackupData to a JSON-serializable Map with nested objects.
+  /// Field order is stable per ADR-0023 §3 to make diffs/inspect/test
+  /// snapshots easier. Model.toJson() is not used here on purpose.
+  /// Exposed publicly for test coverage of the production serialization path.
+  Map<String, dynamic> toJsonMap(BackupData data) {
     return {
+      'appId': data.appId,
       'schemaVersion': data.schemaVersion,
       'exportedAt': data.exportedAt,
       'appVersion': data.appVersion,
@@ -128,13 +179,19 @@ class BackupService {
 
   /// Export backup data to a JSON file
   Future<File> exportToJson(BackupData data) async {
-    final jsonString = const JsonEncoder().convert(_toJsonMap(data));
+    final jsonString = const JsonEncoder().convert(toJsonMap(data));
     final directory = await getApplicationDocumentsDirectory();
-    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final fileName = 'qlct-backup-$dateStr.json';
+    final fileName = generateBackupFilename();
     final file = File('${directory.path}/$fileName');
     await file.writeAsString(jsonString, encoding: utf8);
     return file;
+  }
+
+  /// Generate a backup filename for the current timestamp.
+  /// Exposed publicly for test coverage without requiring path_provider mocking.
+  static String generateBackupFilename() {
+    final dateStr = DateFormat('yyyy-MM-dd-HHmmss').format(DateTime.now());
+    return 'qlct-backup-$dateStr.json';
   }
 
   /// Share a backup file via system share sheet
@@ -218,6 +275,21 @@ class BackupService {
       ]);
     }
 
+    // ADR-0023 §2: v3+ requires appId == "qlct.app"
+    if (version >= 3) {
+      final fileAppId = map['appId'] as String?;
+      if (fileAppId == null || fileAppId.isEmpty) {
+        return ImportResult.error([
+          'File backup thiếu appId — định dạng không hợp lệ cho schema v$version.'
+        ]);
+      }
+      if (fileAppId != backupAppId) {
+        return ImportResult.error([
+          'File backup không thuộc ứng dụng này (appId không khớp).'
+        ]);
+      }
+    }
+
     // Validate transactions array
     if (map['transactions'] != null && map['transactions'] is! List) {
       return ImportResult.error(['"transactions" không phải là mảng']);
@@ -273,10 +345,14 @@ class BackupService {
   ///
   /// Replace mode is fully atomic: all DELETEs and INSERTs happen in one
   /// SQLite transaction. If any insert fails the entire operation rolls back.
+  /// totalBudget is written AFTER the transaction commits (SharedPreferences
+  /// is outside SQLite transactions). Failure to write totalBudget is caught
+  /// and reported, but does not fail the operation since DB work is done.
   ///
   /// Merge mode uses INSERT OR IGNORE so existing rows (by PRIMARY KEY) are
   /// skipped without loading any IDs into Dart memory.
   Future<RestoreResult> restore(BackupData data, RestoreMode mode) async {
+    String? totalBudgetError;
     try {
       final transactions = data.transactions;
       final budgets = data.budgets;
@@ -287,7 +363,7 @@ class BackupService {
       // stalling the transaction with a sync I/O call.
       final currentTotalBudget = _storageService.loadValue<int>('total_budget');
 
-      return await _dbHelper.runInTransaction((txn) async {
+      final result = await _dbHelper.runInTransaction((txn) async {
         if (mode == RestoreMode.replace) {
           // Atomic clear: delete all within the same transaction as the inserts.
           // If the insert phase fails, this delete is also rolled back.
@@ -344,11 +420,6 @@ class BackupService {
             final results = await batch.commit(noResult: false);
             qtImported = results.whereType<int>().where((r) => r > 0).length;
           }
-
-          // Use the hoisted value — no SharedPreferences call inside txn
-          if (currentTotalBudget == 0 || currentTotalBudget == null) {
-            _storageService.saveValue('total_budget', data.totalBudget);
-          }
         } else {
           // Replace mode: insert everything (table already cleared above).
           if (transactions.isNotEmpty) {
@@ -386,8 +457,6 @@ class BackupService {
             await batch.commit(noResult: true);
             qtImported = quickTemplates.length;
           }
-
-          _storageService.saveValue('total_budget', data.totalBudget);
         }
 
         return RestoreResult(
@@ -398,6 +467,36 @@ class BackupService {
           quickTemplatesImported: qtImported,
         );
       });
+
+      // DB transaction committed. Now write totalBudget (outside SQLite txn).
+      // Failure here is reported but does not fail the overall operation
+      // (DB work is already committed; SharedPreferences is separate).
+      try {
+        if (mode == RestoreMode.merge) {
+          if (currentTotalBudget == 0 || currentTotalBudget == null) {
+            await _storageService.saveValue('total_budget', data.totalBudget);
+          }
+        } else {
+          await _storageService.saveValue('total_budget', data.totalBudget);
+        }
+      } catch (e) {
+        debugPrint('totalBudget save failed: $e');
+        totalBudgetError =
+            'Không lưu được tổng ngân sách (totalBudget). Dữ liệu khác đã khôi phục thành công.';
+      }
+
+      if (totalBudgetError != null) {
+        return RestoreResult(
+          success: true,
+          transactionsImported: result.transactionsImported,
+          budgetsImported: result.budgetsImported,
+          recurringsImported: result.recurringsImported,
+          quickTemplatesImported: result.quickTemplatesImported,
+          error: totalBudgetError,
+        );
+      }
+
+      return result;
     } on FileTooLargeException {
       rethrow;
     } catch (e, stack) {
@@ -409,6 +508,45 @@ class BackupService {
         recurringsImported: 0,
         quickTemplatesImported: 0,
         error: 'Lỗi khi khôi phục dữ liệu: $e',
+      );
+    }
+  }
+
+  /// ADR-0023 §8: current counts from all 4 domains via SQL COUNT(*).
+  /// Used for destructive-action preview (replace/delete-all dialogs).
+  Future<CurrentCounts> getCurrentCounts() async {
+    final txCount = await _transactionDataSource.count();
+    final bCount = await _budgetDataSource.count();
+    final rCount = await _recurringDataSource.count();
+    final qtCount = await _quickTemplateDataSource.count();
+    return CurrentCounts(
+      transactionCount: txCount,
+      budgetCount: bCount,
+      recurringCount: rCount,
+      quickTemplateCount: qtCount,
+    );
+  }
+
+  /// ADR-0023 §7: delete-all semantics — clears all user data atomically.
+  /// DB tables cleared in one transaction; totalBudget reset after
+  /// the transaction succeeds. If totalBudget reset fails, throws
+  /// [ClearDataPartialFailure] so the caller can surface the error.
+  /// No undo for this operation.
+  Future<void> clearAllUserData() async {
+    await _dbHelper.runInTransaction((txn) async {
+      await txn.delete('transactions');
+      await txn.delete('budgets');
+      await txn.delete('recurring_transactions');
+      await txn.delete('quick_templates');
+    });
+    // Reset totalBudget only after DB transaction succeeds.
+    // Failure here means DB is cleared but totalBudget may still be non-zero.
+    try {
+      await _storageService.saveValue('total_budget', 0);
+    } catch (e) {
+      throw ClearDataPartialFailure(
+        'Xoá dữ liệu hoàn tất nhưng không reset được tổng ngân sách. '
+        'Vui lòng kiểm tra cài đặt ứng dụng.',
       );
     }
   }

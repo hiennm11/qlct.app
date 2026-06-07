@@ -134,4 +134,12 @@ class SqliteQuickTemplateDataSource implements QuickTemplateLocalDataSource {
     final db = await _dbHelper.database;
     await db.delete('quick_templates');
   }
+
+  @override
+  Future<int> count() async {
+    final db = await _dbHelper.database;
+    final result =
+        await db.rawQuery('SELECT COUNT(*) AS c FROM quick_templates');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 }

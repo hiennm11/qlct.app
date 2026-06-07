@@ -27,4 +27,8 @@ abstract class TransactionLocalDataSource {
   /// Get transactions with DB-level pagination.
   /// Returns [limit] items starting from [offset], ordered by created_at DESC.
   Future<List<Transaction>> getAllPaginated({required int offset, required int limit});
+
+  /// Current row count via SQL COUNT(*). ADR-0023 §8: used for destructive-action
+  /// preview, not getAll().length (transactions are paginated).
+  Future<int> count();
 }

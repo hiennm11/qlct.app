@@ -43,6 +43,9 @@ class _FakeTransactionDataSource implements TransactionLocalDataSource {
   }
 
   @override
+  Future<int> count() async => _store.length;
+
+  @override
   Future<List<Transaction>> getByDate(DateTime date) async => [];
   @override
   Future<List<Transaction>> getByCategory(String category) async => [];

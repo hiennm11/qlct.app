@@ -547,4 +547,28 @@ class ExpenseViewModel extends ChangeNotifier {
 
   /// True while [loadMoreTransactions] is in flight.
   bool get isLoadingMore => _isLoadingMore;
+
+  // ===========================================================================
+  // ADR-0023 Slice 3: post-restore UI state reset
+  // Called after restore (merge or replace) and after delete-all.
+  // ADR-0023 §10: clear filters/search/date + reset pagination + reload fresh data.
+  // This is explicit so BackupViewModel does not depend on UI-internal state.
+  // ===========================================================================
+
+  /// Clear all filters (category, date, date-range, search), reset accumulated
+  /// pagination to page 1, and reload fresh data from DB.
+  ///
+  /// Use this instead of [refresh] after external data mutations (restore,
+  /// delete-all) so the user sees a clean slate without stale filter state.
+  Future<void> refreshAfterExternalDataChange() async {
+    _filterDate = null;
+    _filterCategory = null;
+    _filterStartDate = null;
+    _filterEndDate = null;
+    _searchQuery = null;
+    _searchResults = [];
+    _invalidateCaches();
+    // Reset pagination: load first page fresh.
+    await _loadInitialPage();
+  }
 }

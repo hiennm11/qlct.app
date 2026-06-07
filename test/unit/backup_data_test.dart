@@ -111,8 +111,82 @@ void main() {
       expect(backup.transactions[4].id, 'tx-4');
     });
 
-    test('currentSchemaVersion is 2 (ADR-0019)', () {
-      expect(currentSchemaVersion, 2);
+    test('currentSchemaVersion is 3 (ADR-0023)', () {
+      expect(currentSchemaVersion, 3);
+    });
+
+    test('appId field present in model with default', () {
+      // v1/v2 JSON missing appId should parse with null/empty default
+      final v2Json = {
+        'schemaVersion': 2,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        'quickTemplates': <Map<String, dynamic>>[],
+        // no appId field — v1/v2 compatibility
+      };
+
+      final backup = BackupData.fromJson(v2Json);
+
+      expect(backup.schemaVersion, 2);
+      expect(backup.appId, isEmpty);
+    });
+
+    test('v3 JSON with appId parses correctly', () {
+      final v3Json = {
+        'appId': 'qlct.app',
+        'schemaVersion': 3,
+        'exportedAt': '2026-06-07T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 20000000,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        'quickTemplates': <Map<String, dynamic>>[],
+      };
+
+      final backup = BackupData.fromJson(v3Json);
+
+      expect(backup.appId, 'qlct.app');
+      expect(backup.schemaVersion, 3);
+      expect(backup.totalBudget, 20000000);
+    });
+
+    test('toJson includes appId when set', () {
+      final backup = BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 3,
+        exportedAt: '2026-06-07T10:00:00.000Z',
+        appVersion: '1.0.0',
+        totalBudget: 15000000,
+      );
+
+      final json = backup.toJson();
+
+      expect(json['appId'], 'qlct.app');
+      expect(json['schemaVersion'], 3);
+    });
+
+    test('v1 JSON without appId round-trips with empty appId default', () {
+      final v1Json = {
+        'schemaVersion': 1,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+      };
+
+      final backup = BackupData.fromJson(v1Json);
+
+      // Default for appId on a v1 file is empty string (validation gates
+      // v3+ separately via raw JSON check, not via the parsed model).
+      expect(backup.appId, '');
+      expect(backup.schemaVersion, 1);
     });
 
     test('handles mixed data: some default, some provided', () {

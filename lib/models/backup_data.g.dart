@@ -8,6 +8,7 @@ part of 'backup_data.dart';
 
 _$BackupDataImpl _$$BackupDataImplFromJson(Map<String, dynamic> json) =>
     _$BackupDataImpl(
+      appId: json['appId'] as String? ?? '',
       schemaVersion: (json['schemaVersion'] as num).toInt(),
       exportedAt: json['exportedAt'] as String,
       appVersion: json['appVersion'] as String,
@@ -38,6 +39,7 @@ _$BackupDataImpl _$$BackupDataImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$BackupDataImplToJson(_$BackupDataImpl instance) =>
     <String, dynamic>{
+      'appId': instance.appId,
       'schemaVersion': instance.schemaVersion,
       'exportedAt': instance.exportedAt,
       'appVersion': instance.appVersion,

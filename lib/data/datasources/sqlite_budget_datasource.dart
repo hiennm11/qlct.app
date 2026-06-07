@@ -62,4 +62,17 @@ class SqliteBudgetDataSource implements BudgetLocalDataSource {
     if (maps.isEmpty) return null;
     return budgetFromRow(maps.first);
   }
+
+  @override
+  Future<void> clearAll() async {
+    final db = await _dbHelper.database;
+    await db.delete('budgets');
+  }
+
+  @override
+  Future<int> count() async {
+    final db = await _dbHelper.database;
+    final result = await db.rawQuery('SELECT COUNT(*) AS c FROM budgets');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
 }
