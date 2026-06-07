@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:qlct/core/vietnamese_text_normalizer.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 8;
+  static const _databaseVersion = 9;
 
   Database? _database;
+  String? _testPathOverride;
 
   Future<Database> get database async {
     _database ??= await _initDatabase();
@@ -15,7 +17,7 @@ class DatabaseHelper {
 
   Future<Database> _initDatabase() async {
     final databasesPath = await getDatabasesPath();
-    final path = join(databasesPath, _databaseName);
+    final path = _testPathOverride ?? join(databasesPath, _databaseName);
 
     return await openDatabase(
       path,
@@ -28,20 +30,22 @@ class DatabaseHelper {
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE transactions (
-        id                  TEXT PRIMARY KEY,
-        amount              INTEGER NOT NULL,
-        category            TEXT NOT NULL,
-        emoji               TEXT NOT NULL DEFAULT '',
-        date                TEXT NOT NULL,
-        note                TEXT NOT NULL DEFAULT '',
-        source_recurring_id TEXT,
-        created_at          INTEGER NOT NULL
+        id                       TEXT PRIMARY KEY,
+        amount                   INTEGER NOT NULL,
+        category                 TEXT NOT NULL,
+        emoji                    TEXT NOT NULL DEFAULT '',
+        date                     TEXT NOT NULL,
+        note                     TEXT NOT NULL DEFAULT '',
+        source_recurring_id      TEXT,
+        created_at               INTEGER NOT NULL,
+        search_text_normalized   TEXT NOT NULL DEFAULT ''
       )
     ''');
     await db.execute('CREATE INDEX idx_transactions_date ON transactions(date)');
     await db.execute('CREATE INDEX idx_transactions_category ON transactions(category)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_source_recurring ON transactions(source_recurring_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_search_text_normalized ON transactions(search_text_normalized)');
     await db.execute('''
       CREATE TABLE budgets (
         id              TEXT PRIMARY KEY,
@@ -144,12 +148,43 @@ class DatabaseHelper {
       await db.execute(
           'CREATE INDEX IF NOT EXISTS idx_quick_templates_usage ON quick_templates(usage_count DESC, last_used_at DESC)');
     }
+    if (oldVersion < 9) {
+      // ADR-0022: add normalized search shadow column
+      await db.execute(
+          'ALTER TABLE transactions ADD COLUMN search_text_normalized TEXT NOT NULL DEFAULT \'\'');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_transactions_search_text_normalized ON transactions(search_text_normalized)');
+      // Backfill existing rows with normalized search text
+      final rows = await db.rawQuery(
+          'SELECT id, note, category, amount FROM transactions');
+      for (final row in rows) {
+        final note = row['note'] as String? ?? '';
+        final category = row['category'] as String? ?? '';
+        final amount = row['amount'] as int? ?? 0;
+        final normalized = buildTransactionSearchText(
+          note: note,
+          category: category,
+          amount: amount,
+        );
+        await db.rawUpdate(
+            'UPDATE transactions SET search_text_normalized = ? WHERE id = ?',
+            [normalized, row['id']]);
+      }
+    }
   }
 
   /// Test-only: inject an already-opened database
   @visibleForTesting
   set testDatabase(Database db) {
     _database = db;
+  }
+
+  /// Test-only: override the database path for migration tests. When set,
+  /// _initDatabase uses this path instead of <getDatabasesPath()>/qlct.db.
+  /// Each test gets its own path so file-locking across test runs is avoided.
+  @visibleForTesting
+  set testPathOverride(String? path) {
+    _testPathOverride = path;
   }
 
   /// Test-only: returns the currently held database (assumes non-null)

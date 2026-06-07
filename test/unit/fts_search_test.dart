@@ -23,18 +23,20 @@ void main() {
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE transactions (
-              id                  TEXT PRIMARY KEY,
-              amount              INTEGER NOT NULL,
-              category            TEXT NOT NULL,
-              emoji               TEXT NOT NULL DEFAULT '',
-              date                TEXT NOT NULL,
-              note                TEXT NOT NULL DEFAULT '',
-              source_recurring_id TEXT,
-              created_at          INTEGER NOT NULL
+              id                       TEXT PRIMARY KEY,
+              amount                   INTEGER NOT NULL,
+              category                 TEXT NOT NULL,
+              emoji                    TEXT NOT NULL DEFAULT '',
+              date                     TEXT NOT NULL,
+              note                     TEXT NOT NULL DEFAULT '',
+              source_recurring_id      TEXT,
+              created_at               INTEGER NOT NULL,
+              search_text_normalized   TEXT NOT NULL DEFAULT ''
             )
           ''');
           await db.execute('CREATE INDEX idx_transactions_date ON transactions(date)');
           await db.execute('CREATE INDEX idx_transactions_category ON transactions(category)');
+          await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_search_text_normalized ON transactions(search_text_normalized)');
         },
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 6) {
@@ -177,7 +179,7 @@ void main() {
       expect(result, isEmpty);
     });
 
-    test('partial word match works', () async {
+    test('partial word match works in normalized shadow column', () async {
       final t = Transaction(
         id: 'partial-1',
         amount: 50000,
@@ -188,14 +190,13 @@ void main() {
       );
       await dataSource.add(t);
 
-      // LIKE pattern matches substring anywhere
-      final result = await dataSource.search('fé');
-
+      // ADR-0022: normalized search — "cafe" matches normalized "cafe sang"
+      final result = await dataSource.search('cafe');
       expect(result.length, 1);
       expect(result.first.id, 'partial-1');
     });
 
-    test('search is case-sensitive (LIKE limitation)', () async {
+    test('normalized search handles uppercase input (lowercased + accent-stripped)', () async {
       final t = Transaction(
         id: 'case-1',
         amount: 50000,
@@ -206,17 +207,17 @@ void main() {
       );
       await dataSource.add(t);
 
-      // LIKE is case-sensitive in SQLite by default
+      // ADR-0022: uppercase is normalized to lowercase + accent-stripped
       final lowerResult = await dataSource.search('cà phê');
       final upperResult = await dataSource.search('CÀ PHÊ');
 
-      // Both might find or neither might find, depending on collation
-      // This documents the behavior - SQLite LIKE is collation-dependent
-      expect(lowerResult.length, greaterThanOrEqualTo(0));
-      expect(upperResult.length, greaterThanOrEqualTo(0));
+      expect(lowerResult.length, 1);
+      expect(lowerResult.first.id, 'case-1');
+      expect(upperResult.length, 1);
+      expect(upperResult.first.id, 'case-1');
     });
 
-    test('search across note AND category combined', () async {
+    test('normalized search matches note AND category', () async {
       final t1 = Transaction(
         id: 'combo-1',
         amount: 50000,
@@ -236,13 +237,15 @@ void main() {
       await dataSource.add(t1);
       await dataSource.add(t2);
 
-      // "café" matches in note
-      final resultCafe = await dataSource.search('café');
-      expect(resultCafe.length, greaterThanOrEqualTo(1));
+      // "cafe" matches t1's normalized note (café → cafe)
+      final resultCafe = await dataSource.search('cafe');
+      expect(resultCafe.length, 1);
+      expect(resultCafe.first.id, 'combo-1');
 
-      // "cà phê" matches in category
-      final resultCaphe = await dataSource.search('cà phê');
-      expect(resultCaphe.length, greaterThanOrEqualTo(1));
+      // "ca phe" matches t2's normalized category (Cà phê → ca phe)
+      final resultCaphe = await dataSource.search('ca phe');
+      expect(resultCaphe.length, 1);
+      expect(resultCaphe.first.id, 'combo-2');
     });
 
     test('search results ordered by created_at DESC', () async {

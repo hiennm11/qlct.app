@@ -1,4 +1,5 @@
 import 'package:sqflite/sqflite.dart' hide Transaction;
+import '../../core/vietnamese_text_normalizer.dart';
 import '../../models/transaction.dart';
 import '../database/database_helper.dart';
 import '../mappers/transaction_row_mapper.dart';
@@ -119,15 +120,20 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
 
   @override
   Future<List<Transaction>> search(String query) async {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) return [];
+    // ADR-0022: normalize the query and LIKE against the
+    // search_text_normalized shadow column. The shadow column is populated
+    // by transactionToRow() on every write, and backfilled in the v8→v9
+    // migration. Amount is included in the shadow text so a separate
+    // CAST(amount AS TEXT) branch is no longer needed.
+    final normalized = normalizeVietnameseSearchText(query);
+    if (normalized.isEmpty) return [];
 
-    final likePattern = '%$trimmed%';
+    final likePattern = '%$normalized%';
     final db = await _dbHelper.database;
     final maps = await db.query(
       'transactions',
-      where: 'note LIKE ? OR category LIKE ? OR CAST(amount AS TEXT) LIKE ?',
-      whereArgs: [likePattern, likePattern, likePattern],
+      where: 'search_text_normalized LIKE ?',
+      whereArgs: [likePattern],
       orderBy: 'created_at DESC',
     );
 

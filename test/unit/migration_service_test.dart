@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:qlct/data/database/database_helper.dart';
@@ -12,15 +15,23 @@ void main() {
   late TransactionLocalDataSource dataSource;
   late MigrationService migrationService;
   const testTransactionsKey = 'transactions';
+  late String dbPath;
+  late Directory tempDir;
 
   setUpAll(() {
     sqfliteFfiInit();
   });
 
   setUp(() async {
-    // Use in-memory database for testing
+    // Use a unique per-test file to avoid FFI isolate locking the default
+    // qlct.db across test runs.
     databaseFactory = databaseFactoryFfi;
+    tempDir = Directory.systemTemp.createTempSync('migrationsvc_test_');
+    dbPath = p.join(tempDir.path,
+        'qlct_migration_test_${DateTime.now().microsecondsSinceEpoch}.db');
+
     dbHelper = DatabaseHelper();
+    dbHelper.testPathOverride = dbPath;
     await dbHelper.database; // force creation
 
     // Wipe any existing transactions
@@ -32,6 +43,12 @@ void main() {
 
     // Set up SharedPreferences mock values
     SharedPreferences.setMockInitialValues({});
+  });
+
+  tearDown(() async {
+    try {
+      tempDir.deleteSync(recursive: true);
+    } catch (_) {}
   });
 
   group('MigrationService', () {

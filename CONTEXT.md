@@ -31,7 +31,7 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 | **Menu gear** | Gear menu | `PopupMenuButton` trên AppBar gom tất cả action phụ (export CSV/JSON, backup/restore, about) thay vì nhiều icon riêng lẻ |
 | **Kéo để làm mới** | Pull-to-refresh | `RefreshIndicator` bọc toàn bộ `SingleChildScrollView` trên HomeScreen. Thay thế nút refresh trên AppBar |
 | **Lọc bằng chạm** | Tap-through | Pattern: tap vào summary widget (Stats, Budget card) → tự động set filter + scroll đến TransactionListWidget. Biến mỗi widget thành navigation hub |
-| **Tìm kiếm toàn văn** | `searchQuery` | SQL `LIKE` query trên `note`, `category`, `CAST(amount AS TEXT)`. Không dùng FTS5 vì Android SQLite không compile module này (→ `no such module: fts5`). Case-sensitive, yêu cầu gõ đúng dấu tiếng Việt |
+| **Tìm kiếm toàn văn** | `searchQuery` | SQL `LIKE` query trên cột shadow `transactions.search_text_normalized` (note + category + amount đã normalize bỏ dấu). Không dùng FTS5 vì Android SQLite không compile module này (→ `no such module: fts5`). Hỗ trợ tìm không dấu tiếng Việt, ví dụ `ca phe` → `Cà phê` |
 | **Xem chi tiết** | `TransactionDetailSheet` | Bottom sheet read-only hiển thị đầy đủ: emoji, category, amount, date, note, recurring badge. Có nút "Sửa" → `TransactionEditDialog` và "Xoá" → confirm + undo |
 | **Huy hiệu định kỳ** | Recurring badge | Icon 🔄 (`Icons.loop`) màu primary cạnh category name khi `sourceRecurringId != null`. Hiển thị trong: transaction list row, detail sheet, edit dialog |
 | **Chọn nhiều** | Multi-select / Select mode | Long press row → vào chế độ chọn (checkbox + bottom action bar). Hỗ trợ bulk delete (confirm + undo) và bulk export CSV. State lưu trong widget (`Set<String> _selectedIds`) |
@@ -55,7 +55,7 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 Pattern: MVVM + DataSource (multi-VM) — Repository layer removed per ADR-0018
 State:   Provider + ChangeNotifier + ChangeNotifierProxyProvider<ExpenseVM, BudgetVM>
 Models:  Freezed (immutable, code-gen)
-Storage: SQLite (sqflite) — transactions, budgets, recurring_transactions, quick_templates tables. v8 migration adds quick_templates + 2 indexes. SharedPreferences for settings only.
+Storage: SQLite (sqflite) — transactions, budgets, recurring_transactions, quick_templates tables. v8 migration adds quick_templates + 2 indexes. v9 adds `transactions.search_text_normalized` shadow column + index. SharedPreferences for settings only.
 ```
 
 ### Layer Map
@@ -64,7 +64,7 @@ Storage: SQLite (sqflite) — transactions, budgets, recurring_transactions, qui
 lib/
 ├── core/           — Constants, theme, formatters, Vietnamese number parser
 ├── data/
-│   ├── database/   — DatabaseHelper (SQLite connection, version 8, migration, runInTransaction)
+│   ├── database/   — DatabaseHelper (SQLite connection, version 9, migration, runInTransaction)
 │   ├── datasources/— TransactionLocalDataSource, BudgetLocalDataSource,
 │   │                 RecurringLocalDataSource, QuickTemplateLocalDataSource (abstract); sqlite impls
 │   ├── mappers/    — Top-level row mappers: transactionToRow/FromRow,
@@ -156,6 +156,7 @@ Restore → BackupViewModel.importAndRestore(mode)
 28. **Quick Templates** — ADR-0019: Immutable `QuickTemplate` model (Freezed) + `QuickTemplateLocalDataSource` + `SqliteQuickTemplateDataSource`. DB v8 creates `quick_templates` table with `idx_quick_templates_pinned` and `idx_quick_templates_usage` indexes. `QuickTemplateViewModel` owns all template CRUD. `ExpenseViewModel` NOT touched for template CRUD. Strip (`QuickTemplatesStrip`) appears below `QuickAddBar`: max 8 chips (pinned first, then usage DESC), empty state always shows `+ Tạo mẫu nhanh`. Tap chip → `ExpenseViewModel.addTransaction()` + `markUsed()` on success. `ManageTemplatesSheet` / `QuickTemplateEditSheet` handle create/edit/delete/pin. Delete requires confirm, no undo. "Lưu làm mẫu" action in `TransactionDetailSheet` maps transaction → template, title = note.trim() fallback category, blocks exact duplicate. Backup schema v2 includes `quickTemplates`; v1 missing field defaults `[]`. Restore merge: INSERT OR IGNORE; replace: clear + insert in 1 transaction.
 29. **Derived Transaction Suggestions** — ADR-0020: Suggestions are derived data from currently loaded recent transactions (`ExpenseViewModel.allTransactions`), not persisted data. Pure/stateless `TransactionSuggestionEngine` exposes `getSuggestedAmounts(category, recentTransactions)` and `getSuggestedNotes(category, recentTransactions)`. No suggestions table, no DataSource, no migration, no full-history load. Amount rules: Subscription → last exact + top repeated; Ăn ngoài/Cà phê → median recent + top repeated + last fallback; others → last + top repeated. Repeated phase ignores singleton counts (`count > 1`). Note rules: recent non-empty first, then repeated, case-insensitive dedupe. UI chips in `CustomInputWidget`, `QuickTemplateEditSheet`, `RecurringEditDialog`, `TransactionEditDialog`; tap chip autofills only, no auto-submit. `QuickInputWidget` shows compact amount-only chips per category card. Template suggestions remain out of scope.
 30. **Monthly Review** — ADR-0021: Monthly Review là read-only derived analytics, mở full-screen từ `StatsWidget`. Không thêm DB table, migration, backup schema hay CRUD flow. `MonthlyReviewViewModel` query full selected month + previous comparable period qua `TransactionLocalDataSource.getByDateRange`; không dùng `ExpenseViewModel.allTransactions` vì pagination. `MonthlyReviewBuilder` pure aggregate trả `MonthlyReviewData` Freezed runtime model (không JSON serialization). Investment tách khỏi spending behavior. “Chi phí cố định” dùng union distinct của Subscription category và recurring-generated transactions, exclude investment để tránh double count. Current month compare dùng same-period previous month; past month dùng full previous month. Past-month budget dùng current budget config vì chưa có budget history. `MonthlyReviewScreen` có AppBar title "Review tháng" + month header riêng; không dùng `DateFormat('MMMM yyyy', 'vi_VN')` để tránh release blank do chưa init locale data.
+31. **Normalized Vietnamese Transaction Search** — ADR-0022: Search tiếng Việt không dấu qua `transactions.search_text_normalized` shadow column. `normalizeVietnameseSearchText` trong `lib/core/` bỏ dấu, lowercase, collapse whitespace, `đ/Đ → d`. `buildTransactionSearchText` gom note + category + amount. Cột được sync tập trung qua `transactionToRow()`. DB v9 thêm column + index + Dart backfill. `SqliteTransactionDataSource.search()` normalize query rồi `LIKE` trên shadow column. VM/widget chỉ orchestration, không normalize.
 
 ## Dependencies
 

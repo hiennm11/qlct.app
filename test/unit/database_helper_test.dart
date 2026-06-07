@@ -1,18 +1,40 @@
 // ADR-0019 review fix: verifies _onCreate creates quick_templates table + indexes.
 // Without this fix, new installs (onCreate path, DB v8) would miss the table.
+//
+// Uses testPathOverride to give each test a unique file path, avoiding the
+// FFI isolate locking the default qlct.db from previous test runs.
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' hide Transaction;
 import 'package:qlct/data/database/database_helper.dart';
 
 void main() {
+  late String dbPath;
+  late Directory tempDir;
+
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   });
 
+  setUp(() async {
+    tempDir = Directory.systemTemp.createTempSync('dbhelper_test_');
+    final dbFileName =
+        'qlct_test_${DateTime.now().microsecondsSinceEpoch}.db';
+    dbPath = p.join(tempDir.path, dbFileName);
+  });
+
+  tearDown(() async {
+    try {
+      tempDir.deleteSync(recursive: true);
+    } catch (_) {}
+  });
+
   test('fresh DB via _onCreate includes quick_templates table', () async {
     final dbHelper = DatabaseHelper();
-    // Force _onCreate path by opening via DatabaseHelper
+    dbHelper.testPathOverride = dbPath;
     await dbHelper.database;
 
     final db = await dbHelper.rawDatabase;
@@ -37,6 +59,7 @@ void main() {
 
   test('fresh DB via _onCreate includes all required tables', () async {
     final dbHelper = DatabaseHelper();
+    dbHelper.testPathOverride = dbPath;
     await dbHelper.database;
     final db = await dbHelper.rawDatabase;
 

@@ -9,8 +9,11 @@
 // - restore handles empty data gracefully
 // - ADR-0019: quick templates are restored in both merge and replace modes
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart'
     show sqfliteFfiInit, databaseFactoryFfi, databaseFactory;
 import 'package:qlct/data/database/database_helper.dart';
@@ -47,29 +50,31 @@ void main() {
   late MockBudgetDataSource mockBudgetRepo;
   late MockRecurringDataSource mockRecurringRepo;
   late MockStorageService mockStorage;
+  late String dbPath;
+  late Directory tempDir;
 
-  setUpAll(() {
+setUpAll(() {
     sqfliteFfiInit();
     registerFallbackValue(Transaction(
       id: 'fallback',
       amount: 0,
-      category: '',
-      emoji: '',
+      category: 'test',
+      emoji: '🍜',
       date: DateTime.now(),
-      note: '',
+      note: 'fallback',
     ));
     registerFallbackValue(Budget(
       id: 'fallback',
-      categoryName: '',
+      categoryName: 'test',
       monthlyLimit: 0,
       alertThreshold: 80,
       createdAt: DateTime.now(),
     ));
     registerFallbackValue(RecurringTransaction(
       id: 'fallback',
-      categoryName: '',
+      categoryName: 'test',
       amount: 0,
-      note: '',
+      note: 'fallback',
       frequency: 'monthly',
       nextRunAt: DateTime.now(),
       isActive: true,
@@ -77,9 +82,13 @@ void main() {
     ));
     registerFallbackValue(QuickTemplate(
       id: 'fallback',
-      title: '',
+      title: 'fallback',
       amount: 0,
-      categoryName: '',
+      categoryName: 'test',
+      note: 'fallback',
+      emoji: '🍜',
+      isPinned: false,
+      usageCount: 0,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     ));
@@ -87,7 +96,12 @@ void main() {
 
   setUp(() async {
     databaseFactory = databaseFactoryFfi;
+    tempDir = Directory.systemTemp.createTempSync('backup_test_');
+    dbPath = p.join(tempDir.path,
+        'qlct_backup_test_${DateTime.now().microsecondsSinceEpoch}.db');
+
     dbHelper = DatabaseHelper();
+    dbHelper.testPathOverride = dbPath;
     // Force init (creates tables via onCreate)
     await dbHelper.database;
 
@@ -113,6 +127,12 @@ void main() {
       mockStorage,
       dbHelper,
     );
+  });
+
+  tearDown(() async {
+    try {
+      tempDir.deleteSync(recursive: true);
+    } catch (_) {}
   });
 
   group('FileTooLargeException', () {

@@ -32,20 +32,22 @@ void main() {
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE transactions (
-              id                  TEXT PRIMARY KEY,
-              amount              INTEGER NOT NULL,
-              category            TEXT NOT NULL,
-              emoji               TEXT NOT NULL DEFAULT '',
-              date                TEXT NOT NULL,
-              note                TEXT NOT NULL DEFAULT '',
-              source_recurring_id TEXT,
-              created_at          INTEGER NOT NULL
+              id                       TEXT PRIMARY KEY,
+              amount                   INTEGER NOT NULL,
+              category                 TEXT NOT NULL,
+              emoji                    TEXT NOT NULL DEFAULT '',
+              date                     TEXT NOT NULL,
+              note                     TEXT NOT NULL DEFAULT '',
+              source_recurring_id      TEXT,
+              created_at               INTEGER NOT NULL,
+              search_text_normalized   TEXT NOT NULL DEFAULT ''
             )
           ''');
           await db.execute(
               'CREATE INDEX idx_transactions_date ON transactions(date)');
           await db.execute(
               'CREATE INDEX idx_transactions_source ON transactions(source_recurring_id)');
+          await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_search_text_normalized ON transactions(search_text_normalized)');
           await db.execute('''
             CREATE TABLE recurring_transactions (
               id            TEXT PRIMARY KEY,
