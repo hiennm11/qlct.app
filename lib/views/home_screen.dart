@@ -12,6 +12,7 @@ import '../widgets/quick_add_bar.dart';
 import '../widgets/quick_templates_strip.dart';
 import '../core/theme.dart';
 import 'backup_restore_screen.dart';
+import 'monthly_review_screen.dart';
 
 /// Main home screen for the expense tracking app
 class HomeScreen extends StatefulWidget {
@@ -317,15 +318,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           _scrollToSection(_transactionListKey);
                         },
                         onTapMonth: () {
-                          final vm = context.read<ExpenseViewModel>();
-                          vm.clearFilters();
-                          final now = DateTime.now();
-                          final startOfMonth = DateTime(now.year, now.month, 1);
-                          vm.setDateRangeFilter(
-                            startOfMonth,
-                            DateTime(now.year, now.month + 1, 0),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MonthlyReviewScreen(),
+                            ),
                           );
-                          _scrollToSection(_transactionListKey);
                         },
                       ),
                     ),

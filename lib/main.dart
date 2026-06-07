@@ -22,6 +22,7 @@ import 'viewmodels/budget_viewmodel.dart';
 import 'viewmodels/recurring_viewmodel.dart';
 import 'viewmodels/quick_template_viewmodel.dart';
 import 'viewmodels/backup_viewmodel.dart';
+import 'viewmodels/monthly_review_viewmodel.dart';
 import 'views/home_screen.dart';
 
 Future<void> main() async {
@@ -190,6 +191,13 @@ class MyApp extends StatelessWidget {
             context.read<RecurringTransactionViewModel>(),
             context.read<QuickTemplateViewModel>(),
             storageService: storageService,
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => MonthlyReviewViewModel(
+            transactionDataSource: transactionDataSource,
+            budgetDataSource: budgetDataSource,
+            recurringDataSource: recurringDataSource,
           ),
         ),
       ],
