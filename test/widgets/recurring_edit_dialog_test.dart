@@ -1,23 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:provider/provider.dart';
 import 'package:qlct/models/category.dart';
 import 'package:qlct/models/recurring_transaction.dart';
+import 'package:qlct/models/transaction.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/services/export_service.dart';
+import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/widgets/recurring_edit_dialog.dart';
 
+class MockTransactionLocalDataSource extends Mock
+    implements TransactionLocalDataSource {}
+
+class MockExportService extends Mock implements ExportService {}
+
 void main() {
-  // Pump helper: wraps dialog in a real Navigator so showDialog works
-  Future<void> pumpDialog(WidgetTester tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => const Center(
-              child: ElevatedButton(
-                onPressed: null,
-                child: Text('open'),
-              ),
-            ),
-          ),
+  late MockTransactionLocalDataSource mockDs;
+  late MockExportService mockExport;
+  late ExpenseViewModel expenseVM;
+
+  setUpAll(() {
+    registerFallbackValue(Transaction(
+      id: '0',
+      amount: 0,
+      category: '',
+      emoji: '',
+      date: DateTime.now(),
+      note: '',
+    ));
+  });
+
+  setUp(() {
+    mockDs = MockTransactionLocalDataSource();
+    mockExport = MockExportService();
+    when(() => mockDs.getAll()).thenAnswer((_) async => []);
+    when(() => mockDs.getAllPaginated(
+            offset: any(named: 'offset'),
+            limit: any(named: 'limit')))
+        .thenAnswer((_) async => []);
+    expenseVM = ExpenseViewModel(mockDs, mockExport);
+  });
+
+  /// Wrap any child in a [ChangeNotifierProvider] with the shared [expenseVM].
+  Widget wrapWithProvider(Widget child) {
+    return MaterialApp(
+      home: Scaffold(
+        body: ChangeNotifierProvider<ExpenseViewModel>.value(
+          value: expenseVM,
+          child: child,
         ),
       ),
     );
@@ -25,37 +56,19 @@ void main() {
 
   group('RecurringEditDialog - add mode', () {
     testWidgets('shows "Thêm" title when no existing rule', (tester) async {
-      await pumpDialog(tester);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: RecurringEditDialog(existing: null),
-          ),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       expect(find.text('Thêm giao dịch định kỳ'), findsOneWidget);
       expect(find.text('Cập nhật'), findsNothing);
     });
 
     testWidgets('shows "Bắt đầu:" label in add mode', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       expect(find.text('Bắt đầu: '), findsOneWidget);
       expect(find.text('Ngày chạy kế tiếp: '), findsNothing);
     });
 
     testWidgets('defaults category to first predefined', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       final dropdown = tester.widget<DropdownButtonFormField<String>>(
         find.byType(DropdownButtonFormField<String>),
       );
@@ -63,23 +76,13 @@ void main() {
     });
 
     testWidgets('amount field is empty in add mode', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       final amountField = find.widgetWithText(TextFormField, '');
       expect(amountField, findsWidgets);
     });
 
     testWidgets('frequency defaults to daily (Ngày selected)', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       final segmented = tester.widget<SegmentedButton<String>>(
         find.byType(SegmentedButton<String>),
       );
@@ -100,45 +103,24 @@ void main() {
     );
 
     testWidgets('shows "Sửa" title when existing rule provided', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: RecurringEditDialog(existing: existing)),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(RecurringEditDialog(existing: existing)));
       expect(find.text('Sửa giao dịch định kỳ'), findsOneWidget);
       expect(find.text('Cập nhật'), findsOneWidget);
       expect(find.text('Thêm'), findsNothing);
     });
 
     testWidgets('pre-fills amount with formatted value', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: RecurringEditDialog(existing: existing)),
-        ),
-      );
-
-      // 50000 -> "50.000"
+      await tester.pumpWidget(wrapWithProvider(RecurringEditDialog(existing: existing)));
       expect(find.text('50.000'), findsOneWidget);
     });
 
     testWidgets('pre-fills note', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: RecurringEditDialog(existing: existing)),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(RecurringEditDialog(existing: existing)));
       expect(find.text('morning coffee'), findsOneWidget);
     });
 
     testWidgets('pre-fills frequency to weekly', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: RecurringEditDialog(existing: existing)),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(RecurringEditDialog(existing: existing)));
       final segmented = tester.widget<SegmentedButton<String>>(
         find.byType(SegmentedButton<String>),
       );
@@ -146,12 +128,7 @@ void main() {
     });
 
     testWidgets('shows "Ngày chạy kế tiếp:" label in edit mode', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: RecurringEditDialog(existing: existing)),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(RecurringEditDialog(existing: existing)));
       expect(find.text('Ngày chạy kế tiếp: '), findsOneWidget);
       expect(find.text('Bắt đầu: '), findsNothing);
     });
@@ -159,20 +136,12 @@ void main() {
 
   group('RecurringEditDialog - category dropdown', () {
     testWidgets('contains all predefined categories', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
-
-      // Each category text appears at least once (in overlay)
       for (final c in Category.predefined) {
         expect(find.text(c.name), findsAtLeastNWidgets(1));
       }
-      // Total dropdown items >= predefined categories (overlay may add extras)
       expect(
         find.byType(DropdownMenuItem<String>),
         findsAtLeastNWidgets(Category.predefined.length),
@@ -182,15 +151,9 @@ void main() {
 
   group('RecurringEditDialog - frequency segmented button', () {
     testWidgets('tapping weekly changes selection', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       await tester.tap(find.text('Tuần'));
       await tester.pump();
-
       final segmented = tester.widget<SegmentedButton<String>>(
         find.byType(SegmentedButton<String>),
       );
@@ -198,15 +161,9 @@ void main() {
     });
 
     testWidgets('tapping monthly changes selection', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       await tester.tap(find.text('Tháng'));
       await tester.pump();
-
       final segmented = tester.widget<SegmentedButton<String>>(
         find.byType(SegmentedButton<String>),
       );
@@ -216,38 +173,21 @@ void main() {
 
   group('RecurringEditDialog - amount validation', () {
     testWidgets('empty amount shows error', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
-      // Find the "Thêm" button (FilledButton in actions)
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       final addButton = find.widgetWithText(FilledButton, 'Thêm');
       expect(addButton, findsOneWidget);
       await tester.tap(addButton);
       await tester.pump();
-
       expect(find.text('Vui lòng nhập số tiền'), findsOneWidget);
     });
 
     testWidgets('zero amount shows error', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: RecurringEditDialog()),
-        ),
-      );
-
+      await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       await tester.enterText(find.byType(TextFormField).first, '0');
       await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
       await tester.pump();
-
       expect(find.text('Số tiền không hợp lệ'), findsOneWidget);
     });
-
-    // Skip: ThousandSeparatorFormatter already prevents non-numeric input.
-    // On real devices, keyboardType: TextInputType.number blocks non-digits.
-    // Empty + zero amount validation covered by tests above.
   });
 
   group('RecurringEditDialog - save returns correct data', () {
@@ -257,34 +197,31 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Builder(
-              builder: (context) => ElevatedButton(
-                onPressed: () async {
-                  result = await RecurringEditDialog.show(context);
-                },
-                child: const Text('open'),
+            body: ChangeNotifierProvider<ExpenseViewModel>.value(
+              value: expenseVM,
+              child: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () async {
+                    result = await RecurringEditDialog.show(context);
+                  },
+                  child: const Text('open'),
+                ),
               ),
             ),
           ),
         ),
       );
-
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-
-      // Enter amount
       await tester.enterText(find.byType(TextFormField).first, '100000');
       await tester.tap(find.text('Tuần'));
       await tester.pump();
-
-      // Tap Thêm (FilledButton)
       await tester.tap(find.widgetWithText(FilledButton, 'Thêm'));
       await tester.pumpAndSettle();
-
       expect(result, isNotNull);
       expect(result!.amount, 100000);
       expect(result!.frequency, 'weekly');
-      expect(result!.id, isNull); // add mode
+      expect(result!.id, isNull);
       expect(result!.categoryName, Category.predefined.first.name);
     });
 
@@ -297,33 +234,31 @@ void main() {
         nextRunAt: DateTime(2026, 6, 10),
         createdAt: DateTime(2026, 6, 1),
       );
-
       RecurringEditResult? result;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Builder(
-              builder: (context) => ElevatedButton(
-                onPressed: () async {
-                  result = await RecurringEditDialog.show(
-                    context,
-                    existing: existing,
-                  );
-                },
-                child: const Text('open'),
+            body: ChangeNotifierProvider<ExpenseViewModel>.value(
+              value: expenseVM,
+              child: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () async {
+                    result = await RecurringEditDialog.show(
+                      context,
+                      existing: existing,
+                    );
+                  },
+                  child: const Text('open'),
+                ),
               ),
             ),
           ),
         ),
       );
-
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-
-      // amount field is pre-filled "20.000" - leave as is
       await tester.tap(find.widgetWithText(FilledButton, 'Cập nhật'));
       await tester.pumpAndSettle();
-
       expect(result, isNotNull);
       expect(result!.id, 'existing-xyz');
       expect(result!.amount, 20000);
@@ -336,25 +271,24 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Builder(
-              builder: (context) => ElevatedButton(
-                onPressed: () async {
-                  result = await RecurringEditDialog.show(context);
-                },
-                child: const Text('open'),
+            body: ChangeNotifierProvider<ExpenseViewModel>.value(
+              value: expenseVM,
+              child: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () async {
+                    result = await RecurringEditDialog.show(context);
+                  },
+                  child: const Text('open'),
+                ),
               ),
             ),
           ),
         ),
       );
-
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-
-      // Huỷ button
       await tester.tap(find.widgetWithText(TextButton, 'Huỷ'));
       await tester.pumpAndSettle();
-
       expect(result, isNull);
     });
 
@@ -363,26 +297,131 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Builder(
-              builder: (context) => ElevatedButton(
-                onPressed: () async {
-                  result = await RecurringEditDialog.show(context);
-                },
-                child: const Text('open'),
+            body: ChangeNotifierProvider<ExpenseViewModel>.value(
+              value: expenseVM,
+              child: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () async {
+                    result = await RecurringEditDialog.show(context);
+                  },
+                  child: const Text('open'),
+                ),
               ),
             ),
           ),
         ),
       );
-
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-
-      // Tap dialog scrim (top-left corner)
       await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
-
       expect(result, isNull);
+    });
+  });
+
+  group('RecurringEditDialog - suggestion chips', () {
+    Future<void> pumpWithHistory(WidgetTester tester, List<Transaction> txs) async {
+      when(() => mockDs.getAll()).thenAnswer((_) async => txs);
+      when(() => mockDs.getAllPaginated(
+              offset: any(named: 'offset'),
+              limit: any(named: 'limit')))
+          .thenAnswer((_) async => txs);
+      expenseVM = ExpenseViewModel(mockDs, mockExport);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RecurringEditDialog(expenseViewModel: expenseVM),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('amount chip appears when history has matching transactions',
+        (tester) async {
+      final txs = [
+        Transaction(
+          id: 'h1',
+          amount: 50000,
+          category: 'Ăn ngoài',
+          emoji: '🍜',
+          date: DateTime(2026, 6, 5),
+          note: '',
+        ),
+      ];
+      await pumpWithHistory(tester, txs);
+      expect(find.text('Gợi ý số tiền'), findsOneWidget);
+      expect(find.text('50.000'), findsOneWidget);
+    });
+
+    testWidgets('tapping amount chip fills amount field', (tester) async {
+      final txs = [
+        Transaction(
+          id: 'h1',
+          amount: 50000,
+          category: 'Ăn ngoài',
+          emoji: '🍜',
+          date: DateTime(2026, 6, 5),
+          note: '',
+        ),
+      ];
+      await pumpWithHistory(tester, txs);
+      await tester.tap(find.text('50.000').first);
+      await tester.pump();
+      final amountField = find.byType(TextFormField).first;
+      final textFormField = tester.widget<TextFormField>(amountField);
+      expect(textFormField.controller?.text, '50.000');
+    });
+
+    testWidgets('note chip appears when history has matching notes',
+        (tester) async {
+      final txs = [
+        Transaction(
+          id: 'h1',
+          amount: 50000,
+          category: 'Cà phê',
+          emoji: '☕',
+          date: DateTime(2026, 6, 5),
+          note: 'cf sáng',
+        ),
+      ];
+      await pumpWithHistory(tester, txs);
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cà phê').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Gợi ý ghi chú'), findsOneWidget);
+      expect(find.text('cf sáng'), findsOneWidget);
+    });
+
+    testWidgets('tapping note chip fills note field', (tester) async {
+      final txs = [
+        Transaction(
+          id: 'h1',
+          amount: 50000,
+          category: 'Cà phê',
+          emoji: '☕',
+          date: DateTime(2026, 6, 5),
+          note: 'cf sáng',
+        ),
+      ];
+      await pumpWithHistory(tester, txs);
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cà phê').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('cf sáng'));
+      await tester.pump();
+      final noteField = find.byType(TextFormField).last;
+      final textFormField = tester.widget<TextFormField>(noteField);
+      expect(textFormField.controller?.text, 'cf sáng');
+    });
+
+    testWidgets('no chips when no history', (tester) async {
+      await pumpWithHistory(tester, []);
+      expect(find.text('Gợi ý số tiền'), findsNothing);
+      expect(find.text('Gợi ý ghi chú'), findsNothing);
     });
   });
 }

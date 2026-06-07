@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
+import '../services/transaction_suggestion_engine.dart';
+import '../viewmodels/expense_viewmodel.dart';
 
 /// Dialog for editing an existing transaction
 class _TransactionEditDialog extends StatefulWidget {
   final Transaction transaction;
+  /// Optional ExpenseViewModel for suggestion chips.
+  /// When provided, suggestion chips are shown.
+  /// When null, chips are hidden (e.g. in tests without provider).
+  final ExpenseViewModel? expenseViewModel;
 
-  const _TransactionEditDialog({required this.transaction});
+  const _TransactionEditDialog({
+    required this.transaction,
+    this.expenseViewModel,
+  });
 
   @override
   State<_TransactionEditDialog> createState() => _TransactionEditDialogState();
@@ -48,6 +58,92 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
     if (picked != null) {
       setState(() => _selectedDate = picked);
     }
+  }
+
+  /// Build suggestion chips for amount + note based on selected category.
+  /// Filters out the current transaction so it doesn't suggest its own data.
+  /// Tapping a chip overrides the respective field value; no auto-submit.
+  /// Uses ListenableBuilder so chips rebuild when view model notifies.
+  Widget _buildSuggestionChips(BuildContext context) {
+    final expenseVM = widget.expenseViewModel;
+    if (expenseVM == null) return const SizedBox.shrink();
+    return ListenableBuilder(
+      listenable: expenseVM,
+      builder: (context, _) {
+        final category = Category.predefined.firstWhere(
+          (c) => c.name == _selectedCategory,
+          orElse: () => Category.predefined.first,
+        );
+        final engine = TransactionSuggestionEngine();
+        // Filter out current transaction so suggestions come from other history.
+        final List<Transaction> recent = expenseVM.allTransactions
+            .where((t) => t.id != widget.transaction.id)
+            .toList();
+        final amounts = engine.getSuggestedAmounts(category, recent);
+        final notes = engine.getSuggestedNotes(category, recent);
+
+        if (amounts.isEmpty && notes.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (amounts.isNotEmpty) ...[
+              Text(
+                'Gợi ý số tiền',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: amounts.map((a) {
+                  return ActionChip(
+                    label: Text(ThousandSeparatorFormatter.formatValue(a)),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onPressed: () {
+                      setState(() {
+                        _amountController.text =
+                            ThousandSeparatorFormatter.formatValue(a);
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (notes.isNotEmpty) ...[
+              Text(
+                'Gợi ý ghi chú',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: notes.map((n) {
+                  return ActionChip(
+                    label: Text(
+                      n,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onPressed: () {
+                      setState(() {
+                        _noteController.text = n;
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        );
+      },
+    );
   }
 
   void _save() {
@@ -93,6 +189,7 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
                       (c) => DropdownMenuItem(
                         value: c.name,
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(c.emoji, style: const TextStyle(fontSize: 18)),
                             const SizedBox(width: 8),
@@ -125,7 +222,9 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
                   ],
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
+              _buildSuggestionChips(context),
+              const SizedBox(height: 12),
 
               // Amount
               TextFormField(
@@ -188,14 +287,30 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
   }
 }
 
-/// Show the transaction edit dialog and return the updated transaction
+/// Show the transaction edit dialog and return the updated transaction.
+/// Pass [expenseViewModel] to enable suggestion chips. When null, chips
+/// are hidden (e.g. when calling context doesn't have a Provider).
 Future<Transaction?> showTransactionEditDialog(
   BuildContext context,
-  Transaction transaction,
-) {
+  Transaction transaction, {
+  ExpenseViewModel? expenseViewModel,
+}) {
+  // Resolve view model from context if not passed explicitly.
+  // Use try-catch because the dialog's new route does not inherit
+  // the provider from the caller's context tree.
+  ExpenseViewModel? vm = expenseViewModel;
+  if (vm == null) {
+    try {
+      vm = Provider.of<ExpenseViewModel>(context, listen: false);
+    } catch (_) {
+      vm = null;
+    }
+  }
   return showDialog<Transaction>(
     context: context,
-    builder: (context) =>
-        _TransactionEditDialog(transaction: transaction),
+    builder: (dialogContext) => _TransactionEditDialog(
+      transaction: transaction,
+      expenseViewModel: vm,
+    ),
   );
 }

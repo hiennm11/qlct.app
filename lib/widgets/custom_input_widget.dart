@@ -3,7 +3,9 @@ import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../models/category.dart';
+import '../models/transaction.dart';
 import '../core/formatters.dart';
+import '../services/transaction_suggestion_engine.dart';
 import 'voice/voice_coordinator.dart';
 import 'voice/voice_result.dart';
 
@@ -169,7 +171,15 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
                         children: [
                           Text(cat.emoji, style: const TextStyle(fontSize: 20)),
                           const SizedBox(width: 8),
-                          Text(cat.name),
+                          // Constrain long category names ("Nhà (Điện, nước, wifi)")
+                          // so the menu doesn't overflow PopupMenu's default
+                          // 304px max width on narrow surfaces.
+                          Flexible(
+                            child: Text(
+                              cat.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -196,6 +206,8 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            if (_selectedCategory != null) _buildSuggestionChips(context),
             const SizedBox(height: 12),
             TextField(
               controller: _noteController,
@@ -229,6 +241,77 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Build suggestion chips for amount + note based on selected category.
+  /// Tapping a chip autofills the field; no auto-submit.
+  Widget _buildSuggestionChips(BuildContext context) {
+    final expenseVM = context.watch<ExpenseViewModel>();
+    final category = Category.predefined.firstWhere(
+      (c) => c.name == _selectedCategory,
+      orElse: () => Category.predefined.first,
+    );
+    final engine = TransactionSuggestionEngine();
+    final List<Transaction> recent = expenseVM.allTransactions;
+    final amounts = engine.getSuggestedAmounts(category, recent);
+    final notes = engine.getSuggestedNotes(category, recent);
+
+    if (amounts.isEmpty && notes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (amounts.isNotEmpty) ...[
+          Text(
+            'Gợi ý số tiền',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: amounts.map((a) {
+              return ActionChip(
+                label: Text(ThousandSeparatorFormatter.formatValue(a)),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onPressed: () {
+                  _amountController.text =
+                      ThousandSeparatorFormatter.formatValue(a);
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (notes.isNotEmpty) ...[
+          Text(
+            'Gợi ý ghi chú',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: notes.map((n) {
+              return ActionChip(
+                label: Text(
+                  n,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onPressed: () {
+                  _noteController.text = n;
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../models/category.dart';
+import '../models/transaction.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
+import '../services/transaction_suggestion_engine.dart';
 import '../services/voice_input_service.dart';
 import '../core/vietnamese_number_parser.dart';
 import 'voice/voice_input_modal.dart';
@@ -336,6 +338,8 @@ class _CategoryCardState extends State<_CategoryCard> {
               ),
             ),
             const SizedBox(height: 2),
+            _buildAmountSuggestionChips(context),
+            const SizedBox(height: 2),
             Row(
               children: [
                 Expanded(
@@ -367,6 +371,35 @@ class _CategoryCardState extends State<_CategoryCard> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Build compact amount suggestion chips for this category.
+  /// No note chips (quick input add path has no note except voice).
+  /// Only shows chips if engine returns amounts; label is tiny to avoid clutter.
+  Widget _buildAmountSuggestionChips(BuildContext context) {
+    final expenseVM = context.watch<ExpenseViewModel>();
+    final engine = TransactionSuggestionEngine();
+    final List<Transaction> recent = expenseVM.allTransactions;
+    final amounts = engine.getSuggestedAmounts(widget.category, recent);
+    if (amounts.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      children: amounts.map((a) {
+        return ActionChip(
+          label: Text(
+            ThousandSeparatorFormatter.formatValue(a),
+            style: const TextStyle(fontSize: 10),
+          ),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          onPressed: () {
+            widget.onAmountChanged(a.toDouble());
+          },
+        );
+      }).toList(),
     );
   }
 }

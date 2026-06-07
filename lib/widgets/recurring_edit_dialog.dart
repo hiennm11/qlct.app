@@ -1,20 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/category.dart';
 import '../models/recurring_transaction.dart';
+import '../models/transaction.dart';
 import '../core/formatters.dart';
+import '../services/transaction_suggestion_engine.dart';
+import '../viewmodels/expense_viewmodel.dart';
 
 class RecurringEditDialog extends StatefulWidget {
   final RecurringTransaction? existing; // null = add mode
+  /// Optional ExpenseViewModel for suggestion chips.
+  /// When provided, chips are shown. When null, chips are hidden.
+  final ExpenseViewModel? expenseViewModel;
 
-  const RecurringEditDialog({super.key, this.existing});
+  const RecurringEditDialog({
+    super.key,
+    this.existing,
+    this.expenseViewModel,
+  });
 
   static Future<RecurringEditResult?> show(
     BuildContext context, {
     RecurringTransaction? existing,
+    ExpenseViewModel? expenseViewModel,
   }) {
+    // Resolve view model from context if not passed explicitly.
+    // Use try-catch because the dialog's new route does not inherit
+    // the provider from the caller's context tree.
+    ExpenseViewModel? vm = expenseViewModel;
+    if (vm == null) {
+      try {
+        vm = Provider.of<ExpenseViewModel>(context, listen: false);
+      } catch (_) {
+        vm = null;
+      }
+    }
     return showDialog<RecurringEditResult>(
       context: context,
-      builder: (_) => RecurringEditDialog(existing: existing),
+      builder: (_) => RecurringEditDialog(
+        existing: existing,
+        expenseViewModel: vm,
+      ),
     );
   }
 
@@ -80,6 +106,85 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
     }
   }
 
+  /// Build suggestion chips for amount + note based on selected category.
+  /// Tapping a chip autofills the field; no auto-submit.
+  /// Uses ListenableBuilder so chips rebuild when view model notifies.
+  /// Returns empty if no view model is provided.
+  Widget _buildSuggestionChips(BuildContext context) {
+    final expenseVM = widget.expenseViewModel;
+    if (expenseVM == null) return const SizedBox.shrink();
+    return ListenableBuilder(
+      listenable: expenseVM,
+      builder: (context, _) {
+        final category = Category.predefined.firstWhere(
+          (c) => c.name == _selectedCategory,
+          orElse: () => Category.predefined.first,
+        );
+        final engine = TransactionSuggestionEngine();
+        final List<Transaction> recent = expenseVM.allTransactions;
+        final amounts = engine.getSuggestedAmounts(category, recent);
+        final notes = engine.getSuggestedNotes(category, recent);
+
+        if (amounts.isEmpty && notes.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (amounts.isNotEmpty) ...[
+              Text(
+                'Gợi ý số tiền',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: amounts.map((a) {
+                  return ActionChip(
+                    label: Text(ThousandSeparatorFormatter.formatValue(a)),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onPressed: () {
+                      _amountController.text =
+                          ThousandSeparatorFormatter.formatValue(a);
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (notes.isNotEmpty) ...[
+              Text(
+                'Gợi ý ghi chú',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: notes.map((n) {
+                  return ActionChip(
+                    label: Text(
+                      n,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onPressed: () {
+                      _noteController.text = n;
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
@@ -103,6 +208,7 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
                       (c) => DropdownMenuItem(
                         value: c.name,
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
                               c.emoji,
@@ -119,6 +225,8 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
                 validator: (v) =>
                     v == null ? 'Vui lòng chọn danh mục' : null,
               ),
+              const SizedBox(height: 8),
+              _buildSuggestionChips(context),
               const SizedBox(height: 12),
 
               // Amount

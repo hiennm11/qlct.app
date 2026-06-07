@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/quick_template.dart';
 import '../models/category.dart';
+import '../models/transaction.dart';
 import '../viewmodels/quick_template_viewmodel.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../core/theme.dart';
+import '../core/formatters.dart';
+import '../services/transaction_suggestion_engine.dart';
 
 /// Horizontal strip of quick template chips displayed below QuickAddBar.
 ///
@@ -387,7 +390,7 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
     final t = widget.template;
     _titleController = TextEditingController(text: t?.title ?? '');
     _amountController = TextEditingController(
-      text: t != null ? t.amount.toString() : '',
+      text: t != null ? ThousandSeparatorFormatter.formatValue(t.amount) : '',
     );
     _noteController = TextEditingController(text: t?.note ?? '');
     if (t != null) {
@@ -460,6 +463,88 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  /// Build suggestion chips based on selected category.
+  /// Tapping a chip overrides the respective field value.
+  Widget _buildSuggestionChips(BuildContext context) {
+    // Use watch so chips refresh when ExpenseViewModel's recent transactions
+    // change (initial load completes, pagination appends, add/update/delete).
+    // read() would freeze suggestions at the moment the sheet was opened.
+    final expenseVM = context.watch<ExpenseViewModel>();
+    final category = Category.predefined.firstWhere(
+      (c) => c.name == _selectedCategory,
+      orElse: () => Category.predefined.first,
+    );
+    final engine = TransactionSuggestionEngine();
+    final List<Transaction> recent = expenseVM.allTransactions;
+    final amounts = engine.getSuggestedAmounts(category, recent);
+    final notes = engine.getSuggestedNotes(category, recent);
+
+    if (amounts.isEmpty && notes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (amounts.isNotEmpty) ...[
+          Text(
+            'Gợi ý số tiền',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Colors.grey.shade600,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: amounts.map((a) {
+              return ActionChip(
+                label: Text(ThousandSeparatorFormatter.formatValue(a)),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onPressed: () {
+                  setState(() {
+                    _amountController.text =
+                        ThousandSeparatorFormatter.formatValue(a);
+                  });
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (notes.isNotEmpty) ...[
+          Text(
+            'Gợi ý ghi chú',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Colors.grey.shade600,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: notes.map((n) {
+              return ActionChip(
+                label: Text(
+                  n,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onPressed: () {
+                  setState(() {
+                    _noteController.text = n;
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
   void _showCategoryPicker() {
     final RenderBox box =
         _categoryKey.currentContext!.findRenderObject() as RenderBox;
@@ -479,7 +564,14 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
             children: [
               Text(cat.emoji, style: const TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
-              Text(cat.name),
+              // Constrain long category names so the menu doesn't overflow
+              // PopupMenu's default 304px max width on narrow surfaces.
+              Flexible(
+                child: Text(
+                  cat.name,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         );
@@ -548,6 +640,7 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
+                    inputFormatters: [ThousandSeparatorFormatter()],
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -595,6 +688,8 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
                 child: Text(_selectedCategory),
               ),
             ),
+            const SizedBox(height: 8),
+            _buildSuggestionChips(context),
             const SizedBox(height: 12),
 
             // Note field
