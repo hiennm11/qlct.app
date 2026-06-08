@@ -36,6 +36,8 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
 
   void _initControllers() {
     for (final category in Category.predefined) {
+      // ADR-0025 §6: investment categories are not part of budget spending
+      if (category.isInvestment) continue;
       _categoryControllers[category.name] = TextEditingController();
     }
   }
@@ -95,9 +97,11 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
     // Save total budget
     await viewModel.setTotalBudget(total);
 
-    // Build list of budgets with limits > 0
+    // Build list of budgets with limits > 0 (exclude investment)
     final budgets = <Budget>[];
     for (final category in Category.predefined) {
+      // ADR-0025 §6: investment categories excluded from budget
+      if (category.isInvestment) continue;
       final controller = _categoryControllers[category.name]!;
       final text = controller.text.replaceAll(RegExp(r'[^0-9]'), '');
       final limit = int.tryParse(text) ?? 0;
@@ -230,7 +234,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
               ),
               const SizedBox(height: 8),
-              ...Category.predefined.map((category) {
+              ...Category.predefined.where((c) => !c.isInvestment).map((category) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(

@@ -6,6 +6,7 @@ import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
@@ -16,32 +17,43 @@ class MockTransactionLocalDataSource extends Mock
 
 class MockBudgetLocalDataSource extends Mock implements BudgetLocalDataSource {}
 
+class MockBudgetSnapshotLocalDataSource extends Mock
+    implements BudgetSnapshotLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class FakeTransaction extends Fake implements Transaction {}
 
 class FakeExpenseStats extends Fake implements ExpenseStats {}
 
+class FakeBudgetSnapshot extends Fake implements BudgetSnapshotLocalDataSource {}
+
 void main() {
   late MockTransactionLocalDataSource mockTxRepo;
   late MockBudgetLocalDataSource mockBudgetRepo;
+  late MockBudgetSnapshotLocalDataSource mockBudgetSnapshotRepo;
   late MockStorageService mockStorage;
   late ExportService exportService;
 
   setUpAll(() {
     registerFallbackValue(FakeTransaction());
     registerFallbackValue(FakeExpenseStats());
+    registerFallbackValue(FakeBudgetSnapshot());
   });
 
   setUp(() {
     mockTxRepo = MockTransactionLocalDataSource();
     mockBudgetRepo = MockBudgetLocalDataSource();
+    mockBudgetSnapshotRepo = MockBudgetSnapshotLocalDataSource();
     mockStorage = MockStorageService();
     exportService = ExportService();
 
     when(() => mockTxRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockTxRepo.getByDate(any())).thenAnswer((_) async => []);
     when(() => mockBudgetRepo.getAll()).thenAnswer((_) async => []);
+    when(() => mockBudgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
+    when(() => mockBudgetSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+    when(() => mockBudgetSnapshotRepo.bulkUpsert(any())).thenAnswer((_) async {});
     when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
     when(() => mockStorage.loadValue<int>(any())).thenReturn(null);
   });
@@ -57,7 +69,7 @@ void main() {
             create: (_) => ExpenseViewModel(mockTxRepo, exportService),
           ),
           ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
-            create: (_) => BudgetViewModel(mockBudgetRepo, mockStorage),
+            create: (_) => BudgetViewModel(mockBudgetRepo, mockBudgetSnapshotRepo, mockStorage),
             update: (_, expenseVM, budgetVM) => budgetVM!
               ..updateStats(expenseVM.stats),
           ),
@@ -103,13 +115,10 @@ void main() {
 
   testWidgets('BudgetViewModel.updateStats is called when ExpenseViewModel changes',
       (tester) async {
-    // Track how many times updateStats gets called
-    int updateStatsCallCount = 0;
-
     when(() => mockBudgetRepo.getAll()).thenAnswer((_) async => []);
 
     final expenseVM = ExpenseViewModel(mockTxRepo, exportService);
-    final budgetVM = _TrackingBudgetViewModel(mockBudgetRepo, mockStorage);
+    final budgetVM = _TrackingBudgetViewModel(mockBudgetRepo, mockBudgetSnapshotRepo, mockStorage);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -125,7 +134,7 @@ void main() {
           builder: (ctx) => MaterialApp(
             home: Scaffold(
               body: Consumer2<ExpenseViewModel, BudgetViewModel>(
-                builder: (_, expenseVM, budgetVM, __) {
+                builder: (_, expenseVM, budgetVM, _) {
                   return const SizedBox();
                 },
               ),
@@ -148,7 +157,11 @@ void main() {
 class _TrackingBudgetViewModel extends BudgetViewModel {
   int updateStatsCallCount = 0;
 
-  _TrackingBudgetViewModel(super.budgetRepository, super.storageService);
+  _TrackingBudgetViewModel(
+    super.budgetDataSource,
+    super.snapshotDataSource,
+    super.storageService,
+  );
 
   @override
   void updateStats(ExpenseStats stats) {

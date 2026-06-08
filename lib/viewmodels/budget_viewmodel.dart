@@ -1,15 +1,19 @@
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:uuid/uuid.dart';
 import '../models/budget.dart';
+import '../models/budget_snapshot.dart';
 import '../models/budget_status.dart';
 import '../models/category.dart';
 import '../models/expense_stats.dart';
 import '../data/datasources/budget_local_datasource.dart';
+import '../data/datasources/budget_snapshot_local_datasource.dart';
 import '../services/storage_service.dart';
 
 /// ViewModel for managing budget state and operations
+/// ADR-0025: Monthly Budget Snapshots
 class BudgetViewModel extends ChangeNotifier {
   final BudgetLocalDataSource _dataSource;
+  final BudgetSnapshotLocalDataSource _snapshotDataSource;
   final StorageService _storageService;
 
   List<Budget> _budgets = [];
@@ -18,7 +22,11 @@ class BudgetViewModel extends ChangeNotifier {
   String? _errorMessage;
   int? _totalBudget;
 
-  BudgetViewModel(this._dataSource, this._storageService) {
+  BudgetViewModel(
+    this._dataSource,
+    this._snapshotDataSource,
+    this._storageService,
+  ) {
     _totalBudget = _storageService.loadValue<int>('total_budget');
     Future.microtask(() => _loadBudgets());
   }
@@ -29,13 +37,14 @@ class BudgetViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   int? get totalBudget => _totalBudget;
 
-  /// Calculate budget statuses from budgets and stats
+  /// Calculate budget statuses from budgets and stats (excludes investment)
   List<BudgetStatus> get budgetStatuses => _calculateStatuses();
 
-  /// Get total budget status for display
+  /// Get total budget status for display (spending-only, excludes investment)
   TotalBudgetStatus? get totalBudgetStatus {
     if (_totalBudget == null || _stats == null) return null;
-    return TotalBudgetStatus.fromTotalBudget(_totalBudget!, _stats!.monthExpense);
+    final spendingTotal = _computeSpendingTotal(_stats!.categoryTotals);
+    return TotalBudgetStatus.fromTotalBudget(_totalBudget!, spendingTotal);
   }
 
   /// Update stats from ExpenseViewModel (called by ProxyProvider)
@@ -134,6 +143,8 @@ class BudgetViewModel extends ChangeNotifier {
 
     try {
       _budgets = await _dataSource.getAll();
+      // ADR-0025 §4: auto-create previous-month snapshot if missing
+      await _ensurePreviousMonthSnapshot();
     } catch (e) {
       debugPrint('Error loading budgets: $e');
       _errorMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.';
@@ -143,12 +154,73 @@ class BudgetViewModel extends ChangeNotifier {
     }
   }
 
-  /// Calculate budget statuses sorted by percent used
+  /// ADR-0025 §4: If no snapshot exists for the previous month, create one
+  /// from current live budget config. Do not overwrite existing.
+  ///
+  /// Snapshot includes ALL live budget rows (including investment if present)
+  /// to preserve historical data faithfully. Spending/UI semantics continue
+  /// to exclude investment (ADR-0025 §6).
+  Future<void> _ensurePreviousMonthSnapshot() async {
+    try {
+      final now = DateTime.now();
+      final prev = DateTime(now.year, now.month - 1, 1);
+      final prevYearMonth =
+          '${prev.year.toString().padLeft(4, '0')}-${prev.month.toString().padLeft(2, '0')}';
+
+      final existing = await _snapshotDataSource.getByYearMonth(prevYearMonth);
+      if (existing.isNotEmpty) return; // already has snapshot, skip
+
+      // Snapshot all live budgets (including investment rows if any) to
+      // preserve historical data. UI semantics (statuses/highlights/total
+      // spent) continue to exclude investment elsewhere in this VM.
+      if (_budgets.isEmpty) return;
+
+      final snapshots = _budgets
+          .map((b) => BudgetSnapshot(
+                yearMonth: prevYearMonth,
+                categoryName: b.categoryName,
+                limitAmount: b.monthlyLimit,
+                alertThreshold: b.alertThreshold,
+                createdAt: DateTime.now(),
+              ))
+          .toList();
+
+      await _snapshotDataSource.bulkUpsert(snapshots);
+    } catch (e) {
+      // Snapshot creation is best-effort — don't fail budget load on error
+      debugPrint('Error creating previous-month snapshot: $e');
+    }
+  }
+
+  bool _isInvestmentCategory(String categoryName) {
+    final cat = Category.predefined
+        .where((c) => c.name == categoryName)
+        .firstOrNull;
+    return cat?.isInvestment ?? false;
+  }
+
+  /// ADR-0025 §6: Compute spending-only total by excluding investment categories
+  int _computeSpendingTotal(Map<String, int> categoryTotals) {
+    int total = 0;
+    for (final entry in categoryTotals.entries) {
+      if (!_isInvestmentCategory(entry.key)) {
+        total += entry.value;
+      }
+    }
+    return total;
+  }
+
+  /// Calculate budget statuses sorted by percent used.
+  /// Excludes investment categories per ADR-0025 §6.
   List<BudgetStatus> _calculateStatuses() {
     if (_stats == null) {
-      // Return statuses for budgets with default stats if no stats yet
-      final statuses = _budgets
-          .map((b) => BudgetStatus.fromBudget(b, _stats?.categoryTotals[b.categoryName] ?? 0))
+      // Return statuses for non-investment budgets with default stats if no stats yet
+      final nonInvestmentBudgets = _budgets
+          .where((b) => !_isInvestmentCategory(b.categoryName))
+          .toList();
+      final statuses = nonInvestmentBudgets
+          .map((b) => BudgetStatus.fromBudget(
+              b, _stats?.categoryTotals[b.categoryName] ?? 0))
           .toList();
       statuses.sort((a, b) => b.percentUsed.compareTo(a.percentUsed));
       return statuses;
@@ -157,11 +229,16 @@ class BudgetViewModel extends ChangeNotifier {
     final categoryTotals = _stats!.categoryTotals;
     final List<BudgetStatus> statuses = [];
 
-    // Create a map of existing budgets by category name
-    final budgetMap = {for (var b in _budgets) b.categoryName: b};
+    // Create a map of existing non-investment budgets by category name
+    final budgetMap = {
+      for (var b in _budgets)
+        if (!_isInvestmentCategory(b.categoryName)) b.categoryName: b
+    };
 
-    // For each predefined category
+    // For each predefined category (excluding investment)
     for (final category in Category.predefined) {
+      if (category.isInvestment) continue; // ADR-0025 §6
+
       final spent = categoryTotals[category.name] ?? 0;
 
       if (budgetMap.containsKey(category.name)) {

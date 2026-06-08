@@ -30,6 +30,7 @@ class BackupViewModel extends ChangeNotifier {
   int? pendingBudgetCount;
   int? pendingRecurringCount;
   int? pendingQuickTemplateCount;
+  int? pendingBudgetSnapshotCount;
 
   // Task 3: last backup time
   static const String _lastBackupTimeKey = 'last_backup_time';
@@ -98,6 +99,7 @@ class BackupViewModel extends ChangeNotifier {
     pendingBudgetCount = null;
     pendingRecurringCount = null;
     pendingQuickTemplateCount = null;
+    pendingBudgetSnapshotCount = null;
     notifyListeners();
   }
 
@@ -141,6 +143,7 @@ class BackupViewModel extends ChangeNotifier {
       pendingBudgetCount = result.data!.budgets.length;
       pendingRecurringCount = result.data!.recurringTransactions.length;
       pendingQuickTemplateCount = result.data!.quickTemplates.length;
+      pendingBudgetSnapshotCount = result.data!.budgetSnapshots.length;
       _setLoading(false);
       return result;
     } catch (e, stack) {
@@ -174,6 +177,7 @@ class BackupViewModel extends ChangeNotifier {
       pendingBudgetCount = result.data!.budgets.length;
       pendingRecurringCount = result.data!.recurringTransactions.length;
       pendingQuickTemplateCount = result.data!.quickTemplates.length;
+      pendingBudgetSnapshotCount = result.data!.budgetSnapshots.length;
 
       final restoreResult = await _backupService.restore(result.data!, mode);
 
@@ -200,22 +204,20 @@ class BackupViewModel extends ChangeNotifier {
         pendingBudgetCount = null;
         pendingRecurringCount = null;
         pendingQuickTemplateCount = null;
+        pendingBudgetSnapshotCount = null;
         return;
       }
 
       final modeLabel = mode == RestoreMode.merge ? 'hợp nhất' : 'thay thế';
       _setSuccess(
-        'Đã khôi phục ($modeLabel): '
-        '${restoreResult.transactionsImported} giao dịch, '
-        '${restoreResult.budgetsImported} ngân sách, '
-        '${restoreResult.recurringsImported} định kỳ, '
-        '${restoreResult.quickTemplatesImported} mẫu nhanh',
+        _buildRestoreSuccessMessage(restoreResult, modeLabel),
       );
       // Clear pending counts after successful restore
       pendingTransactionCount = null;
       pendingBudgetCount = null;
       pendingRecurringCount = null;
       pendingQuickTemplateCount = null;
+      pendingBudgetSnapshotCount = null;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
       _setError('Thao tác thất bại. Vui lòng thử lại.');
@@ -249,25 +251,36 @@ class BackupViewModel extends ChangeNotifier {
         pendingBudgetCount = null;
         pendingRecurringCount = null;
         pendingQuickTemplateCount = null;
+        pendingBudgetSnapshotCount = null;
         return;
       }
 
       final modeLabel = mode == RestoreMode.merge ? 'hợp nhất' : 'thay thế';
       _setSuccess(
-        'Đã khôi phục ($modeLabel): '
-        '${restoreResult.transactionsImported} giao dịch, '
-        '${restoreResult.budgetsImported} ngân sách, '
-        '${restoreResult.recurringsImported} định kỳ, '
-        '${restoreResult.quickTemplatesImported} mẫu nhanh',
+        _buildRestoreSuccessMessage(restoreResult, modeLabel),
       );
       pendingTransactionCount = null;
       pendingBudgetCount = null;
       pendingRecurringCount = null;
       pendingQuickTemplateCount = null;
+      pendingBudgetSnapshotCount = null;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
       _setError('Thao tác thất bại. Vui lòng thử lại.');
     }
+  }
+
+  /// Build restore success message including budgetSnapshotsImported when nonzero.
+  String _buildRestoreSuccessMessage(RestoreResult result, String modeLabel) {
+    final sb = StringBuffer('Đã khôi phục ($modeLabel): ');
+    sb.write('${result.transactionsImported} giao dịch, ');
+    sb.write('${result.budgetsImported} ngân sách, ');
+    sb.write('${result.recurringsImported} định kỳ, ');
+    sb.write('${result.quickTemplatesImported} mẫu nhanh');
+    if (result.budgetSnapshotsImported > 0) {
+      sb.write(', ${result.budgetSnapshotsImported} ảnh chụp ngân sách');
+    }
+    return sb.toString();
   }
 
   /// Generate sample data (hidden debug feature)
@@ -291,11 +304,7 @@ class BackupViewModel extends ChangeNotifier {
       await _quickTemplateVM?.forceReload();
 
       _setSuccess(
-        'Đã tạo dữ liệu mẫu: '
-        '${restoreResult.transactionsImported} giao dịch, '
-        '${restoreResult.budgetsImported} ngân sách, '
-        '${restoreResult.recurringsImported} định kỳ, '
-        '${restoreResult.quickTemplatesImported} mẫu nhanh',
+        _buildRestoreSuccessMessage(restoreResult, 'tạo mẫu'),
       );
     } catch (e, stack) {
       debugPrint('Sample data error: $e\n$stack');

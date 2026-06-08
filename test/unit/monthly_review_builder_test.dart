@@ -552,6 +552,37 @@ void main() {
         expect(result.budgetHighlights[1].categoryName, 'Subscription');
         expect(result.budgetHighlights[1].percentUsed, 90);
       });
+
+      test('budget highlights skip investment categories (ADR-0025 §6)', () {
+        final txs = [
+          _tx(id: '1', amount: 500000, category: 'Ăn ngoài'),
+          _tx(id: '2', amount: 18000000, category: 'Đầu tư'), // 180% of limit
+        ];
+        final budgets = [
+          _budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 300000, alertThreshold: 80), // exceeded
+          _budget(id: 'b2', categoryName: 'Đầu tư', monthlyLimit: 10000000, alertThreshold: 80), // exceeded
+        ];
+
+        final result = builder.build(
+          currentMonthTxs: txs,
+          previousPeriodTxs: [],
+          budgets: budgets,
+          activeRecurringRules: [],
+          selectedMonth: _monthStart(2026, 6),
+          currentPeriodStart: _monthStart(2026, 6),
+          currentPeriodEnd: _monthEnd(2026, 6),
+          previousPeriodStart: _monthStart(2026, 5),
+          previousPeriodEnd: _monthEnd(2026, 5),
+        );
+
+        // Only Ăn ngoài should appear — Đầu tư excluded
+        expect(result.budgetHighlights.length, 1);
+        expect(result.budgetHighlights[0].categoryName, 'Ăn ngoài');
+        expect(
+            result.budgetHighlights.any((h) => h.categoryName == 'Đầu tư'),
+            isFalse,
+            reason: 'Investment category should not appear in budget highlights');
+      });
     });
   });
 }

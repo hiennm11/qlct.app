@@ -6,11 +6,13 @@ import 'package:mocktail/mocktail.dart';
 import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
 import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
+import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
 import 'package:qlct/services/backup_service.dart';
@@ -20,6 +22,9 @@ class MockTransactionDataSource extends Mock
     implements TransactionLocalDataSource {}
 
 class MockBudgetDataSource extends Mock implements BudgetLocalDataSource {}
+
+class MockBudgetSnapshotDataSource extends Mock
+    implements BudgetSnapshotLocalDataSource {}
 
 class MockRecurringDataSource extends Mock
     implements RecurringLocalDataSource {}
@@ -34,6 +39,7 @@ class MockDatabaseHelper extends Mock implements DatabaseHelper {}
 void main() {
   late MockTransactionDataSource txRepo;
   late MockBudgetDataSource budgetRepo;
+  late MockBudgetSnapshotDataSource budgetSnapshotRepo;
   late MockRecurringDataSource recurringRepo;
   late MockQuickTemplateDataSource quickTemplateRepo;
   late MockStorageService storageService;
@@ -42,6 +48,7 @@ void main() {
   setUp(() {
     txRepo = MockTransactionDataSource();
     budgetRepo = MockBudgetDataSource();
+    budgetSnapshotRepo = MockBudgetSnapshotDataSource();
     recurringRepo = MockRecurringDataSource();
     quickTemplateRepo = MockQuickTemplateDataSource();
     storageService = MockStorageService();
@@ -50,6 +57,7 @@ void main() {
     service = BackupService(
       txRepo,
       budgetRepo,
+      budgetSnapshotRepo,
       recurringRepo,
       quickTemplateRepo,
       storageService,
@@ -67,6 +75,12 @@ void main() {
       id: 'fallback',
       categoryName: '',
       monthlyLimit: 0,
+      createdAt: DateTime.now(),
+    ));
+    registerFallbackValue(BudgetSnapshot(
+      yearMonth: '2026-01',
+      categoryName: 'fallback',
+      limitAmount: 0,
       createdAt: DateTime.now(),
     ));
     registerFallbackValue(RecurringTransaction(
@@ -88,6 +102,7 @@ void main() {
     ));
     registerFallbackValue(<Transaction>[]);
     registerFallbackValue(<Budget>[]);
+    registerFallbackValue(<BudgetSnapshot>[]);
     registerFallbackValue(<RecurringTransaction>[]);
     registerFallbackValue(<QuickTemplate>[]);
   });
@@ -519,6 +534,14 @@ void main() {
               createdAt: DateTime(2026, 1, 1),
             ),
           ]);
+      when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => [
+            BudgetSnapshot(
+              yearMonth: '2026-05',
+              categoryName: 'Ăn ngoài',
+              limitAmount: 3000000,
+              createdAt: DateTime(2026, 6, 1),
+            ),
+          ]);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => [
             RecurringTransaction(
               id: 'r-1',
@@ -545,13 +568,15 @@ void main() {
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 3);
+      expect(backup.schemaVersion, 4);
       expect(backup.appId, 'qlct.app');
       expect(backup.transactions.length, 1);
       expect(backup.budgets.length, 1);
       expect(backup.recurringTransactions.length, 1);
       expect(backup.quickTemplates.length, 1);
       expect(backup.quickTemplates.first.title, 'Cơm trưa');
+      expect(backup.budgetSnapshots.length, 1);
+      expect(backup.budgetSnapshots.first.yearMonth, '2026-05');
       expect(backup.totalBudget, 15000000);
       expect(backup.appVersion, isNotEmpty);
       expect(backup.exportedAt, isNotEmpty);
@@ -560,6 +585,7 @@ void main() {
     test('handles empty state gracefully', () async {
       when(() => txRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
       when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
@@ -571,6 +597,7 @@ void main() {
       expect(backup.budgets, isEmpty);
       expect(backup.recurringTransactions, isEmpty);
       expect(backup.quickTemplates, isEmpty);
+      expect(backup.budgetSnapshots, isEmpty);
       expect(backup.totalBudget, 0);
     });
   });
@@ -579,11 +606,12 @@ void main() {
     test('creates non-empty backup with expected structure', () async {
       final backup = await service.generateSampleData();
 
-      expect(backup.schemaVersion, 3);
+      expect(backup.schemaVersion, 4);
       expect(backup.transactions.length, 20);
       expect(backup.budgets.length, 3);
       expect(backup.recurringTransactions.length, 2);
       expect(backup.quickTemplates.length, 3);
+      expect(backup.budgetSnapshots, isEmpty);
       expect(backup.totalBudget, 15000000);
 
       final txIds = backup.transactions.map((t) => t.id).toSet();
@@ -598,10 +626,11 @@ void main() {
     });
   });
 
-  group('createBackup v3', () {
-    test('appId is qlct.app and schemaVersion is 3', () async {
+  group('createBackup v4', () {
+    test('appId is qlct.app and schemaVersion is 4', () async {
       when(() => txRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
       when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
@@ -610,22 +639,23 @@ void main() {
       final backup = await service.createBackup();
 
       expect(backup.appId, 'qlct.app');
-      expect(backup.schemaVersion, 3);
+      expect(backup.schemaVersion, 4);
     });
   });
 
   // Slice 1 stable JSON field order test.
   // We test the public toJsonMap() (now public, was _toJsonMap) to exercise
   // the production serialization path rather than a manually-constructed map.
-  // ADR-0023 §3 requires: appId, schemaVersion, exportedAt, appVersion,
-  // totalBudget, transactions, budgets, recurringTransactions, quickTemplates
-  group('export JSON order (ADR-0023 §3)', () {
-    test('toJsonMap preserves stable field order matching ADR-0023 contract',
+  // ADR-0023 §3 / ADR-0025 §7 requires: appId, schemaVersion, exportedAt,
+  // appVersion, totalBudget, transactions, budgets, recurringTransactions,
+  // quickTemplates, budgetSnapshots
+  group('export JSON order (ADR-0023 §3 / ADR-0025 §7)', () {
+    test('toJsonMap preserves stable field order matching ADR-0025 contract',
         () {
       // Create a minimal BackupData that exercises the full toJsonMap path.
       final data = BackupData(
         appId: 'qlct.app',
-        schemaVersion: 3,
+        schemaVersion: 4,
         exportedAt: '2026-06-07T10:00:00.000Z',
         appVersion: '1.0.0',
         totalBudget: 0,
@@ -633,6 +663,7 @@ void main() {
         budgets: const [],
         recurringTransactions: const [],
         quickTemplates: const [],
+        budgetSnapshots: const [],
       );
 
       // toJsonMap() is the production serialization entry point.
@@ -660,6 +691,7 @@ void main() {
           'budgets',
           'recurringTransactions',
           'quickTemplates',
+          'budgetSnapshots',
         ]),
       );
     });

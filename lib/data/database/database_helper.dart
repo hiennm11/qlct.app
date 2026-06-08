@@ -5,7 +5,7 @@ import 'package:qlct/core/vietnamese_text_normalizer.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 9;
+  static const _databaseVersion = 10;
 
   Database? _database;
   String? _testPathOverride;
@@ -88,6 +88,16 @@ class DatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_quick_templates_pinned ON quick_templates(is_pinned)');
     await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_quick_templates_usage ON quick_templates(usage_count DESC, last_used_at DESC)');
+    await db.execute('''
+      CREATE TABLE budget_snapshots (
+        year_month      TEXT NOT NULL,
+        category_name   TEXT NOT NULL,
+        limit_amount    INTEGER NOT NULL,
+        alert_threshold INTEGER NOT NULL DEFAULT 80,
+        created_at      INTEGER NOT NULL,
+        PRIMARY KEY (year_month, category_name)
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -171,6 +181,19 @@ class DatabaseHelper {
             [normalized, row['id']]);
       }
     }
+    if (oldVersion < 10) {
+      // ADR-0025: monthly budget snapshots
+      await db.execute('''
+        CREATE TABLE budget_snapshots (
+          year_month      TEXT NOT NULL,
+          category_name   TEXT NOT NULL,
+          limit_amount    INTEGER NOT NULL,
+          alert_threshold INTEGER NOT NULL DEFAULT 80,
+          created_at      INTEGER NOT NULL,
+          PRIMARY KEY (year_month, category_name)
+        )
+      ''');
+    }
   }
 
   /// Test-only: inject an already-opened database
@@ -180,7 +203,7 @@ class DatabaseHelper {
   }
 
   /// Test-only: override the database path for migration tests. When set,
-  /// _initDatabase uses this path instead of <getDatabasesPath()>/qlct.db.
+  /// _initDatabase uses this path instead of `getDatabasesPath()/qlct.db`.
   /// Each test gets its own path so file-locking across test runs is avoided.
   @visibleForTesting
   set testPathOverride(String? path) {

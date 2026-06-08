@@ -7,10 +7,12 @@ import 'core/theme.dart';
 import 'data/database/database_helper.dart';
 import 'data/datasources/sqlite_transaction_datasource.dart';
 import 'data/datasources/sqlite_budget_datasource.dart';
+import 'data/datasources/sqlite_budget_snapshot_datasource.dart';
 import 'data/datasources/sqlite_recurring_datasource.dart';
 import 'data/datasources/sqlite_quick_template_datasource.dart';
 import 'data/datasources/transaction_local_datasource.dart';
 import 'data/datasources/budget_local_datasource.dart';
+import 'data/datasources/budget_snapshot_local_datasource.dart';
 import 'data/datasources/recurring_local_datasource.dart';
 import 'data/datasources/quick_template_local_datasource.dart';
 import 'data/migrations/shared_prefs_to_sqlite.dart';
@@ -84,6 +86,10 @@ Future<void> _initApp() async {
   final budgetDataSource = SqliteBudgetDataSource(dbHelper);
   debugPrint('✅ Budget data source ready');
 
+  debugPrint('📸 Setting up budget snapshot data source...');
+  final budgetSnapshotDataSource = SqliteBudgetSnapshotDataSource(dbHelper);
+  debugPrint('✅ Budget snapshot data source ready');
+
   debugPrint('🔄 Setting up recurring data source...');
   final recurringDataSource = SqliteRecurringDataSource(dbHelper);
   debugPrint('✅ Recurring data source ready');
@@ -96,6 +102,7 @@ Future<void> _initApp() async {
   final backupService = BackupService(
     transactionDataSource,
     budgetDataSource,
+    budgetSnapshotDataSource,
     recurringDataSource,
     quickTemplateDataSource,
     storageService,
@@ -107,6 +114,7 @@ Future<void> _initApp() async {
   runApp(MyApp(
     transactionDataSource: transactionDataSource,
     budgetDataSource: budgetDataSource,
+    budgetSnapshotDataSource: budgetSnapshotDataSource,
     recurringDataSource: recurringDataSource,
     quickTemplateDataSource: quickTemplateDataSource,
     exportService: exportService,
@@ -148,6 +156,7 @@ Widget _buildErrorApp() {
 class MyApp extends StatelessWidget {
   final TransactionLocalDataSource transactionDataSource;
   final BudgetLocalDataSource budgetDataSource;
+  final BudgetSnapshotLocalDataSource budgetSnapshotDataSource;
   final RecurringLocalDataSource recurringDataSource;
   final QuickTemplateLocalDataSource quickTemplateDataSource;
   final ExportService exportService;
@@ -158,6 +167,7 @@ class MyApp extends StatelessWidget {
     super.key,
     required this.transactionDataSource,
     required this.budgetDataSource,
+    required this.budgetSnapshotDataSource,
     required this.recurringDataSource,
     required this.quickTemplateDataSource,
     required this.exportService,
@@ -173,7 +183,11 @@ class MyApp extends StatelessWidget {
           create: (_) => ExpenseViewModel(transactionDataSource, exportService),
         ),
         ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
-          create: (_) => BudgetViewModel(budgetDataSource, storageService),
+          create: (_) => BudgetViewModel(
+            budgetDataSource,
+            budgetSnapshotDataSource,
+            storageService,
+          ),
           update: (_, expenseVM, budgetVM) => budgetVM!
             ..updateStats(expenseVM.stats),
         ),
@@ -197,6 +211,7 @@ class MyApp extends StatelessWidget {
           create: (_) => MonthlyReviewViewModel(
             transactionDataSource: transactionDataSource,
             budgetDataSource: budgetDataSource,
+            budgetSnapshotDataSource: budgetSnapshotDataSource,
             recurringDataSource: recurringDataSource,
           ),
         ),

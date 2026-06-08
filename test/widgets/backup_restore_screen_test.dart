@@ -55,16 +55,18 @@ void main() {
     when(() => mockVm.pendingBudgetCount).thenReturn(0);
     when(() => mockVm.pendingRecurringCount).thenReturn(0);
     when(() => mockVm.pendingQuickTemplateCount).thenReturn(0);
+    when(() => mockVm.pendingBudgetSnapshotCount).thenReturn(0);
     // Default: clearAllUserData returns success quickly.
     when(() => mockVm.clearAllUserData()).thenAnswer((_) async {});
     when(() => mockVm.createBackup()).thenAnswer((_) async {});
     when(() => mockVm.executeRestore(any(), any())).thenAnswer((_) async {});
     when(() => mockVm.getCurrentCounts()).thenAnswer(
- (_) async => const CurrentCounts(
+  (_) async => const CurrentCounts(
               transactionCount: 0,
               budgetCount: 0,
               recurringCount: 0,
               quickTemplateCount: 0,
+              budgetSnapshotCount: 0,
             ));
   });
 
@@ -274,6 +276,7 @@ void main() {
         budgetCount: 5,
         recurringCount: 3,
         quickTemplateCount: 7,
+        budgetSnapshotCount: 2,
       ),
     );
     when(() => mockVm.prepareRestorePreview()).thenAnswer(
@@ -293,6 +296,7 @@ void main() {
     when(() => mockVm.pendingBudgetCount).thenReturn(2);
     when(() => mockVm.pendingRecurringCount).thenReturn(1);
     when(() => mockVm.pendingQuickTemplateCount).thenReturn(4);
+    when(() => mockVm.pendingBudgetSnapshotCount).thenReturn(6);
 
     await tester.pumpWidget(wrap());
 
@@ -324,8 +328,52 @@ void main() {
         reason: 'current recurring count must appear');
     expect(allText.contains('7 mẫu nhanh'), isTrue,
         reason: 'current quick template count must appear');
+    // ADR-0025: snapshot count from file + from current
+    expect(allText.contains('6 ảnh chụp ngân sách'), isTrue,
+        reason: 'file snapshot count must appear in restore replace preview');
+    expect(allText.contains('2 ảnh chụp ngân sách'), isTrue,
+        reason: 'current snapshot count must appear in restore replace preview');
     // BackupViewModel.getCurrentCounts must have been called.
     verify(() => mockVm.getCurrentCounts()).called(1);
+  });
+
+  // ===========================================================================
+  // ADR-0025: delete-all dialog must list current budgetSnapshotCount
+  // alongside the other current counts.
+  // ===========================================================================
+
+  testWidgets('delete-all dialog shows current budgetSnapshotCount', (tester) async {
+    when(() => mockVm.getCurrentCounts()).thenAnswer(
+      (_) async => const CurrentCounts(
+        transactionCount: 9,
+        budgetCount: 2,
+        recurringCount: 1,
+        quickTemplateCount: 3,
+        budgetSnapshotCount: 5,
+      ),
+    );
+
+    await tester.pumpWidget(wrap());
+
+    await tester.scrollUntilVisible(
+      find.text('Xoá toàn bộ dữ liệu'),
+      100,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.tap(find.text('Xoá toàn bộ dữ liệu'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    final dialogBody = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(Text),
+    );
+    final allText = dialogBody
+        .evaluate()
+        .map((e) => (e.widget as Text).data ?? '')
+        .join(' | ');
+    expect(allText.contains('5 ảnh chụp ngân sách'), isTrue,
+        reason: 'delete-all dialog must mention snapshot count');
   });
 
   // ===========================================================================
@@ -341,6 +389,7 @@ void main() {
         budgetCount: 3,
         recurringCount: 2,
         quickTemplateCount: 4,
+        budgetSnapshotCount: 0,
       ),
     );
 
@@ -378,6 +427,7 @@ void main() {
         budgetCount: 0,
         recurringCount: 0,
         quickTemplateCount: 0,
+        budgetSnapshotCount: 0,
       ),
     );
 
@@ -415,6 +465,7 @@ void main() {
         budgetCount: 0,
         recurringCount: 0,
         quickTemplateCount: 0,
+        budgetSnapshotCount: 0,
       ),
     );
     // createBackup returns — but the VM's errorMessage is checked AFTER
@@ -506,6 +557,7 @@ void main() {
         budgetCount: 1,
         recurringCount: 1,
         quickTemplateCount: 2,
+        budgetSnapshotCount: 0,
       ),
     );
     when(() => mockVm.pendingTransactionCount).thenReturn(0);

@@ -71,6 +71,8 @@ void main() {
     expect(tableNames, contains('budgets'));
     expect(tableNames, contains('recurring_transactions'));
     expect(tableNames, contains('quick_templates'));
+    expect(tableNames, contains('budget_snapshots'),
+        reason: 'ADR-0025: budget_snapshots table required');
 
     await dbHelper.close();
   });

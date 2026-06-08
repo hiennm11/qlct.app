@@ -9,6 +9,7 @@ import 'package:qlct/viewmodels/budget_viewmodel.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
 import 'package:qlct/viewmodels/quick_template_viewmodel.dart';
 import 'package:qlct/models/backup_data.dart';
+import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/services/backup_service.dart';
 
 class MockBackupService extends Mock implements BackupService {}
@@ -52,6 +53,8 @@ void main() {
     registerFallbackValue(RestoreMode.merge);
     registerFallbackValue(RestoreMode.replace);
     registerFallbackValue(FakeRestoreResult());
+    registerFallbackValue(FakeFile());
+    registerFallbackValue(FakeBackupData());
   });
 
   group('initial state', () {
@@ -69,6 +72,75 @@ void main() {
       viewModel.clearMessages();
       expect(viewModel.errorMessage, isNull);
       expect(viewModel.successMessage, isNull);
+    });
+
+    test('clears pendingBudgetSnapshotCount', () async {
+      // Set it manually via prepareRestorePreview path
+      when(() => backupService.pickBackupFile())
+          .thenAnswer((_) async => File('test.json'));
+      when(() => backupService.validateFile(any()))
+          .thenAnswer((_) async => ImportResult.valid(BackupData(
+                appId: 'qlct.app',
+                schemaVersion: 4,
+                exportedAt: DateTime.now().toIso8601String(),
+                appVersion: '1.0.0',
+                transactions: [],
+                budgets: [],
+                recurringTransactions: [],
+                quickTemplates: [],
+                budgetSnapshots: const [],
+              )));
+      await viewModel.prepareRestorePreview();
+      expect(viewModel.pendingBudgetSnapshotCount, 0);
+      viewModel.clearMessages();
+      expect(viewModel.pendingBudgetSnapshotCount, isNull,
+          reason: 'clearMessages must reset pendingBudgetSnapshotCount');
+    });
+  });
+
+  group('prepareRestorePreview', () {
+    test('sets pendingBudgetSnapshotCount from validated backup data', () async {
+      when(() => backupService.pickBackupFile())
+          .thenAnswer((_) async => File('test.json'));
+      when(() => backupService.validateFile(any()))
+          .thenAnswer((_) async => ImportResult.valid(BackupData(
+                appId: 'qlct.app',
+                schemaVersion: 4,
+                exportedAt: DateTime.now().toIso8601String(),
+                appVersion: '1.0.0',
+                transactions: [],
+                budgets: [],
+                recurringTransactions: [],
+                quickTemplates: [],
+                budgetSnapshots: [
+                  BudgetSnapshot(
+                    yearMonth: '2026-05',
+                    categoryName: 'Ăn ngoài',
+                    limitAmount: 3000000,
+                    alertThreshold: 80,
+                    createdAt: DateTime.now(),
+                  ),
+                  BudgetSnapshot(
+                    yearMonth: '2026-05',
+                    categoryName: 'Cà phê',
+                    limitAmount: 1000000,
+                    alertThreshold: 80,
+                    createdAt: DateTime.now(),
+                  ),
+                  BudgetSnapshot(
+                    yearMonth: '2026-04',
+                    categoryName: 'Ăn ngoài',
+                    limitAmount: 3000000,
+                    alertThreshold: 80,
+                    createdAt: DateTime.now(),
+                  ),
+                ],
+              )));
+
+      await viewModel.prepareRestorePreview();
+
+      expect(viewModel.pendingBudgetSnapshotCount, 3,
+          reason: 'pendingBudgetSnapshotCount must match parsed backup data');
     });
   });
 
@@ -106,6 +178,7 @@ void main() {
         budgetCount: 3,
         recurringCount: 2,
         quickTemplateCount: 5,
+        budgetSnapshotCount: 4,
       );
       when(() => backupService.getCurrentCounts())
           .thenAnswer((_) async => expected);
@@ -113,7 +186,7 @@ void main() {
       final result = await viewModel.getCurrentCounts();
 
       expect(result, equals(expected));
-      expect(result.total, 20);
+      expect(result.total, 24);
       expect(result.isEmpty, isFalse);
     });
 
@@ -123,6 +196,7 @@ void main() {
         budgetCount: 0,
         recurringCount: 0,
         quickTemplateCount: 0,
+        budgetSnapshotCount: 0,
       );
       when(() => backupService.getCurrentCounts())
           .thenAnswer((_) async => expected);
@@ -249,6 +323,7 @@ void main() {
                 budgetsImported: 0,
                 recurringsImported: 0,
                 quickTemplatesImported: 0,
+                budgetSnapshotsImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -272,6 +347,7 @@ void main() {
                 budgetsImported: 2,
                 recurringsImported: 1,
                 quickTemplatesImported: 3,
+                budgetSnapshotsImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -296,6 +372,78 @@ void main() {
       verifyNever(() => mockExpenseVM.refresh());
     });
 
+    test(
+        'executeRestore success message includes budgetSnapshots count when nonzero',
+        () async {
+      when(() => mockBackupService.restore(any(), any()))
+          .thenAnswer((_) async => const RestoreResult(
+                success: true,
+                transactionsImported: 5,
+                budgetsImported: 2,
+                recurringsImported: 1,
+                quickTemplatesImported: 3,
+                budgetSnapshotsImported: 4,
+              ));
+      when(() => mockExpenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => mockBudgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockRecurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockQuickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      final importResult = ImportResult.valid(BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 3,
+        exportedAt: DateTime.now().toIso8601String(),
+        appVersion: '1.0.0',
+        transactions: [],
+        budgets: [],
+        recurringTransactions: [],
+        quickTemplates: [],
+      ));
+
+      await restoreVM.executeRestore(importResult, RestoreMode.merge);
+
+      expect(restoreVM.successMessage, isNotNull);
+      expect(restoreVM.successMessage, contains('4 ảnh chụp ngân sách'),
+          reason: 'success message must mention budgetSnapshots when >0');
+    });
+
+    test(
+        'executeRestore success message OMITS budgetSnapshots count when zero',
+        () async {
+      when(() => mockBackupService.restore(any(), any()))
+          .thenAnswer((_) async => const RestoreResult(
+                success: true,
+                transactionsImported: 5,
+                budgetsImported: 2,
+                recurringsImported: 1,
+                quickTemplatesImported: 3,
+                budgetSnapshotsImported: 0,
+              ));
+      when(() => mockExpenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => mockBudgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockRecurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockQuickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      final importResult = ImportResult.valid(BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 3,
+        exportedAt: DateTime.now().toIso8601String(),
+        appVersion: '1.0.0',
+        transactions: [],
+        budgets: [],
+        recurringTransactions: [],
+        quickTemplates: [],
+      ));
+
+      await restoreVM.executeRestore(importResult, RestoreMode.replace);
+
+      expect(restoreVM.successMessage, isNotNull);
+      expect(restoreVM.successMessage, isNot(contains('ảnh chụp ngân sách')),
+          reason: 'success message must not mention snapshots when count=0');
+    });
+
     test('restore still refreshes Budget/Recurring/QuickTemplate VMs', () async {
       when(() => mockBackupService.pickBackupFile())
           .thenAnswer((_) async => File('test.json'));
@@ -317,6 +465,7 @@ void main() {
                 budgetsImported: 0,
                 recurringsImported: 0,
                 quickTemplatesImported: 0,
+                budgetSnapshotsImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});

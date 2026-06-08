@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
@@ -18,6 +19,9 @@ class MockTransactionLocalDataSource extends Mock
 class MockBudgetLocalDataSource extends Mock
     implements BudgetLocalDataSource {}
 
+class MockBudgetSnapshotLocalDataSource extends Mock
+    implements BudgetSnapshotLocalDataSource {}
+
 class MockRecurringLocalDataSource extends Mock
     implements RecurringLocalDataSource {}
 
@@ -26,6 +30,7 @@ class MockExportService extends Mock implements ExportService {}
 void main() {
   late MockTransactionLocalDataSource mockTxDS;
   late MockBudgetLocalDataSource mockBudgetDS;
+  late MockBudgetSnapshotLocalDataSource mockSnapshotDS;
   late MockRecurringLocalDataSource mockRecurringDS;
   late MockExportService mockExport;
 
@@ -45,6 +50,7 @@ void main() {
   setUp(() {
     mockTxDS = MockTransactionLocalDataSource();
     mockBudgetDS = MockBudgetLocalDataSource();
+    mockSnapshotDS = MockBudgetSnapshotLocalDataSource();
     mockRecurringDS = MockRecurringLocalDataSource();
     mockExport = MockExportService();
     when(() => mockTxDS.getAllPaginated(
@@ -52,6 +58,7 @@ void main() {
         .thenAnswer((_) async => []);
     when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => []);
     when(() => mockBudgetDS.getAll()).thenAnswer((_) async => []);
+    when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => []);
     when(() => mockRecurringDS.getAll()).thenAnswer((_) async => []);
   });
 
@@ -75,6 +82,7 @@ void main() {
     final reviewVm = MonthlyReviewViewModel(
       transactionDataSource: mockTxDS,
       budgetDataSource: mockBudgetDS,
+      budgetSnapshotDataSource: mockSnapshotDS,
       recurringDataSource: mockRecurringDS,
     );
 

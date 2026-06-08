@@ -304,7 +304,8 @@ class BackupRestoreScreen extends StatelessWidget {
         '\n• ${vm.pendingTransactionCount ?? 0} giao dịch'
         '\n• ${vm.pendingBudgetCount ?? 0} ngân sách'
         '\n• ${vm.pendingRecurringCount ?? 0} giao dịch định kỳ'
-        '\n• ${vm.pendingQuickTemplateCount ?? 0} mẫu nhanh';
+        '\n• ${vm.pendingQuickTemplateCount ?? 0} mẫu nhanh'
+        '\n• ${vm.pendingBudgetSnapshotCount ?? 0} ảnh chụp ngân sách';
 
     final currentPreview = currentCounts != null
         ? '\n\nHiện tại có:'
@@ -312,6 +313,7 @@ class BackupRestoreScreen extends StatelessWidget {
             '\n• ${currentCounts.budgetCount} ngân sách'
             '\n• ${currentCounts.recurringCount} giao dịch định kỳ'
             '\n• ${currentCounts.quickTemplateCount} mẫu nhanh'
+            '\n• ${currentCounts.budgetSnapshotCount} ảnh chụp ngân sách'
         : '';
 
     final isReplaceText = isReplace
@@ -386,6 +388,7 @@ class BackupRestoreScreen extends StatelessWidget {
           '• ${counts.budgetCount} ngân sách\n'
           '• ${counts.recurringCount} giao dịch định kỳ\n'
           '• ${counts.quickTemplateCount} mẫu nhanh\n'
+          '• ${counts.budgetSnapshotCount} ảnh chụp ngân sách\n'
           '• tổng ngân sách (totalBudget)\n\n'
           'Hành động này không thể khôi phục. Nên tạo bản sao lưu trước.\n\n'
           'Bạn có chắc chắn muốn tiếp tục?',

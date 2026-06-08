@@ -73,7 +73,7 @@ class MonthlyReviewBuilder {
       activeRecurringRules,
     );
 
-    // Budget highlights
+    // Budget highlights (ADR-0025 §6: skip investment categories)
     final budgetHighlights = _buildBudgetHighlights(currentSpending, budgets);
 
     // Biggest spending day (only from spending, exclude investment)
@@ -318,7 +318,9 @@ class MonthlyReviewBuilder {
     final budgetMap = {for (var b in budgets) b.categoryName: b};
     final highlights = <MonthlyReviewBudgetHighlight>[];
 
+    // ADR-0025 §6: skip investment categories in budget highlights
     for (final category in Category.predefined) {
+      if (category.isInvestment) continue;
       final budget = budgetMap[category.name];
       if (budget == null) continue;
 

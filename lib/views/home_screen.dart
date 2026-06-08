@@ -10,6 +10,7 @@ import '../widgets/budget_overview_widget.dart';
 import '../widgets/recurring_overview_widget.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/quick_templates_strip.dart';
+import '../core/constants.dart';
 import '../core/theme.dart';
 import 'backup_restore_screen.dart';
 import 'monthly_review_screen.dart';
@@ -85,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showAboutDialog(
       context: context,
       applicationName: 'Quản Lý Chi Tiêu',
-      applicationVersion: '1.0.0',
+      applicationVersion: AppConstants.appVersion,
       applicationIcon: const Icon(Icons.account_balance_wallet, size: 48),
       children: const [
         Text('Ứng dụng quản lý chi tiêu cá nhân với tính năng theo dõi chi tiêu, ngân sách và giao dịch định kỳ.'),

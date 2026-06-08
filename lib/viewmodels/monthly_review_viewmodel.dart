@@ -1,9 +1,12 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting, ChangeNotifier, debugPrint;
+import '../models/budget.dart';
 import '../models/recurring_transaction.dart';
 import '../models/monthly_review_data.dart';
 import '../data/datasources/transaction_local_datasource.dart';
 import '../data/datasources/budget_local_datasource.dart';
+import '../data/datasources/budget_snapshot_local_datasource.dart';
 import '../data/datasources/recurring_local_datasource.dart';
+import '../data/mappers/budget_snapshot_row_mapper.dart';
 import '../services/monthly_review_builder.dart';
 
 /// Read-only ViewModel for Monthly Review analytics.
@@ -12,9 +15,11 @@ import '../services/monthly_review_builder.dart';
 /// ExpenseViewModel.stats for review totals.
 ///
 /// ADR-0021: Monthly Review as Read-only Derived Analytics
+/// ADR-0025: Monthly Budget Snapshots
 class MonthlyReviewViewModel extends ChangeNotifier {
   final TransactionLocalDataSource _transactionDataSource;
   final BudgetLocalDataSource _budgetDataSource;
+  final BudgetSnapshotLocalDataSource _budgetSnapshotDataSource;
   final RecurringLocalDataSource _recurringDataSource;
   final MonthlyReviewBuilder _builder;
 
@@ -25,13 +30,21 @@ class MonthlyReviewViewModel extends ChangeNotifier {
 
   static DateTime _firstOfMonth(DateTime d) => DateTime(d.year, d.month, 1);
 
+  /// Convert DateTime to YYYY-MM string.
+  @visibleForTesting
+  static String yearMonthOf(DateTime d) {
+    return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}';
+  }
+
   MonthlyReviewViewModel({
     required TransactionLocalDataSource transactionDataSource,
     required BudgetLocalDataSource budgetDataSource,
+    required BudgetSnapshotLocalDataSource budgetSnapshotDataSource,
     required RecurringLocalDataSource recurringDataSource,
     MonthlyReviewBuilder? builder,
   })  : _transactionDataSource = transactionDataSource,
         _budgetDataSource = budgetDataSource,
+        _budgetSnapshotDataSource = budgetSnapshotDataSource,
         _recurringDataSource = recurringDataSource,
         _builder = builder ?? MonthlyReviewBuilder();
 
@@ -132,9 +145,12 @@ class MonthlyReviewViewModel extends ChangeNotifier {
       final previousPeriodStart = DateTime(periodStart.year, periodStart.month - 1, 1);
       DateTime previousPeriodEnd;
       if (isCurrentMonthInProgress) {
-        // Same period: previous month same day count
+        // Same period: previous month same day count, clamped to last day
+        // of previous month (e.g. Mar 31 → Feb 28/29, not Mar2/3)
         final dayCount = periodEnd.day;
-        previousPeriodEnd = DateTime(previousPeriodStart.year, previousPeriodStart.month, dayCount);
+        final lastDayOfPrevMonth = DateTime(previousPeriodStart.year, previousPeriodStart.month + 1, 0).day;
+        final clampedDay = dayCount > lastDayOfPrevMonth ? lastDayOfPrevMonth : dayCount;
+        previousPeriodEnd = DateTime(previousPeriodStart.year, previousPeriodStart.month, clampedDay);
       } else {
         // Full month: last day of previous month
         previousPeriodEnd = DateTime(periodStart.year, periodStart.month, 0);
@@ -143,7 +159,25 @@ class MonthlyReviewViewModel extends ChangeNotifier {
       // Fetch data from DataSources
       final currentTxs = await _transactionDataSource.getByDateRange(periodStart, periodEnd);
       final previousTxs = await _transactionDataSource.getByDateRange(previousPeriodStart, previousPeriodEnd);
-      final budgets = await _budgetDataSource.getAll();
+
+      // ADR-0025 §5: resolve budget list per selected month
+      // - current month: live config
+      // - past month with snapshots: snapshot → Budget
+      // - past month without snapshots: fallback to live
+      List<Budget> budgets;
+      if (isCurrentMonthInProgress) {
+        budgets = await _budgetDataSource.getAll();
+      } else {
+        final ym = yearMonthOf(selectedStart);
+        final snapshots =
+            await _budgetSnapshotDataSource.getByYearMonth(ym);
+        if (snapshots.isNotEmpty) {
+          budgets = snapshots.map((s) => budgetSnapshotToBudget(s)).toList();
+        } else {
+          budgets = await _budgetDataSource.getAll();
+        }
+      }
+
       final allRecurring = await _recurringDataSource.getAll();
 
       // Active recurring rules only shown for current month

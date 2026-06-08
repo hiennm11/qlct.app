@@ -111,8 +111,8 @@ void main() {
       expect(backup.transactions[4].id, 'tx-4');
     });
 
-    test('currentSchemaVersion is 3 (ADR-0023)', () {
-      expect(currentSchemaVersion, 3);
+    test('currentSchemaVersion is 4 (ADR-0025)', () {
+      expect(currentSchemaVersion, 4);
     });
 
     test('appId field present in model with default', () {
@@ -222,6 +222,28 @@ void main() {
 
       expect(backup.schemaVersion, 1);
       expect(backup.quickTemplates, isEmpty);
+    });
+
+    test('v3 JSON parses with missing budgetSnapshots (defaults to [])',
+        () {
+      // Simulate v3 JSON: no budgetSnapshots field
+      final v3Json = {
+        'appId': 'qlct.app',
+        'schemaVersion': 3,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        'quickTemplates': <Map<String, dynamic>>[],
+        // no 'budgetSnapshots' field
+      };
+
+      final backup = BackupData.fromJson(v3Json);
+
+      expect(backup.schemaVersion, 3);
+      expect(backup.budgetSnapshots, isEmpty);
     });
   });
 }

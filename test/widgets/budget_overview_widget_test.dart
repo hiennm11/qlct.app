@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/budget.dart';
+import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
 import 'package:qlct/widgets/budget_overview_widget.dart';
@@ -12,10 +14,16 @@ import 'package:qlct/widgets/section_header.dart';
 
 class MockBudgetLocalDataSource extends Mock implements BudgetLocalDataSource {}
 
+class MockBudgetSnapshotLocalDataSource extends Mock
+    implements BudgetSnapshotLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
+
+class FakeBudgetSnapshot extends Fake implements BudgetSnapshot {}
 
 void main() {
   late MockBudgetLocalDataSource mockRepo;
+  late MockBudgetSnapshotLocalDataSource mockSnapshotRepo;
   late MockStorageService mockStorage;
   late BudgetViewModel vm;
 
@@ -27,14 +35,19 @@ void main() {
       alertThreshold: 80,
       createdAt: DateTime.now(),
     ));
+    registerFallbackValue(FakeBudgetSnapshot());
   });
 
   setUp(() {
     mockRepo = MockBudgetLocalDataSource();
+    mockSnapshotRepo = MockBudgetSnapshotLocalDataSource();
     mockStorage = MockStorageService();
     when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+    when(() => mockSnapshotRepo.getAll()).thenAnswer((_) async => []);
+    when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+    when(() => mockSnapshotRepo.bulkUpsert(any())).thenAnswer((_) async {});
     when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-    vm = BudgetViewModel(mockRepo, mockStorage);
+    vm = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
   });
 
   Widget wrap() {
@@ -48,7 +61,7 @@ void main() {
     );
   }
 
-  List<Budget> _mixedBudgets() => [
+  List<Budget> mixedBudgets() => [
         Budget(
           id: '1',
           categoryName: 'Ăn ngoài',
@@ -72,7 +85,7 @@ void main() {
         ),
       ];
 
-  List<Budget> _exceededBudgets() => [
+  List<Budget> exceededBudgets() => [
         Budget(
           id: '1',
           categoryName: 'Ăn ngoài',
@@ -89,7 +102,7 @@ void main() {
         ),
       ];
 
-  ExpenseStats _buildStats(Map<String, int> categoryTotals) {
+  ExpenseStats buildStats(Map<String, int> categoryTotals) {
     return ExpenseStats(
       todayExpense: 0,
       weekExpense: 0,
@@ -128,9 +141,9 @@ void main() {
     group('with mixed budgets (exceeded + warning + normal)', () {
       testWidgets('alert cards (warning + exceeded) visible by default',
           (tester) async {
-        when(() => mockRepo.getAll()).thenAnswer((_) async => _mixedBudgets());
+        when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
-        vm.updateStats(_buildStats({
+        vm.updateStats(buildStats({
           'Ăn ngoài': 2500000, // 125% exceeded
           'Cà phê': 900000,    // 90% warning
           'Ăn nhà': 500000,    // 10% normal
@@ -143,9 +156,9 @@ void main() {
       });
 
       testWidgets('normal cards NOT visible by default', (tester) async {
-        when(() => mockRepo.getAll()).thenAnswer((_) async => _mixedBudgets());
+        when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
-        vm.updateStats(_buildStats({
+        vm.updateStats(buildStats({
           'Ăn ngoài': 2500000,
           'Cà phê': 900000,
           'Ăn nhà': 500000,
@@ -158,9 +171,9 @@ void main() {
 
       testWidgets('"Xem tất cả" button visible when normal statuses exist',
           (tester) async {
-        when(() => mockRepo.getAll()).thenAnswer((_) async => _mixedBudgets());
+        when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
-        vm.updateStats(_buildStats({
+        vm.updateStats(buildStats({
           'Ăn ngoài': 2500000,
           'Cà phê': 900000,
           'Ăn nhà': 500000,
@@ -175,9 +188,9 @@ void main() {
       testWidgets(
           'tap "Xem tất cả" -> normal cards appear, button becomes "Thu gọn"',
           (tester) async {
-        when(() => mockRepo.getAll()).thenAnswer((_) async => _mixedBudgets());
+        when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
-        vm.updateStats(_buildStats({
+        vm.updateStats(buildStats({
           'Ăn ngoài': 2500000,
           'Cà phê': 900000,
           'Ăn nhà': 500000,
@@ -197,9 +210,9 @@ void main() {
       });
 
       testWidgets('tap "Thu gọn" -> normal cards hidden again', (tester) async {
-        when(() => mockRepo.getAll()).thenAnswer((_) async => _mixedBudgets());
+        when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
-        vm.updateStats(_buildStats({
+        vm.updateStats(buildStats({
           'Ăn ngoài': 2500000,
           'Cà phê': 900000,
           'Ăn nhà': 500000,
@@ -223,9 +236,9 @@ void main() {
 
     group('with all-exceeded budgets (no normal)', () {
       testWidgets('no toggle button when no normal statuses', (tester) async {
-        when(() => mockRepo.getAll()).thenAnswer((_) async => _exceededBudgets());
+        when(() => mockRepo.getAll()).thenAnswer((_) async => exceededBudgets());
         await vm.forceReload();
-        vm.updateStats(_buildStats({
+        vm.updateStats(buildStats({
           'Ăn ngoài': 3000000, // 150% exceeded
           'Cà phê': 1200000,   // 120% exceeded
         }));
@@ -239,6 +252,42 @@ void main() {
         expect(find.byIcon(Icons.expand_more), findsNothing);
         expect(find.byIcon(Icons.expand_less), findsNothing);
       });
+    });
+  });
+
+  group('BudgetOverviewWidget - ADR-0025 §6 investment exclusion', () {
+    testWidgets('does not render investment category card even if budget exists',
+        (tester) async {
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [
+            Budget(
+              id: 'inv-1',
+              categoryName: 'Đầu tư',
+              monthlyLimit: 10000000,
+              alertThreshold: 80,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+            Budget(
+              id: 'food-1',
+              categoryName: 'Ăn ngoài',
+              monthlyLimit: 1000000,
+              alertThreshold: 80,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]);
+      await vm.forceReload();
+      // Make Ăn ngoài warning (90% of 1M = 900k) so it shows by default
+      vm.updateStats(buildStats({
+        'Đầu tư': 12000000, // exceeded but should be excluded
+        'Ăn ngoài': 900000, // 90% warning — shows in default view
+      }));
+      await tester.pumpWidget(wrap());
+      await tester.pumpAndSettle();
+
+      // Ăn ngoài budget card should appear
+      expect(find.text('Ăn ngoài'), findsOneWidget);
+      // Đầu tư budget card should NOT appear
+      expect(find.text('Đầu tư'), findsNothing,
+          reason: 'Investment category should be excluded from budget overview');
     });
   });
 }

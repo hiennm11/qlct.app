@@ -19,15 +19,18 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart'
 import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_transaction_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_budget_datasource.dart';
+import 'package:qlct/data/datasources/sqlite_budget_snapshot_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_recurring_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_quick_template_datasource.dart';
 import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
+import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
 import 'package:qlct/services/backup_service.dart';
@@ -38,6 +41,9 @@ class MockTransactionDataSource extends Mock
     implements TransactionLocalDataSource {}
 
 class MockBudgetDataSource extends Mock implements BudgetLocalDataSource {}
+
+class MockBudgetSnapshotDataSource extends Mock
+    implements BudgetSnapshotLocalDataSource {}
 
 class MockRecurringDataSource extends Mock
     implements RecurringLocalDataSource {}
@@ -54,6 +60,7 @@ void main() {
   late BackupService backupService;
   late MockTransactionDataSource mockTxRepo;
   late MockBudgetDataSource mockBudgetRepo;
+  late MockBudgetSnapshotDataSource mockBudgetSnapshotRepo;
   late MockRecurringDataSource mockRecurringRepo;
   late MockQuickTemplateDataSource mockQuickTemplateRepo;
   late MockStorageService mockStorage;
@@ -75,6 +82,12 @@ setUpAll(() {
       categoryName: 'test',
       monthlyLimit: 0,
       alertThreshold: 80,
+      createdAt: DateTime.now(),
+    ));
+    registerFallbackValue(BudgetSnapshot(
+      yearMonth: '2026-01',
+      categoryName: 'test',
+      limitAmount: 0,
       createdAt: DateTime.now(),
     ));
     registerFallbackValue(RecurringTransaction(
@@ -123,6 +136,7 @@ setUpAll(() {
 
     mockTxRepo = MockTransactionDataSource();
     mockBudgetRepo = MockBudgetDataSource();
+    mockBudgetSnapshotRepo = MockBudgetSnapshotDataSource();
     mockRecurringRepo = MockRecurringDataSource();
     mockQuickTemplateRepo = MockQuickTemplateDataSource();
     mockStorage = MockStorageService();
@@ -131,12 +145,14 @@ setUpAll(() {
     // so tests not exercising counts don't have to stub them.
     when(() => mockTxRepo.count()).thenAnswer((_) async => 0);
     when(() => mockBudgetRepo.count()).thenAnswer((_) async => 0);
+    when(() => mockBudgetSnapshotRepo.count()).thenAnswer((_) async => 0);
     when(() => mockRecurringRepo.count()).thenAnswer((_) async => 0);
     when(() => mockQuickTemplateRepo.count()).thenAnswer((_) async => 0);
 
     backupService = BackupService(
       mockTxRepo,
       mockBudgetRepo,
+      mockBudgetSnapshotRepo,
       mockRecurringRepo,
       mockQuickTemplateRepo,
       mockStorage,
@@ -724,6 +740,7 @@ setUpAll(() {
       // values (the mocks don't talk to the real dbHelper).
       when(() => mockTxRepo.count()).thenAnswer((_) async => 2);
       when(() => mockBudgetRepo.count()).thenAnswer((_) async => 1);
+      when(() => mockBudgetSnapshotRepo.count()).thenAnswer((_) async => 0);
       when(() => mockRecurringRepo.count()).thenAnswer((_) async => 1);
       when(() => mockQuickTemplateRepo.count()).thenAnswer((_) async => 1);
 
@@ -733,6 +750,7 @@ setUpAll(() {
       expect(counts.budgetCount, 1);
       expect(counts.recurringCount, 1);
       expect(counts.quickTemplateCount, 1);
+      expect(counts.budgetSnapshotCount, 0);
     });
 
     test('returns 0 for all counts on empty database', () async {
@@ -741,6 +759,7 @@ setUpAll(() {
       expect(counts.budgetCount, 0);
       expect(counts.recurringCount, 0);
       expect(counts.quickTemplateCount, 0);
+      expect(counts.budgetSnapshotCount, 0);
     });
 
     test('getCurrentCounts uses SQL COUNT(*) end-to-end via real Sqlite datasources',
@@ -750,12 +769,14 @@ setUpAll(() {
       // dbHelper. This proves the service wires count() through to SQL.
       final realTxRepo = SqliteTransactionDataSource(dbHelper);
       final realBudgetRepo = SqliteBudgetDataSource(dbHelper);
+      final realBudgetSnapshotRepo = SqliteBudgetSnapshotDataSource(dbHelper);
       final realRecurringRepo = SqliteRecurringDataSource(dbHelper);
       final realQuickTemplateRepo = SqliteQuickTemplateDataSource(dbHelper);
 
       final realService = BackupService(
         realTxRepo,
         realBudgetRepo,
+        realBudgetSnapshotRepo,
         realRecurringRepo,
         realQuickTemplateRepo,
         mockStorage,

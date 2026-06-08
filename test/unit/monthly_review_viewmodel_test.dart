@@ -2,9 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
+import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/viewmodels/monthly_review_viewmodel.dart';
 
@@ -14,6 +16,9 @@ class MockTransactionLocalDataSource extends Mock
 class MockBudgetLocalDataSource extends Mock
     implements BudgetLocalDataSource {}
 
+class MockBudgetSnapshotLocalDataSource extends Mock
+    implements BudgetSnapshotLocalDataSource {}
+
 class MockRecurringLocalDataSource extends Mock
     implements RecurringLocalDataSource {}
 
@@ -21,16 +26,20 @@ class FakeTransaction extends Fake implements Transaction {}
 
 class FakeBudget extends Fake implements Budget {}
 
+class FakeBudgetSnapshot extends Fake implements BudgetSnapshot {}
+
 class FakeRecurring extends Fake implements RecurringTransaction {}
 
 void main() {
   late MockTransactionLocalDataSource mockTxDS;
   late MockBudgetLocalDataSource mockBudgetDS;
+  late MockBudgetSnapshotLocalDataSource mockSnapshotDS;
   late MockRecurringLocalDataSource mockRecurringDS;
 
   setUpAll(() {
     registerFallbackValue(FakeTransaction());
     registerFallbackValue(FakeBudget());
+    registerFallbackValue(FakeBudgetSnapshot());
     registerFallbackValue(FakeRecurring());
     registerFallbackValue(DateTime(2026, 1, 1));
   });
@@ -38,10 +47,12 @@ void main() {
   setUp(() {
     mockTxDS = MockTransactionLocalDataSource();
     mockBudgetDS = MockBudgetLocalDataSource();
+    mockSnapshotDS = MockBudgetSnapshotLocalDataSource();
     mockRecurringDS = MockRecurringLocalDataSource();
     // Default: return empty data
     when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => []);
     when(() => mockBudgetDS.getAll()).thenAnswer((_) async => []);
+    when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => []);
     when(() => mockRecurringDS.getAll()).thenAnswer((_) async => []);
   });
 
@@ -49,6 +60,7 @@ void main() {
     return MonthlyReviewViewModel(
       transactionDataSource: mockTxDS,
       budgetDataSource: mockBudgetDS,
+      budgetSnapshotDataSource: mockSnapshotDS,
       recurringDataSource: mockRecurringDS,
     );
   }
@@ -103,13 +115,16 @@ void main() {
 
     test('previousMonth navigates to previous month', () async {
       final vm = makeVm();
-      // Start with June
       when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => []);
 
       vm.previousMonth();
       await Future.delayed(Duration.zero);
 
-      expect(vm.selectedMonth.month, DateTime.now().month - 1);
+      // Calculate expected previous month correctly (handles January edge case)
+      final now = DateTime.now();
+      final expected = DateTime(now.year, now.month - 1, 1);
+      expect(vm.selectedMonth.year, expected.year);
+      expect(vm.selectedMonth.month, expected.month);
     });
 
     test('nextMonth disabled beyond current month', () async {
@@ -179,6 +194,106 @@ void main() {
       // Second call: April 1 to April 30 (full previous month)
       expect(calls[1][0].month, 4);
       expect(calls[1][1].month, 4);
+    });
+  });
+
+  group('MonthlyReviewViewModel budget resolution (ADR-0025)', () {
+    test('current month uses live budgets, NOT snapshots', () async {
+      when(() => mockTxDS.getByDateRange(any(), any()))
+          .thenAnswer((_) async => []);
+      when(() => mockBudgetDS.getAll()).thenAnswer((_) async => [
+            Budget(
+              id: 'live-1',
+              categoryName: 'Ăn ngoài',
+              monthlyLimit: 5000000,
+              alertThreshold: 80,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]);
+      // Snapshot would return different value — should NOT be used
+      when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => [
+            BudgetSnapshot(
+              yearMonth: '2026-12',
+              categoryName: 'Ăn ngoài',
+              limitAmount: 9999999, // different from live
+              alertThreshold: 80,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]);
+
+      final vm = makeVm();
+      await vm.loadMonth(); // current month
+
+      // Live budgets queried
+      verify(() => mockBudgetDS.getAll()).called(1);
+      // Snapshot should NOT be queried for current month
+      verifyNever(() => mockSnapshotDS.getByYearMonth(any()));
+    });
+
+    test('past month with snapshots uses snapshot budgets (not live)', () async {
+      final pastSnapshot = BudgetSnapshot(
+        yearMonth: '2026-05',
+        categoryName: 'Ăn ngoài',
+        limitAmount: 1234567, // distinct value to verify path
+        alertThreshold: 80,
+        createdAt: DateTime(2026, 6, 1),
+      );
+      when(() => mockTxDS.getByDateRange(any(), any()))
+          .thenAnswer((_) async => []);
+      when(() => mockSnapshotDS.getByYearMonth('2026-05'))
+          .thenAnswer((_) async => [pastSnapshot]);
+      // live would return a different value
+      when(() => mockBudgetDS.getAll()).thenAnswer((_) async => [
+            Budget(
+              id: 'live-1',
+              categoryName: 'Ăn ngoài',
+              monthlyLimit: 9999999,
+              alertThreshold: 80,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]);
+
+      final vm = makeVm();
+      await vm.selectMonth(DateTime(2026, 5, 1));
+
+      // Snapshot was queried for the past month
+      verify(() => mockSnapshotDS.getByYearMonth('2026-05')).called(1);
+      // Live budgets NOT queried when snapshot path returns data
+      verifyNever(() => mockBudgetDS.getAll());
+      // Data was built with snapshot-derived limits
+      expect(vm.data, isNotNull);
+      final highlights = vm.data!.budgetHighlights;
+      final anNgoai = highlights
+          .where((h) => h.categoryName == 'Ăn ngoài')
+          .firstOrNull;
+      // 0 spent vs 1234567 limit → no highlight (not warning/exceeded)
+      expect(anNgoai, isNull,
+          reason: 'limit from snapshot 1234567 should not produce a highlight at 0 spent');
+    });
+
+    test('past month with no snapshots falls back to live budgets', () async {
+      when(() => mockTxDS.getByDateRange(any(), any()))
+          .thenAnswer((_) async => []);
+      when(() => mockSnapshotDS.getByYearMonth('2026-05'))
+          .thenAnswer((_) async => []); // no snapshots
+      when(() => mockBudgetDS.getAll()).thenAnswer((_) async => [
+            Budget(
+              id: 'live-1',
+              categoryName: 'Ăn ngoài',
+              monthlyLimit: 1000000,
+              alertThreshold: 80,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]);
+
+      final vm = makeVm();
+      await vm.selectMonth(DateTime(2026, 5, 1));
+
+      // Snapshot was queried
+      verify(() => mockSnapshotDS.getByYearMonth('2026-05')).called(1);
+      // Live fallback was used
+      verify(() => mockBudgetDS.getAll()).called(1);
+      expect(vm.data, isNotNull);
     });
   });
 }
