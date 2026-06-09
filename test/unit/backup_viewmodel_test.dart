@@ -179,6 +179,8 @@ void main() {
         recurringCount: 2,
         quickTemplateCount: 5,
         budgetSnapshotCount: 4,
+        budgetPlanCount: 1,
+        budgetPlanItemCount: 3,
       );
       when(() => backupService.getCurrentCounts())
           .thenAnswer((_) async => expected);
@@ -186,7 +188,7 @@ void main() {
       final result = await viewModel.getCurrentCounts();
 
       expect(result, equals(expected));
-      expect(result.total, 24);
+      expect(result.total, 28);
       expect(result.isEmpty, isFalse);
     });
 
@@ -197,6 +199,8 @@ void main() {
         recurringCount: 0,
         quickTemplateCount: 0,
         budgetSnapshotCount: 0,
+        budgetPlanCount: 0,
+        budgetPlanItemCount: 0,
       );
       when(() => backupService.getCurrentCounts())
           .thenAnswer((_) async => expected);
@@ -324,6 +328,8 @@ void main() {
                 recurringsImported: 0,
                 quickTemplatesImported: 0,
                 budgetSnapshotsImported: 0,
+                budgetPlansImported: 0,
+                budgetPlanItemsImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -348,6 +354,8 @@ void main() {
                 recurringsImported: 1,
                 quickTemplatesImported: 3,
                 budgetSnapshotsImported: 0,
+                budgetPlansImported: 0,
+                budgetPlanItemsImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -383,6 +391,8 @@ void main() {
                 recurringsImported: 1,
                 quickTemplatesImported: 3,
                 budgetSnapshotsImported: 4,
+                budgetPlansImported: 0,
+                budgetPlanItemsImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -419,6 +429,8 @@ void main() {
                 recurringsImported: 1,
                 quickTemplatesImported: 3,
                 budgetSnapshotsImported: 0,
+                budgetPlansImported: 0,
+                budgetPlanItemsImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -466,6 +478,8 @@ void main() {
                 recurringsImported: 0,
                 quickTemplatesImported: 0,
                 budgetSnapshotsImported: 0,
+                budgetPlansImported: 0,
+                budgetPlanItemsImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -496,6 +510,86 @@ void main() {
 
       verify(() => mockExpenseVM.refreshAfterExternalDataChange()).called(1);
       verifyNever(() => mockExpenseVM.refresh());
+    });
+
+    // ADR-0026: success message mentions plan counts when nonzero
+    test('executeRestore success message includes budgetPlansImported when > 0',
+        () async {
+      when(() => mockBackupService.restore(any(), any())).thenAnswer(
+        (_) async => const RestoreResult(
+          success: true,
+          transactionsImported: 5,
+          budgetsImported: 2,
+          recurringsImported: 1,
+          quickTemplatesImported: 3,
+          budgetSnapshotsImported: 0,
+          budgetPlansImported: 2,
+          budgetPlanItemsImported: 8,
+        ),
+      );
+      when(() => mockExpenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => mockBudgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockRecurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockQuickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      final importResult = ImportResult.valid(BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 5,
+        exportedAt: DateTime.now().toIso8601String(),
+        appVersion: '1.0.0',
+        transactions: const [],
+        budgets: const [],
+        recurringTransactions: const [],
+        quickTemplates: const [],
+      ));
+
+      await restoreVM.executeRestore(importResult, RestoreMode.merge);
+
+      expect(restoreVM.successMessage, isNotNull);
+      expect(restoreVM.successMessage, contains('2 kế hoạch ngân sách'),
+          reason: 'success message must mention budgetPlans when >0');
+    });
+
+    test(
+        'executeRestore success message includes budgetPlanItemsImported when > 0',
+        () async {
+      when(() => mockBackupService.restore(any(), any())).thenAnswer(
+        (_) async => const RestoreResult(
+          success: true,
+          transactionsImported: 3,
+          budgetsImported: 1,
+          recurringsImported: 0,
+          quickTemplatesImported: 2,
+          budgetSnapshotsImported: 0,
+          budgetPlansImported: 1,
+          budgetPlanItemsImported: 5,
+        ),
+      );
+      when(() => mockExpenseVM.refreshAfterExternalDataChange())
+          .thenAnswer((_) async {});
+      when(() => mockBudgetVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockRecurringVM.forceReload()).thenAnswer((_) async {});
+      when(() => mockQuickTemplateVM.forceReload()).thenAnswer((_) async {});
+
+      final importResult = ImportResult.valid(BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 5,
+        exportedAt: DateTime.now().toIso8601String(),
+        appVersion: '1.0.0',
+        transactions: const [],
+        budgets: const [],
+        recurringTransactions: const [],
+        quickTemplates: const [],
+      ));
+
+      await restoreVM.executeRestore(importResult, RestoreMode.merge);
+
+      expect(restoreVM.successMessage, isNotNull);
+      expect(
+          restoreVM.successMessage,
+          contains('5 hạng mục'),
+          reason: 'success message must mention budgetPlanItems when >0');
     });
   });
 }

@@ -33,6 +33,9 @@ mixin _$BackupData {
   List<QuickTemplate> get quickTemplates =>
       throw _privateConstructorUsedError; // ADR-0025: monthly budget snapshots
   List<BudgetSnapshot> get budgetSnapshots =>
+      throw _privateConstructorUsedError; // ADR-0026: monthly budget plans
+  List<BudgetPlan> get budgetPlans => throw _privateConstructorUsedError;
+  List<BudgetPlanItem> get budgetPlanItems =>
       throw _privateConstructorUsedError;
 
   /// Serializes this BackupData to a JSON map.
@@ -63,6 +66,8 @@ abstract class $BackupDataCopyWith<$Res> {
     List<RecurringTransaction> recurringTransactions,
     List<QuickTemplate> quickTemplates,
     List<BudgetSnapshot> budgetSnapshots,
+    List<BudgetPlan> budgetPlans,
+    List<BudgetPlanItem> budgetPlanItems,
   });
 }
 
@@ -91,6 +96,8 @@ class _$BackupDataCopyWithImpl<$Res, $Val extends BackupData>
     Object? recurringTransactions = null,
     Object? quickTemplates = null,
     Object? budgetSnapshots = null,
+    Object? budgetPlans = null,
+    Object? budgetPlanItems = null,
   }) {
     return _then(
       _value.copyWith(
@@ -134,6 +141,14 @@ class _$BackupDataCopyWithImpl<$Res, $Val extends BackupData>
                 ? _value.budgetSnapshots
                 : budgetSnapshots // ignore: cast_nullable_to_non_nullable
                       as List<BudgetSnapshot>,
+            budgetPlans: null == budgetPlans
+                ? _value.budgetPlans
+                : budgetPlans // ignore: cast_nullable_to_non_nullable
+                      as List<BudgetPlan>,
+            budgetPlanItems: null == budgetPlanItems
+                ? _value.budgetPlanItems
+                : budgetPlanItems // ignore: cast_nullable_to_non_nullable
+                      as List<BudgetPlanItem>,
           )
           as $Val,
     );
@@ -160,6 +175,8 @@ abstract class _$$BackupDataImplCopyWith<$Res>
     List<RecurringTransaction> recurringTransactions,
     List<QuickTemplate> quickTemplates,
     List<BudgetSnapshot> budgetSnapshots,
+    List<BudgetPlan> budgetPlans,
+    List<BudgetPlanItem> budgetPlanItems,
   });
 }
 
@@ -187,6 +204,8 @@ class __$$BackupDataImplCopyWithImpl<$Res>
     Object? recurringTransactions = null,
     Object? quickTemplates = null,
     Object? budgetSnapshots = null,
+    Object? budgetPlans = null,
+    Object? budgetPlanItems = null,
   }) {
     return _then(
       _$BackupDataImpl(
@@ -230,6 +249,14 @@ class __$$BackupDataImplCopyWithImpl<$Res>
             ? _value._budgetSnapshots
             : budgetSnapshots // ignore: cast_nullable_to_non_nullable
                   as List<BudgetSnapshot>,
+        budgetPlans: null == budgetPlans
+            ? _value._budgetPlans
+            : budgetPlans // ignore: cast_nullable_to_non_nullable
+                  as List<BudgetPlan>,
+        budgetPlanItems: null == budgetPlanItems
+            ? _value._budgetPlanItems
+            : budgetPlanItems // ignore: cast_nullable_to_non_nullable
+                  as List<BudgetPlanItem>,
       ),
     );
   }
@@ -249,11 +276,15 @@ class _$BackupDataImpl implements _BackupData {
     final List<RecurringTransaction> recurringTransactions = const [],
     final List<QuickTemplate> quickTemplates = const [],
     final List<BudgetSnapshot> budgetSnapshots = const [],
+    final List<BudgetPlan> budgetPlans = const [],
+    final List<BudgetPlanItem> budgetPlanItems = const [],
   }) : _transactions = transactions,
        _budgets = budgets,
        _recurringTransactions = recurringTransactions,
        _quickTemplates = quickTemplates,
-       _budgetSnapshots = budgetSnapshots;
+       _budgetSnapshots = budgetSnapshots,
+       _budgetPlans = budgetPlans,
+       _budgetPlanItems = budgetPlanItems;
 
   factory _$BackupDataImpl.fromJson(Map<String, dynamic> json) =>
       _$$BackupDataImplFromJson(json);
@@ -318,9 +349,29 @@ class _$BackupDataImpl implements _BackupData {
     return EqualUnmodifiableListView(_budgetSnapshots);
   }
 
+  // ADR-0026: monthly budget plans
+  final List<BudgetPlan> _budgetPlans;
+  // ADR-0026: monthly budget plans
+  @override
+  @JsonKey()
+  List<BudgetPlan> get budgetPlans {
+    if (_budgetPlans is EqualUnmodifiableListView) return _budgetPlans;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_budgetPlans);
+  }
+
+  final List<BudgetPlanItem> _budgetPlanItems;
+  @override
+  @JsonKey()
+  List<BudgetPlanItem> get budgetPlanItems {
+    if (_budgetPlanItems is EqualUnmodifiableListView) return _budgetPlanItems;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_budgetPlanItems);
+  }
+
   @override
   String toString() {
-    return 'BackupData(appId: $appId, schemaVersion: $schemaVersion, exportedAt: $exportedAt, appVersion: $appVersion, totalBudget: $totalBudget, transactions: $transactions, budgets: $budgets, recurringTransactions: $recurringTransactions, quickTemplates: $quickTemplates, budgetSnapshots: $budgetSnapshots)';
+    return 'BackupData(appId: $appId, schemaVersion: $schemaVersion, exportedAt: $exportedAt, appVersion: $appVersion, totalBudget: $totalBudget, transactions: $transactions, budgets: $budgets, recurringTransactions: $recurringTransactions, quickTemplates: $quickTemplates, budgetSnapshots: $budgetSnapshots, budgetPlans: $budgetPlans, budgetPlanItems: $budgetPlanItems)';
   }
 
   @override
@@ -353,6 +404,14 @@ class _$BackupDataImpl implements _BackupData {
             const DeepCollectionEquality().equals(
               other._budgetSnapshots,
               _budgetSnapshots,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._budgetPlans,
+              _budgetPlans,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._budgetPlanItems,
+              _budgetPlanItems,
             ));
   }
 
@@ -370,6 +429,8 @@ class _$BackupDataImpl implements _BackupData {
     const DeepCollectionEquality().hash(_recurringTransactions),
     const DeepCollectionEquality().hash(_quickTemplates),
     const DeepCollectionEquality().hash(_budgetSnapshots),
+    const DeepCollectionEquality().hash(_budgetPlans),
+    const DeepCollectionEquality().hash(_budgetPlanItems),
   );
 
   /// Create a copy of BackupData
@@ -398,6 +459,8 @@ abstract class _BackupData implements BackupData {
     final List<RecurringTransaction> recurringTransactions,
     final List<QuickTemplate> quickTemplates,
     final List<BudgetSnapshot> budgetSnapshots,
+    final List<BudgetPlan> budgetPlans,
+    final List<BudgetPlanItem> budgetPlanItems,
   }) = _$BackupDataImpl;
 
   factory _BackupData.fromJson(Map<String, dynamic> json) =
@@ -422,7 +485,11 @@ abstract class _BackupData implements BackupData {
   @override
   List<QuickTemplate> get quickTemplates; // ADR-0025: monthly budget snapshots
   @override
-  List<BudgetSnapshot> get budgetSnapshots;
+  List<BudgetSnapshot> get budgetSnapshots; // ADR-0026: monthly budget plans
+  @override
+  List<BudgetPlan> get budgetPlans;
+  @override
+  List<BudgetPlanItem> get budgetPlanItems;
 
   /// Create a copy of BackupData
   /// with the given fields replaced by the non-null parameter values.

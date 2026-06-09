@@ -40,6 +40,16 @@ _$BackupDataImpl _$$BackupDataImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => BudgetSnapshot.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      budgetPlans:
+          (json['budgetPlans'] as List<dynamic>?)
+              ?.map((e) => BudgetPlan.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      budgetPlanItems:
+          (json['budgetPlanItems'] as List<dynamic>?)
+              ?.map((e) => BudgetPlanItem.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$BackupDataImplToJson(_$BackupDataImpl instance) =>
@@ -54,4 +64,6 @@ Map<String, dynamic> _$$BackupDataImplToJson(_$BackupDataImpl instance) =>
       'recurringTransactions': instance.recurringTransactions,
       'quickTemplates': instance.quickTemplates,
       'budgetSnapshots': instance.budgetSnapshots,
+      'budgetPlans': instance.budgetPlans,
+      'budgetPlanItems': instance.budgetPlanItems,
     };

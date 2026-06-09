@@ -8,23 +8,27 @@ import 'data/database/database_helper.dart';
 import 'data/datasources/sqlite_transaction_datasource.dart';
 import 'data/datasources/sqlite_budget_datasource.dart';
 import 'data/datasources/sqlite_budget_snapshot_datasource.dart';
+import 'data/datasources/sqlite_budget_plan_datasource.dart';
 import 'data/datasources/sqlite_recurring_datasource.dart';
 import 'data/datasources/sqlite_quick_template_datasource.dart';
 import 'data/datasources/transaction_local_datasource.dart';
 import 'data/datasources/budget_local_datasource.dart';
 import 'data/datasources/budget_snapshot_local_datasource.dart';
+import 'data/datasources/budget_plan_local_datasource.dart';
 import 'data/datasources/recurring_local_datasource.dart';
 import 'data/datasources/quick_template_local_datasource.dart';
 import 'data/migrations/shared_prefs_to_sqlite.dart';
 import 'services/storage_service.dart';
 import 'services/export_service.dart';
 import 'services/backup_service.dart';
+import 'services/monthly_budget_plan_builder.dart';
 import 'viewmodels/expense_viewmodel.dart';
 import 'viewmodels/budget_viewmodel.dart';
 import 'viewmodels/recurring_viewmodel.dart';
 import 'viewmodels/quick_template_viewmodel.dart';
 import 'viewmodels/backup_viewmodel.dart';
 import 'viewmodels/monthly_review_viewmodel.dart';
+import 'viewmodels/monthly_plan_viewmodel.dart';
 import 'views/home_screen.dart';
 
 Future<void> main() async {
@@ -90,6 +94,10 @@ Future<void> _initApp() async {
   final budgetSnapshotDataSource = SqliteBudgetSnapshotDataSource(dbHelper);
   debugPrint('✅ Budget snapshot data source ready');
 
+  debugPrint('📋 Setting up budget plan data source...');
+  final budgetPlanDataSource = SqliteBudgetPlanDataSource(dbHelper);
+  debugPrint('✅ Budget plan data source ready');
+
   debugPrint('🔄 Setting up recurring data source...');
   final recurringDataSource = SqliteRecurringDataSource(dbHelper);
   debugPrint('✅ Recurring data source ready');
@@ -103,6 +111,7 @@ Future<void> _initApp() async {
     transactionDataSource,
     budgetDataSource,
     budgetSnapshotDataSource,
+    budgetPlanDataSource,
     recurringDataSource,
     quickTemplateDataSource,
     storageService,
@@ -115,6 +124,7 @@ Future<void> _initApp() async {
     transactionDataSource: transactionDataSource,
     budgetDataSource: budgetDataSource,
     budgetSnapshotDataSource: budgetSnapshotDataSource,
+    budgetPlanDataSource: budgetPlanDataSource,
     recurringDataSource: recurringDataSource,
     quickTemplateDataSource: quickTemplateDataSource,
     exportService: exportService,
@@ -157,6 +167,7 @@ class MyApp extends StatelessWidget {
   final TransactionLocalDataSource transactionDataSource;
   final BudgetLocalDataSource budgetDataSource;
   final BudgetSnapshotLocalDataSource budgetSnapshotDataSource;
+  final BudgetPlanLocalDataSource budgetPlanDataSource;
   final RecurringLocalDataSource recurringDataSource;
   final QuickTemplateLocalDataSource quickTemplateDataSource;
   final ExportService exportService;
@@ -168,6 +179,7 @@ class MyApp extends StatelessWidget {
     required this.transactionDataSource,
     required this.budgetDataSource,
     required this.budgetSnapshotDataSource,
+    required this.budgetPlanDataSource,
     required this.recurringDataSource,
     required this.quickTemplateDataSource,
     required this.exportService,
@@ -186,6 +198,7 @@ class MyApp extends StatelessWidget {
           create: (_) => BudgetViewModel(
             budgetDataSource,
             budgetSnapshotDataSource,
+            budgetPlanDataSource,
             storageService,
           ),
           update: (_, expenseVM, budgetVM) => budgetVM!
@@ -215,6 +228,17 @@ class MyApp extends StatelessWidget {
             recurringDataSource: recurringDataSource,
           ),
         ),
+        ChangeNotifierProvider(
+          create: (_) => MonthlyPlanViewModel(
+            budgetPlanDataSource: budgetPlanDataSource,
+            budgetDataSource: budgetDataSource,
+            budgetSnapshotDataSource: budgetSnapshotDataSource,
+            transactionDataSource: transactionDataSource,
+            storageService: storageService,
+            builder: MonthlyBudgetPlanBuilder(),
+            now: DateTime.now(),
+          ),
+        ),
       ],
       child: MaterialApp(
         title: 'Quản Lý Chi Tiêu',
@@ -222,6 +246,6 @@ class MyApp extends StatelessWidget {
         home: const HomeScreen(),
         debugShowCheckedModeBanner: false,
       ),
-);
+    );
   }
 }

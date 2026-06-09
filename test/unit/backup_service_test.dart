@@ -7,6 +7,7 @@ import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
 import 'package:qlct/models/backup_data.dart';
@@ -15,6 +16,7 @@ import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
+import 'package:qlct/models/budget_plan.dart';
 import 'package:qlct/services/backup_service.dart';
 import 'package:qlct/services/storage_service.dart';
 
@@ -25,6 +27,9 @@ class MockBudgetDataSource extends Mock implements BudgetLocalDataSource {}
 
 class MockBudgetSnapshotDataSource extends Mock
     implements BudgetSnapshotLocalDataSource {}
+
+class MockBudgetPlanDataSource extends Mock
+    implements BudgetPlanLocalDataSource {}
 
 class MockRecurringDataSource extends Mock
     implements RecurringLocalDataSource {}
@@ -40,6 +45,7 @@ void main() {
   late MockTransactionDataSource txRepo;
   late MockBudgetDataSource budgetRepo;
   late MockBudgetSnapshotDataSource budgetSnapshotRepo;
+  late MockBudgetPlanDataSource budgetPlanRepo;
   late MockRecurringDataSource recurringRepo;
   late MockQuickTemplateDataSource quickTemplateRepo;
   late MockStorageService storageService;
@@ -49,6 +55,7 @@ void main() {
     txRepo = MockTransactionDataSource();
     budgetRepo = MockBudgetDataSource();
     budgetSnapshotRepo = MockBudgetSnapshotDataSource();
+    budgetPlanRepo = MockBudgetPlanDataSource();
     recurringRepo = MockRecurringDataSource();
     quickTemplateRepo = MockQuickTemplateDataSource();
     storageService = MockStorageService();
@@ -58,6 +65,7 @@ void main() {
       txRepo,
       budgetRepo,
       budgetSnapshotRepo,
+      budgetPlanRepo,
       recurringRepo,
       quickTemplateRepo,
       storageService,
@@ -173,6 +181,46 @@ void main() {
     });
 
     // Issue #5: quickTemplates must be a List if present
+    test('budgetPlans not a list returns error', () {
+      final json = jsonEncode({
+        'schemaVersion': 5,
+        'appId': 'qlct.app',
+        'exportedAt': '2026-06-09T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'quickTemplates': [],
+        'budgetSnapshots': [],
+        'budgetPlans': 'not a list',
+        'budgetPlanItems': [],
+      });
+
+      final result = service.validate(json);
+      expect(result.isValid, isFalse);
+      expect(result.errors.any((e) => e.contains('budgetPlans')), isTrue);
+    });
+
+    test('budgetPlanItems not a list returns error', () {
+      final json = jsonEncode({
+        'schemaVersion': 5,
+        'appId': 'qlct.app',
+        'exportedAt': '2026-06-09T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'transactions': [],
+        'budgets': [],
+        'recurringTransactions': [],
+        'quickTemplates': [],
+        'budgetSnapshots': [],
+        'budgetPlans': [],
+        'budgetPlanItems': 'not a list',
+      });
+
+      final result = service.validate(json);
+      expect(result.isValid, isFalse);
+      expect(result.errors.any((e) => e.contains('budgetPlanItems')), isTrue);
+    });
+
     test('quickTemplates not a list returns error', () {
       final json = jsonEncode({
         'schemaVersion': 2,
@@ -563,12 +611,14 @@ void main() {
               updatedAt: DateTime(2026, 6, 1),
             ),
           ]);
+      when(() => budgetPlanRepo.getAllPlans()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllItems()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
           .thenReturn(15000000);
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 4);
+      expect(backup.schemaVersion, 5);
       expect(backup.appId, 'qlct.app');
       expect(backup.transactions.length, 1);
       expect(backup.budgets.length, 1);
@@ -577,6 +627,8 @@ void main() {
       expect(backup.quickTemplates.first.title, 'Cơm trưa');
       expect(backup.budgetSnapshots.length, 1);
       expect(backup.budgetSnapshots.first.yearMonth, '2026-05');
+      expect(backup.budgetPlans, isEmpty);
+      expect(backup.budgetPlanItems, isEmpty);
       expect(backup.totalBudget, 15000000);
       expect(backup.appVersion, isNotEmpty);
       expect(backup.exportedAt, isNotEmpty);
@@ -586,6 +638,8 @@ void main() {
       when(() => txRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllPlans()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllItems()).thenAnswer((_) async => []);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
       when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
@@ -598,6 +652,8 @@ void main() {
       expect(backup.recurringTransactions, isEmpty);
       expect(backup.quickTemplates, isEmpty);
       expect(backup.budgetSnapshots, isEmpty);
+      expect(backup.budgetPlans, isEmpty);
+      expect(backup.budgetPlanItems, isEmpty);
       expect(backup.totalBudget, 0);
     });
   });
@@ -606,12 +662,14 @@ void main() {
     test('creates non-empty backup with expected structure', () async {
       final backup = await service.generateSampleData();
 
-      expect(backup.schemaVersion, 4);
+      expect(backup.schemaVersion, 5);
       expect(backup.transactions.length, 20);
       expect(backup.budgets.length, 3);
       expect(backup.recurringTransactions.length, 2);
       expect(backup.quickTemplates.length, 3);
       expect(backup.budgetSnapshots, isEmpty);
+      expect(backup.budgetPlans, isEmpty);
+      expect(backup.budgetPlanItems, isEmpty);
       expect(backup.totalBudget, 15000000);
 
       final txIds = backup.transactions.map((t) => t.id).toSet();
@@ -626,11 +684,13 @@ void main() {
     });
   });
 
-  group('createBackup v4', () {
-    test('appId is qlct.app and schemaVersion is 4', () async {
+  group('createBackup v5', () {
+    test('appId is qlct.app and schemaVersion is 5', () async {
       when(() => txRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllPlans()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllItems()).thenAnswer((_) async => []);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
       when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
@@ -639,23 +699,85 @@ void main() {
       final backup = await service.createBackup();
 
       expect(backup.appId, 'qlct.app');
-      expect(backup.schemaVersion, 4);
+      expect(backup.schemaVersion, 5);
+    });
+
+    test('includes non-empty budget plans and items from datasources',
+        () async {
+      when(() => txRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
+      when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
+      when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
+
+      final plan1 = BudgetPlan(
+        yearMonth: '2026-08',
+        plannedTotalBudget: 12000000,
+        source: 'previous_snapshot',
+        status: 'draft',
+        createdAt: DateTime(2026, 6, 9),
+        updatedAt: DateTime(2026, 6, 9),
+      );
+      final plan2 = BudgetPlan(
+        yearMonth: '2026-09',
+        plannedTotalBudget: 13000000,
+        source: 'live_budget',
+        status: 'draft',
+        createdAt: DateTime(2026, 6, 9),
+        updatedAt: DateTime(2026, 6, 9),
+      );
+      final item1 = BudgetPlanItem(
+        yearMonth: '2026-08',
+        categoryName: 'Ăn ngoài',
+        plannedLimit: 3000000,
+      );
+      final item2 = BudgetPlanItem(
+        yearMonth: '2026-08',
+        categoryName: 'Cà phê',
+        plannedLimit: 1000000,
+      );
+      final item3 = BudgetPlanItem(
+        yearMonth: '2026-09',
+        categoryName: 'Ăn ngoài',
+        plannedLimit: 3000000,
+      );
+
+      when(() => budgetPlanRepo.getAllPlans())
+          .thenAnswer((_) async => [plan1, plan2]);
+      when(() => budgetPlanRepo.getAllItems())
+          .thenAnswer((_) async => [item1, item2, item3]);
+      when(() => storageService.loadValue<int>('total_budget'))
+          .thenReturn(15000000);
+
+      final backup = await service.createBackup();
+
+      expect(backup.budgetPlans.length, 2);
+      expect(backup.budgetPlans.map((p) => p.yearMonth).toList(),
+          ['2026-08', '2026-09']);
+      expect(backup.budgetPlanItems.length, 3);
+      expect(backup.budgetPlanItems
+          .where((i) => i.yearMonth == '2026-08')
+          .length, 2);
+      expect(backup.budgetPlanItems
+          .where((i) => i.yearMonth == '2026-09')
+          .length, 1);
     });
   });
 
   // Slice 1 stable JSON field order test.
   // We test the public toJsonMap() (now public, was _toJsonMap) to exercise
   // the production serialization path rather than a manually-constructed map.
-  // ADR-0023 §3 / ADR-0025 §7 requires: appId, schemaVersion, exportedAt,
-  // appVersion, totalBudget, transactions, budgets, recurringTransactions,
-  // quickTemplates, budgetSnapshots
-  group('export JSON order (ADR-0023 §3 / ADR-0025 §7)', () {
-    test('toJsonMap preserves stable field order matching ADR-0025 contract',
+// ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7 requires: appId, schemaVersion,
+// exportedAt, appVersion, totalBudget, transactions, budgets,
+// recurringTransactions, quickTemplates, budgetSnapshots, budgetPlans,
+// budgetPlanItems
+  group('export JSON order (ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7)', () {
+    test('toJsonMap preserves stable field order matching ADR-0026 contract',
         () {
       // Create a minimal BackupData that exercises the full toJsonMap path.
       final data = BackupData(
         appId: 'qlct.app',
-        schemaVersion: 4,
+        schemaVersion: 5,
         exportedAt: '2026-06-07T10:00:00.000Z',
         appVersion: '1.0.0',
         totalBudget: 0,
@@ -664,6 +786,8 @@ void main() {
         recurringTransactions: const [],
         quickTemplates: const [],
         budgetSnapshots: const [],
+        budgetPlans: const [],
+        budgetPlanItems: const [],
       );
 
       // toJsonMap() is the production serialization entry point.
@@ -692,6 +816,8 @@ void main() {
           'recurringTransactions',
           'quickTemplates',
           'budgetSnapshots',
+          'budgetPlans',
+          'budgetPlanItems',
         ]),
       );
     });

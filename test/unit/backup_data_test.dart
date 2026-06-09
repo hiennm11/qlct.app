@@ -4,6 +4,7 @@ import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
+import 'package:qlct/models/budget_plan.dart';
 
 void main() {
   group('BackupData', () {
@@ -111,8 +112,8 @@ void main() {
       expect(backup.transactions[4].id, 'tx-4');
     });
 
-    test('currentSchemaVersion is 4 (ADR-0025)', () {
-      expect(currentSchemaVersion, 4);
+    test('currentSchemaVersion is 5 (ADR-0026)', () {
+      expect(currentSchemaVersion, 5);
     });
 
     test('appId field present in model with default', () {
@@ -244,6 +245,121 @@ void main() {
 
       expect(backup.schemaVersion, 3);
       expect(backup.budgetSnapshots, isEmpty);
+    });
+
+    // ADR-0026: v5 schema — budgetPlans and budgetPlanItems present
+    test('v5 JSON with budgetPlans and budgetPlanItems parses correctly', () {
+      final v5Json = {
+        'appId': 'qlct.app',
+        'schemaVersion': 5,
+        'exportedAt': '2026-06-09T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 20000000,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        'quickTemplates': <Map<String, dynamic>>[],
+        'budgetSnapshots': <Map<String, dynamic>>[],
+        'budgetPlans': [
+          {
+            'yearMonth': '2026-07',
+            'plannedTotalBudget': 15000000,
+            'source': 'previous_snapshot',
+            'status': 'draft',
+            'createdAt': '2026-06-09T00:00:00.000Z',
+            'updatedAt': '2026-06-09T00:00:00.000Z',
+          }
+        ],
+        'budgetPlanItems': [
+          {
+            'yearMonth': '2026-07',
+            'categoryName': 'Ăn ngoài',
+            'plannedLimit': 3000000,
+            'alertThreshold': 80,
+            'suggestedLimit': 2500000,
+            'baseLimit': 3000000,
+            'lastMonthSpent': 2800000,
+            'wasOverBudgetLastMonth': false,
+            'recommendation': 'keep',
+          }
+        ],
+      };
+
+      final backup = BackupData.fromJson(v5Json);
+
+      expect(backup.schemaVersion, 5);
+      expect(backup.budgetPlans.length, 1);
+      expect(backup.budgetPlans.first.yearMonth, '2026-07');
+      expect(backup.budgetPlans.first.plannedTotalBudget, 15000000);
+      expect(backup.budgetPlans.first.status, 'draft');
+      expect(backup.budgetPlanItems.length, 1);
+      expect(backup.budgetPlanItems.first.categoryName, 'Ăn ngoài');
+      expect(backup.budgetPlanItems.first.plannedLimit, 3000000);
+      expect(backup.budgetPlanItems.first.recommendation, 'keep');
+    });
+
+    test('v4 JSON missing budgetPlans defaults to [] (ADR-0026 compat)', () {
+      // Simulate v4 JSON: no budgetPlans/budgetPlanItems fields
+      final v4Json = {
+        'appId': 'qlct.app',
+        'schemaVersion': 4,
+        'exportedAt': '2026-06-05T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        'quickTemplates': <Map<String, dynamic>>[],
+        'budgetSnapshots': <Map<String, dynamic>>[],
+        // no 'budgetPlans' field
+        // no 'budgetPlanItems' field
+      };
+
+      final backup = BackupData.fromJson(v4Json);
+
+      expect(backup.schemaVersion, 4);
+      expect(backup.budgetPlans, isEmpty);
+      expect(backup.budgetPlanItems, isEmpty);
+    });
+
+    test('BackupData with full plan data access all fields', () {
+      final plan = BudgetPlan(
+        yearMonth: '2026-08',
+        plannedTotalBudget: 12000000,
+        source: 'live_budget',
+        status: 'draft',
+        createdAt: DateTime(2026, 6, 9),
+        updatedAt: DateTime(2026, 6, 9),
+      );
+      final planItem = BudgetPlanItem(
+        yearMonth: '2026-08',
+        categoryName: 'Cà phê',
+        plannedLimit: 800000,
+        alertThreshold: 80,
+        suggestedLimit: 750000,
+        baseLimit: 800000,
+        lastMonthSpent: 900000,
+        wasOverBudgetLastMonth: true,
+        recommendation: 'increase',
+      );
+
+      final backup = BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 5,
+        exportedAt: '2026-06-09T10:00:00.000Z',
+        appVersion: '1.0.0',
+        totalBudget: 12000000,
+        budgetPlans: [plan],
+        budgetPlanItems: [planItem],
+      );
+
+      expect(backup.budgetPlans.length, 1);
+      expect(backup.budgetPlans.first.yearMonth, '2026-08');
+      expect(backup.budgetPlans.first.status, 'draft');
+      expect(backup.budgetPlanItems.length, 1);
+      expect(backup.budgetPlanItems.first.categoryName, 'Cà phê');
+      expect(backup.budgetPlanItems.first.wasOverBudgetLastMonth, isTrue);
+      expect(backup.budgetPlanItems.first.recommendation, 'increase');
     });
   });
 }

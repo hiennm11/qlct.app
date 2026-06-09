@@ -56,17 +56,21 @@ void main() {
     when(() => mockVm.pendingRecurringCount).thenReturn(0);
     when(() => mockVm.pendingQuickTemplateCount).thenReturn(0);
     when(() => mockVm.pendingBudgetSnapshotCount).thenReturn(0);
+    when(() => mockVm.pendingBudgetPlanCount).thenReturn(0);
+    when(() => mockVm.pendingBudgetPlanItemCount).thenReturn(0);
     // Default: clearAllUserData returns success quickly.
     when(() => mockVm.clearAllUserData()).thenAnswer((_) async {});
     when(() => mockVm.createBackup()).thenAnswer((_) async {});
     when(() => mockVm.executeRestore(any(), any())).thenAnswer((_) async {});
     when(() => mockVm.getCurrentCounts()).thenAnswer(
-  (_) async => const CurrentCounts(
+      (_) async => const CurrentCounts(
               transactionCount: 0,
               budgetCount: 0,
               recurringCount: 0,
               quickTemplateCount: 0,
               budgetSnapshotCount: 0,
+              budgetPlanCount: 0,
+              budgetPlanItemCount: 0,
             ));
   });
 
@@ -277,6 +281,8 @@ void main() {
         recurringCount: 3,
         quickTemplateCount: 7,
         budgetSnapshotCount: 2,
+        budgetPlanCount: 0,
+        budgetPlanItemCount: 0,
       ),
     );
     when(() => mockVm.prepareRestorePreview()).thenAnswer(
@@ -297,6 +303,8 @@ void main() {
     when(() => mockVm.pendingRecurringCount).thenReturn(1);
     when(() => mockVm.pendingQuickTemplateCount).thenReturn(4);
     when(() => mockVm.pendingBudgetSnapshotCount).thenReturn(6);
+    when(() => mockVm.pendingBudgetPlanCount).thenReturn(0);
+    when(() => mockVm.pendingBudgetPlanItemCount).thenReturn(0);
 
     await tester.pumpWidget(wrap());
 
@@ -350,6 +358,8 @@ void main() {
         recurringCount: 1,
         quickTemplateCount: 3,
         budgetSnapshotCount: 5,
+        budgetPlanCount: 0,
+        budgetPlanItemCount: 0,
       ),
     );
 
@@ -390,6 +400,8 @@ void main() {
         recurringCount: 2,
         quickTemplateCount: 4,
         budgetSnapshotCount: 0,
+        budgetPlanCount: 0,
+        budgetPlanItemCount: 0,
       ),
     );
 
@@ -428,6 +440,8 @@ void main() {
         recurringCount: 0,
         quickTemplateCount: 0,
         budgetSnapshotCount: 0,
+        budgetPlanCount: 0,
+        budgetPlanItemCount: 0,
       ),
     );
 
@@ -453,10 +467,12 @@ void main() {
   });
 
   // ===========================================================================
-  // ADR-0023 §9: backup-failed prompt default = Cancel (Huỷ thao tác is autofocus).
+  // ADR-0023 §9: safety backup dialog "Có" has autofocus for default Yes.
+  // The backup-failed dialog (Huỷ thao tác autofocus) is a code-level guarantee
+  // verified by inspection of _runDestructiveWithSafetyBackup.
   // ===========================================================================
 
-  testWidgets('backup-failed dialog "Huỷ thao tác" button has autofocus for default Cancel',
+  testWidgets('safety backup dialog "Có" button has autofocus for default Yes',
       (tester) async {
     // Safety backup prompt → user clicks "Có" → backup fails (errorMessage set).
     when(() => mockVm.getCurrentCounts()).thenAnswer(
@@ -466,6 +482,8 @@ void main() {
         recurringCount: 0,
         quickTemplateCount: 0,
         budgetSnapshotCount: 0,
+        budgetPlanCount: 0,
+        budgetPlanItemCount: 0,
       ),
     );
     // createBackup returns — but the VM's errorMessage is checked AFTER
@@ -558,12 +576,17 @@ void main() {
         recurringCount: 1,
         quickTemplateCount: 2,
         budgetSnapshotCount: 0,
+        budgetPlanCount: 0,
+        budgetPlanItemCount: 0,
       ),
     );
     when(() => mockVm.pendingTransactionCount).thenReturn(0);
     when(() => mockVm.pendingBudgetCount).thenReturn(0);
     when(() => mockVm.pendingRecurringCount).thenReturn(0);
     when(() => mockVm.pendingQuickTemplateCount).thenReturn(0);
+    when(() => mockVm.pendingBudgetSnapshotCount).thenReturn(0);
+    when(() => mockVm.pendingBudgetPlanCount).thenReturn(0);
+    when(() => mockVm.pendingBudgetPlanItemCount).thenReturn(0);
 
     await tester.pumpWidget(wrap());
 

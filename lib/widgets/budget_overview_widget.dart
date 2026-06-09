@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import 'budget_edit_dialog.dart';
 import 'budget_bulk_edit_dialog.dart';
 import 'section_header.dart';
+import '../views/monthly_plan_screen.dart';
 
 /// Widget displaying budget overview with cards
 class BudgetOverviewWidget extends StatefulWidget {
@@ -53,6 +54,21 @@ class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
                   title: 'Ngân sách tháng',
                   onAction: () => showBudgetBulkEditDialog(context),
                   actionIcon: Icons.edit,
+                ),
+                const SizedBox(height: 8),
+                // ADR-0026 entry point: "Lên kế hoạch tháng tới"
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const MonthlyPlanScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.calendar_month, size: 18),
+                    label: const Text('Lên kế hoạch tháng tới'),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 if (viewModel.totalBudget != null) ...[

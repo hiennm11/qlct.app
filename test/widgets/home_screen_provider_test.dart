@@ -6,6 +6,7 @@ import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
@@ -20,6 +21,9 @@ class MockBudgetLocalDataSource extends Mock implements BudgetLocalDataSource {}
 class MockBudgetSnapshotLocalDataSource extends Mock
     implements BudgetSnapshotLocalDataSource {}
 
+class MockBudgetPlanDataSource extends Mock
+    implements BudgetPlanLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class FakeTransaction extends Fake implements Transaction {}
@@ -32,6 +36,7 @@ void main() {
   late MockTransactionLocalDataSource mockTxRepo;
   late MockBudgetLocalDataSource mockBudgetRepo;
   late MockBudgetSnapshotLocalDataSource mockBudgetSnapshotRepo;
+  late MockBudgetPlanDataSource mockBudgetPlanRepo;
   late MockStorageService mockStorage;
   late ExportService exportService;
 
@@ -45,15 +50,21 @@ void main() {
     mockTxRepo = MockTransactionLocalDataSource();
     mockBudgetRepo = MockBudgetLocalDataSource();
     mockBudgetSnapshotRepo = MockBudgetSnapshotLocalDataSource();
+    mockBudgetPlanRepo = MockBudgetPlanDataSource();
     mockStorage = MockStorageService();
     exportService = ExportService();
 
     when(() => mockTxRepo.getAll()).thenAnswer((_) async => []);
+    when(() => mockTxRepo.getAllPaginated(offset: any(named: 'offset'), limit: any(named: 'limit'))).thenAnswer((_) async => []);
     when(() => mockTxRepo.getByDate(any())).thenAnswer((_) async => []);
     when(() => mockBudgetRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockBudgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockBudgetSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
     when(() => mockBudgetSnapshotRepo.bulkUpsert(any())).thenAnswer((_) async {});
+    when(() => mockBudgetPlanRepo.getDraft(any())).thenAnswer((_) async => null);
+    when(() => mockBudgetPlanRepo.getPlan(any())).thenAnswer((_) async => null);
+    when(() => mockBudgetPlanRepo.getItems(any())).thenAnswer((_) async => []);
+    when(() => mockBudgetPlanRepo.markApplied(any(), any())).thenAnswer((_) async => {});
     when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
     when(() => mockStorage.loadValue<int>(any())).thenReturn(null);
   });
@@ -69,7 +80,7 @@ void main() {
             create: (_) => ExpenseViewModel(mockTxRepo, exportService),
           ),
           ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
-            create: (_) => BudgetViewModel(mockBudgetRepo, mockBudgetSnapshotRepo, mockStorage),
+            create: (_) => BudgetViewModel(mockBudgetRepo, mockBudgetSnapshotRepo, mockBudgetPlanRepo, mockStorage),
             update: (_, expenseVM, budgetVM) => budgetVM!
               ..updateStats(expenseVM.stats),
           ),
@@ -118,7 +129,7 @@ void main() {
     when(() => mockBudgetRepo.getAll()).thenAnswer((_) async => []);
 
     final expenseVM = ExpenseViewModel(mockTxRepo, exportService);
-    final budgetVM = _TrackingBudgetViewModel(mockBudgetRepo, mockBudgetSnapshotRepo, mockStorage);
+    final budgetVM = _TrackingBudgetViewModel(mockBudgetRepo, mockBudgetSnapshotRepo, mockBudgetPlanRepo, mockStorage);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -160,6 +171,7 @@ class _TrackingBudgetViewModel extends BudgetViewModel {
   _TrackingBudgetViewModel(
     super.budgetDataSource,
     super.snapshotDataSource,
+    super.planDataSource,
     super.storageService,
   );
 

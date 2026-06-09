@@ -3,9 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/budget.dart';
+import 'package:qlct/models/budget_plan.dart';
 import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
@@ -17,6 +19,9 @@ class MockBudgetLocalDataSource extends Mock implements BudgetLocalDataSource {}
 class MockBudgetSnapshotLocalDataSource extends Mock
     implements BudgetSnapshotLocalDataSource {}
 
+class MockBudgetPlanDataSource extends Mock
+    implements BudgetPlanLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class FakeBudgetSnapshot extends Fake implements BudgetSnapshot {}
@@ -24,6 +29,7 @@ class FakeBudgetSnapshot extends Fake implements BudgetSnapshot {}
 void main() {
   late MockBudgetLocalDataSource mockRepo;
   late MockBudgetSnapshotLocalDataSource mockSnapshotRepo;
+  late MockBudgetPlanDataSource mockPlanRepo;
   late MockStorageService mockStorage;
   late BudgetViewModel vm;
 
@@ -36,18 +42,60 @@ void main() {
       createdAt: DateTime.now(),
     ));
     registerFallbackValue(FakeBudgetSnapshot());
+    registerFallbackValue(BudgetPlan(
+      yearMonth: '2026-01',
+      plannedTotalBudget: 0,
+      source: 'test',
+      status: 'draft',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ));
+    registerFallbackValue(BudgetPlanItem(
+      yearMonth: '2026-01',
+      categoryName: 'test',
+      plannedLimit: 0,
+    ));
   });
 
   setUp(() {
     mockRepo = MockBudgetLocalDataSource();
     mockSnapshotRepo = MockBudgetSnapshotLocalDataSource();
+    mockPlanRepo = MockBudgetPlanDataSource();
     mockStorage = MockStorageService();
-    when(() => mockRepo.getAll()).thenAnswer((_) async => []);
-    when(() => mockSnapshotRepo.getAll()).thenAnswer((_) async => []);
-    when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+    // BudgetLocalDataSource stubs
+    when(() => mockRepo.getAll()).thenAnswer((_) async => <Budget>[]);
+    when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
+    when(() => mockRepo.delete(any())).thenAnswer((_) async {});
+    when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
+    when(() => mockRepo.bulkUpsert(any())).thenAnswer((_) async {});
+    when(() => mockRepo.clearAll()).thenAnswer((_) async {});
+    when(() => mockRepo.count()).thenAnswer((_) async => 0);
+    // BudgetSnapshotLocalDataSource stubs
+    when(() => mockSnapshotRepo.getAll()).thenAnswer((_) async => <BudgetSnapshot>[]);
+    when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => <BudgetSnapshot>[]);
     when(() => mockSnapshotRepo.bulkUpsert(any())).thenAnswer((_) async {});
+    // BudgetPlanLocalDataSource stubs (ADR-0026)
+    when(() => mockPlanRepo.getPlan(any())).thenAnswer((_) async => null);
+    when(() => mockPlanRepo.getItems(any())).thenAnswer((_) async => <BudgetPlanItem>[]);
+    when(() => mockPlanRepo.getDraft(any())).thenAnswer((_) async => null);
+    when(() => mockPlanRepo.upsertPlan(any())).thenAnswer((_) async {});
+    when(() => mockPlanRepo.bulkUpsertItems(any())).thenAnswer((_) async {});
+    when(() => mockPlanRepo.saveDraft(any(), any())).thenAnswer((_) async {});
+    when(() => mockPlanRepo.markApplied(any(), any())).thenAnswer((_) async {});
+    when(() => mockPlanRepo.delete(any())).thenAnswer((_) async {});
+    when(() => mockPlanRepo.clearAll()).thenAnswer((_) async {});
+    when(() => mockPlanRepo.getAllPlans()).thenAnswer((_) async => <BudgetPlan>[]);
+    when(() => mockPlanRepo.getAllItems()).thenAnswer((_) async => <BudgetPlanItem>[]);
+    when(() => mockPlanRepo.count()).thenAnswer((_) async => 0);
+    when(() => mockPlanRepo.itemCount()).thenAnswer((_) async => 0);
+    // StorageService stubs
     when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-    vm = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+    // Pre-load so _loadBudgetsFuture resolves before any test body runs.
+    // This ensures pumpWidget() in the first two tests sees a settled VM.
+    vm = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+    // Wait for constructor's Future.microtask to complete so _loadBudgetsImpl
+    // finishes before test body starts. This prevents pumpAndSettle timeout.
+    vm.forceReload(); // fire and forget — _loadBudgetsFuture now resolves async
   });
 
   Widget wrap() {
@@ -114,6 +162,7 @@ void main() {
   group('BudgetOverviewWidget - SectionHeader integration', () {
     testWidgets('renders SectionHeader with emoji, title and edit action',
         (tester) async {
+      // Constructor's _loadBudgets microtask already completed in setUp.
       await tester.pumpWidget(wrap());
       await tester.pumpAndSettle();
 
@@ -123,6 +172,14 @@ void main() {
       final header = tester.widget<SectionHeader>(find.byType(SectionHeader));
       expect(header.actionIcon, Icons.edit);
       expect(header.onAction, isNotNull);
+    });
+
+    testWidgets('renders entry point button Lên kế hoạch tháng tới (ADR-0026)',
+        (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lên kế hoạch tháng tới'), findsOneWidget);
     });
 
     testWidgets('action button is tappable', (tester) async {
@@ -149,6 +206,7 @@ void main() {
           'Ăn nhà': 500000,    // 10% normal
         }));
         await tester.pumpWidget(wrap());
+        await tester.pump();
         await tester.pumpAndSettle();
 
         expect(find.text('Ăn ngoài'), findsOneWidget);
@@ -164,6 +222,7 @@ void main() {
           'Ăn nhà': 500000,
         }));
         await tester.pumpWidget(wrap());
+        await tester.pump();
         await tester.pumpAndSettle();
 
         expect(find.text('Ăn nhà'), findsNothing);
@@ -179,6 +238,7 @@ void main() {
           'Ăn nhà': 500000,
         }));
         await tester.pumpWidget(wrap());
+        await tester.pump();
         await tester.pumpAndSettle();
 
         expect(find.text('Xem tất cả 1 ngân sách khác'), findsOneWidget);
@@ -196,6 +256,7 @@ void main() {
           'Ăn nhà': 500000,
         }));
         await tester.pumpWidget(wrap());
+        await tester.pump();
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('Xem tất cả 1 ngân sách khác'));
@@ -218,6 +279,7 @@ void main() {
           'Ăn nhà': 500000,
         }));
         await tester.pumpWidget(wrap());
+        await tester.pump();
         await tester.pumpAndSettle();
 
         // Expand
@@ -243,6 +305,7 @@ void main() {
           'Cà phê': 1200000,   // 120% exceeded
         }));
         await tester.pumpWidget(wrap());
+        await tester.pump();
         await tester.pumpAndSettle();
 
         expect(find.text('Ăn ngoài'), findsOneWidget);
@@ -281,6 +344,7 @@ void main() {
         'Ăn ngoài': 900000, // 90% warning — shows in default view
       }));
       await tester.pumpWidget(wrap());
+      await tester.pump();
       await tester.pumpAndSettle();
 
       // Ăn ngoài budget card should appear

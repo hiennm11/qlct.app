@@ -13,13 +13,14 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 | **Ghi chép giọng nói** | Voice Input | Speech-to-text → number extraction → auto category matching → transaction |
 | **Thống kê** | `ExpenseStats` | Aggregated values: todayExpense, weekExpense, monthExpense, categoryTotals |
 | **Xuất dữ liệu** | Export | CSV or JSON file export of all transactions — dùng `share_plus` để share qua system sheet |
-| **Sao lưu** | Backup | ADR-0023 + ADR-0025 full backup JSON versioned (schema v4) với top-level `appId='qlct.app'`. Scope = transactions + budgets + budgetSnapshots + recurringTransactions + quickTemplates + totalBudget. KHÔNG backup runtime/cache, filter/search/date/category state, pagination state, `last_backup_time`, derived analytics (ExpenseStats/Monthly Review/suggestion chips), `transactions.search_text_normalized`, migration safety artifacts (`transactions_backup_v1`). Compact JSON, filename `qlct-backup-yyyy-MM-dd-HHmmss.json`. Dùng `BackupService` |
-| **Khôi phục** | Restore | ADR-0023 + ADR-0025 import từ file JSON backup: validate schema v4 (appId bắt buộc từ v3+, reject schema > current, unknown fields ignore) → merge (INSERT OR IGNORE qua SQL PRIMARY KEY/composite PRIMARY KEY, totalBudget chỉ ghi khi current null/0) hoặc replace (atomic xoá 5 persisted tables + ghi đè totalBudget trong 1 transaction). Schema v1/v2 không có appId vẫn restore được; v3 thiếu `budgetSnapshots` default `[]`. Delete-all (Danger Zone) cùng semantics với replace-empty, không có Undo. Current counts qua SQL `COUNT(*)` gồm budget snapshots. Safety backup prompt "Sao lưu dữ liệu hiện tại trước không?" trước destructive, default = Có. Post-restore: refresh 4 VM, clear filter/search/date/category, reset pagination. UI phân biệt "Sao lưu dữ liệu đầy đủ" vs "Xuất JSON/CSV (chỉ giao dịch)". Dùng `file_picker` để chọn file |
+| **Sao lưu** | Backup | ADR-0023 + ADR-0025 + ADR-0026 full backup JSON versioned (current schema v5) với top-level `appId='qlct.app'`. Scope = transactions + budgets + budgetSnapshots + budgetPlans + budgetPlanItems + recurringTransactions + quickTemplates + totalBudget. KHÔNG backup runtime/cache, filter/search/date/category state, pagination state, `last_backup_time`, derived analytics (ExpenseStats/Monthly Review/suggestion chips), `transactions.search_text_normalized`, migration safety artifacts (`transactions_backup_v1`). Compact JSON, filename `qlct-backup-yyyy-MM-dd-HHmmss.json`. Dùng `BackupService` |
+| **Khôi phục** | Restore | ADR-0023 + ADR-0025 + ADR-0026 import từ file JSON backup: validate current schema v5 (appId bắt buộc từ v3+, reject schema > current, unknown fields ignore). Merge dùng INSERT OR IGNORE qua SQL PRIMARY KEY/composite PRIMARY KEY, totalBudget chỉ ghi khi current null/0; replace atomic xoá persisted user-data tables + ghi đè totalBudget trong 1 transaction. Schema v1/v2 không có appId vẫn restore được; older schemas thiếu `budgetSnapshots`/`budgetPlans`/`budgetPlanItems` default `[]`. Delete-all (Danger Zone) cùng semantics với replace-empty, không có Undo. Current counts qua SQL `COUNT(*)` gồm budget snapshots + budget plans/items. Safety backup prompt "Sao lưu dữ liệu hiện tại trước không?" trước destructive, default = Có. Post-restore: refresh VMs, clear filter/search/date/category, reset pagination. UI phân biệt "Sao lưu dữ liệu đầy đủ" vs "Xuất JSON/CSV (chỉ giao dịch)". Dùng `file_picker` để chọn file |
 | **Đầu tư** | Investment Category | Special `isInvestment=true` category with larger amounts (1M–20M VND). Capital allocation, not spending budget. |
 | **Nguồn dữ liệu** | `DataSource` | Persistence seam between ViewModels/BackupService and concrete storage (SQLite, future: API). Repository layer removed per ADR-0018 |
 | **Kho dữ liệu cục bộ** | `DatabaseHelper` | Manages SQLite connection, version, and schema migrations |
 | **Ngân sách** | `Budget` | Live monthly spending limit per non-investment category: limit amount + alert threshold % |
 | **Ảnh chụp ngân sách** | `BudgetSnapshot` | Historical copy of monthly budget limits per `yearMonth` + category, created after month rollover for past-month review |
+| **Kế hoạch ngân sách** | `BudgetPlan` | Future-month planned budget from ADR-0026. One draft/applied plan per `yearMonth`, includes header `plannedTotalBudget` + all non-investment category plan items. Auto-applied when the target month starts, after previous-month snapshot is created. |
 | **Tình trạng ngân sách** | `BudgetStatus` | Computed per category: spent vs limit → normal/warning/exceeded with progress % |
 | **Định dạng số** | `ThousandSeparatorFormatter` | `TextInputFormatter` tự động chèn `.` phân cách hàng nghìn khi nhập số (vd: `10000000` → `10.000.000`) |
 | **Giao dịch định kỳ** | `RecurringTransaction` | Rule sinh giao dịch tự động: category + amount + note + frequency (daily/weekly/monthly) + nextRunAt + isActive |
@@ -56,7 +57,7 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 Pattern: MVVM + DataSource (multi-VM) — Repository layer removed per ADR-0018
 State:   Provider + ChangeNotifier + ChangeNotifierProxyProvider<ExpenseVM, BudgetVM>
 Models:  Freezed (immutable, code-gen)
-Storage: SQLite (sqflite) — transactions, budgets, budget_snapshots, recurring_transactions, quick_templates tables. v8 migration adds quick_templates + 2 indexes. v9 adds `transactions.search_text_normalized` shadow column + index. v10 adds `budget_snapshots` with composite PK (`year_month`, `category_name`). SharedPreferences for settings only.
+Storage: SQLite (sqflite) — transactions, budgets, budget_snapshots, budget_plans, budget_plan_items, recurring_transactions, quick_templates tables. v8 migration adds quick_templates + 2 indexes. v9 adds `transactions.search_text_normalized` shadow column + index. v10 adds `budget_snapshots` with composite PK (`year_month`, `category_name`). v11 adds `budget_plans` + `budget_plan_items`. SharedPreferences for settings only.
 ```
 
 ### Layer Map
@@ -65,24 +66,29 @@ Storage: SQLite (sqflite) — transactions, budgets, budget_snapshots, recurring
 lib/
 ├── core/           — Constants, theme, formatters, Vietnamese number parser
 ├── data/
-│   ├── database/   — DatabaseHelper (SQLite connection, version 10, migration, runInTransaction)
+│   ├── database/   — DatabaseHelper (SQLite connection, version 11, migration, runInTransaction)
 │   ├── datasources/— TransactionLocalDataSource, BudgetLocalDataSource,
-│   │                 BudgetSnapshotLocalDataSource, RecurringLocalDataSource,
+│   │                 BudgetSnapshotLocalDataSource, BudgetPlanLocalDataSource,
+│   │                 RecurringLocalDataSource,
 │   │                 QuickTemplateLocalDataSource (abstract); sqlite impls
 │   ├── mappers/    — Top-level row mappers: transactionToRow/FromRow,
 │   │                 budgetToRow/FromRow, budgetSnapshotToRow/FromRow,
+│   │                 budgetPlanToRow/FromRow,
 │   │                 recurringToRow/FromRow, quickTemplateToRow/FromRow
 │   └── migrations/ — One-time SharedPreferences → SQLite data import (atomic via transaction)
 ├── models/         — Transaction, Category, ExpenseStats, Budget,
-│                     BudgetSnapshot, BudgetStatus, RecurringTransaction,
+│                     BudgetSnapshot, BudgetPlan, BudgetPlanItem,
+│                     BudgetStatus, RecurringTransaction,
 │                     QuickTemplate, BackupData (Freezed)
 ├── services/       — StorageService (settings only), ExportService, VoiceInputService,
 │                     BackupService (backup/restore atomic, uses DataSource interfaces),
+│                     MonthlyBudgetPlanBuilder,
 │                     TransactionSuggestionEngine (pure derived suggestions, no DB)
 ├── viewmodels/     — ExpenseViewModel, BudgetViewModel,
-│                     RecurringTransactionViewModel, QuickTemplateViewModel, BackupViewModel
+│                     MonthlyPlanViewModel, RecurringTransactionViewModel,
+│                     QuickTemplateViewModel, BackupViewModel
 │                     (multi-VM, depend on DataSource interfaces, not Repository)
-├── views/          — HomeScreen, BackupRestoreScreen
+├── views/          — HomeScreen, BackupRestoreScreen, MonthlyPlanScreen
 ├── widgets/        — StatsWidget, QuickAddBar, QuickInputWidget, CustomInputWidget,
 │                     QuickTemplatesStrip, ManageTemplatesSheet, QuickTemplateEditSheet,
 │                     TransactionListWidget, ChartWidget, BudgetOverviewWidget,
@@ -92,7 +98,7 @@ lib/
 │                     VoiceInputModal),
 │                     transaction_filter_row, transaction_row,
 │                     transaction_selection_action_bar, transaction_empty_state
-└── main.dart       — DI wiring: 5 Provider + ProxyProvider<Expense, Budget> + Sentry init
+└── main.dart       — DI wiring: 6 Provider + ProxyProvider<Expense, Budget> + Sentry init
 ```
 
 ### Data Flow
@@ -115,7 +121,7 @@ Budget stats: ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>
 
 Backup → BackupViewModel.createBackup()
   → BackupService.createBackup()
-    → 5 datasource.getAll() + StorageService.loadValue('total_budget')
+    → datasources.getAll() + budget plan lists + StorageService.loadValue('total_budget')
     → BackupData → exportToJson (compact) → share via share_plus
 
 Restore → BackupViewModel.importAndRestore(mode)
@@ -128,8 +134,16 @@ Restore → BackupViewModel.importAndRestore(mode)
   → ExpenseVM.refresh() + BudgetVM.forceReload() + RecurringVM.forceReload()
 
 Budget rollover → BudgetViewModel._loadBudgets()
-  → BudgetSnapshotLocalDataSource.getByYearMonth(previousMonth)
-  → if missing: BudgetSnapshotLocalDataSource.bulkUpsert(live Budget rows)
+  → load live Budget rows
+  → ensure previous-month BudgetSnapshot from current live Budget rows
+  → if current-month BudgetPlan draft exists: apply exact plan to live Budget + total_budget
+  → mark plan applied + reload live Budget
+
+Monthly planning → MonthlyPlanScreen
+  → MonthlyPlanViewModel.load()
+  → existing draft BudgetPlan(nextMonth) OR MonthlyBudgetPlanBuilder.buildDraft(...)
+  → BudgetPlanLocalDataSource.saveDraft(plan, items)
+  → source reset / edits / recompute persist draft
 
 Monthly Review budget insight → MonthlyReviewViewModel.loadMonth(selectedMonth)
   → current month: BudgetLocalDataSource.getAll()
@@ -170,8 +184,9 @@ Monthly Review budget insight → MonthlyReviewViewModel.loadMonth(selectedMonth
 29. **Derived Transaction Suggestions** — ADR-0020: Suggestions are derived data from currently loaded recent transactions (`ExpenseViewModel.allTransactions`), not persisted data. Pure/stateless `TransactionSuggestionEngine` exposes `getSuggestedAmounts(category, recentTransactions)` and `getSuggestedNotes(category, recentTransactions)`. No suggestions table, no DataSource, no migration, no full-history load. Amount rules: Subscription → last exact + top repeated; Ăn ngoài/Cà phê → median recent + top repeated + last fallback; others → last + top repeated. Repeated phase ignores singleton counts (`count > 1`). Note rules: recent non-empty first, then repeated, case-insensitive dedupe. UI chips in `CustomInputWidget`, `QuickTemplateEditSheet`, `RecurringEditDialog`, `TransactionEditDialog`; tap chip autofills only, no auto-submit. `QuickInputWidget` shows compact amount-only chips per category card. Template suggestions remain out of scope.
 30. **Monthly Review** — ADR-0021 + ADR-0025: Monthly Review là read-only derived analytics, mở full-screen từ `StatsWidget`. Không persist review result/cache. `MonthlyReviewViewModel` query full selected month + previous comparable period qua `TransactionLocalDataSource.getByDateRange`; không dùng `ExpenseViewModel.allTransactions` vì pagination. `MonthlyReviewBuilder` pure aggregate trả `MonthlyReviewData` Freezed runtime model (không JSON serialization). Investment tách khỏi spending behavior. “Chi phí cố định” dùng union distinct của Subscription category và recurring-generated transactions, exclude investment để tránh double count. Current month compare dùng same-period previous month (previous end clamped to last day if needed); past month dùng full previous month. Budget insight dùng live `Budget` cho tháng hiện tại, dùng `BudgetSnapshot` cho tháng quá khứ, fallback live config nếu snapshot thiếu. `MonthlyReviewScreen` có AppBar title "Review tháng" + month header riêng; không dùng `DateFormat('MMMM yyyy', 'vi_VN')` để tránh release blank do chưa init locale data.
 31. **Normalized Vietnamese Transaction Search** — ADR-0022: Search tiếng Việt không dấu qua `transactions.search_text_normalized` shadow column. `normalizeVietnameseSearchText` trong `lib/core/` bỏ dấu, lowercase, collapse whitespace, `đ/Đ → d`. `buildTransactionSearchText` gom note + category + amount. Cột được sync tập trung qua `transactionToRow()`. DB v9 thêm column + index + Dart backfill. `SqliteTransactionDataSource.search()` normalize query rồi `LIKE` trên shadow column. VM/widget chỉ orchestration, không normalize.
-32. **Full Backup & Restore Contract** — ADR-0023 + ADR-0025: Pin "full backup = hết" chính xác. BackupData schema v4 với top-level `appId='qlct.app'` (`currentSchemaVersion=4`); v1/v2 không có appId vẫn restore được, v3+ bắt buộc đúng appId, file có `schemaVersion > current` reject. Stable field order (`appId, schemaVersion, exportedAt, appVersion, totalBudget, transactions, budgets, recurringTransactions, quickTemplates, budgetSnapshots`) cho inspect/diff. Scope thuần user financial data (transactions + budgets + budgetSnapshots + recurringTransactions + quickTemplates + totalBudget); KHÔNG backup runtime/cache, filter/search/pagination state, `last_backup_time`, derived analytics, `search_text_normalized`, migration safety artifacts. Compact JSON + filename `qlct-backup-yyyy-MM-dd-HHmmss.json` (tránh ghi đè cùng ngày). Restore merge: `INSERT OR IGNORE` qua SQL PRIMARY KEY/composite PRIMARY KEY, `totalBudget` chỉ ghi khi current null/0. Restore replace: atomic clear 5 persisted tables + insert + ghi đè `totalBudget` trong 1 transaction (rollback nếu insert fail). Delete-all cùng semantics với replace-empty, không Undo. Current counts qua SQL `COUNT(*)` gồm budget snapshots (không dùng paginated VM list). Safety backup prompt "Sao lưu dữ liệu hiện tại trước không?" default = Có, fail hỏi lại default = Huỷ. Post-restore: refresh 4 VM (`refreshAfterExternalDataChange` clear filter + reset pagination cho ExpenseVM), clear filter/search/date/category. UI phân biệt "Sao lưu dữ liệu đầy đủ" (full backup restore được) vs "Xuất JSON/CSV (chỉ giao dịch)" (quick export, không phải full backup). Validation strict: file phải là object, `schemaVersion` int, parse model lỗi → fail toàn bộ file (không skip từng item). 50MB import guard giữ từ ADR-0010.
+32. **Full Backup & Restore Contract** — ADR-0023 + ADR-0025 + ADR-0026: Pin "full backup = hết" chính xác. BackupData schema v5 với top-level `appId='qlct.app'` (`currentSchemaVersion=5`); v1/v2 không có appId vẫn restore được, v3+ bắt buộc đúng appId, file có `schemaVersion > current` reject. Stable field order (`appId, schemaVersion, exportedAt, appVersion, totalBudget, transactions, budgets, recurringTransactions, quickTemplates, budgetSnapshots, budgetPlans, budgetPlanItems`) cho inspect/diff. Scope thuần user financial data (transactions + budgets + budgetSnapshots + budgetPlans + budgetPlanItems + recurringTransactions + quickTemplates + totalBudget); KHÔNG backup runtime/cache, filter/search/pagination state, `last_backup_time`, derived analytics, `search_text_normalized`, migration safety artifacts. Compact JSON + filename `qlct-backup-yyyy-MM-dd-HHmmss.json` (tránh ghi đè cùng ngày). Restore merge: `INSERT OR IGNORE` qua SQL PRIMARY KEY/composite PRIMARY KEY, `totalBudget` chỉ ghi khi current null/0. Restore replace: atomic clear persisted user-data tables + insert + ghi đè `totalBudget` trong 1 transaction (rollback nếu insert fail). Delete-all cùng semantics với replace-empty, không Undo. Current counts qua SQL `COUNT(*)` gồm budget snapshots + budget plan headers/items (không dùng paginated VM list). Safety backup prompt "Sao lưu dữ liệu hiện tại trước không?" default = Có, fail hỏi lại default = Huỷ. Post-restore: refresh VMs (`refreshAfterExternalDataChange` clear filter + reset pagination cho ExpenseVM), clear filter/search/date/category. UI phân biệt "Sao lưu dữ liệu đầy đủ" (full backup restore được) vs "Xuất JSON/CSV (chỉ giao dịch)" (quick export, không phải full backup). Validation strict: file phải là object, `schemaVersion` int, parse model lỗi → fail toàn bộ file (không skip từng item). 50MB import guard giữ từ ADR-0010.
 33. **Monthly Budget Snapshots** — ADR-0025 implemented: `BudgetSnapshot` thêm chiều thời gian cho budget history (`yearMonth`, `categoryName`, `limitAmount`, `alertThreshold`, `createdAt`). SQLite v10 table `budget_snapshots` dùng composite PK (`year_month`, `category_name`). Live `Budget` vẫn là ngân sách tháng hiện tại và flexible trong tháng. Khi qua tháng mới, app tạo snapshot cho tháng trước nếu chưa có; snapshot đại diện final known budget của tháng đã qua. Monthly Review dùng live budget cho tháng hiện tại, dùng snapshot cho tháng quá khứ, fallback live config nếu tháng cũ chưa có snapshot. `Đầu tư` không thuộc budget spending semantics: exclude khỏi budget statuses, bulk budget edit, budget highlights, total budget spent. Snapshot rows vẫn backup/restore để giữ lịch sử review.
+34. **Monthly Budget Planning** — ADR-0026 implemented: `BudgetPlan` là planned budget cho tháng tương lai, tách khỏi live `Budget` và historical `BudgetSnapshot`. Entry point từ Budget section: “Lên kế hoạch tháng tới”; target luôn `currentMonth + 1`. Một plan mỗi `yearMonth`, draft autosave-on-edit, source gồm copy previous-month snapshot (fallback live), copy current live budget, hoặc empty base + suggestions. Suggestion dùng median spending 3 completed months (fallback average/single/0), round lên 50k/100k; classification `keep/increase/decrease` dựa trên delta ±15%, last-month overspent override `increase`. Plan có `plannedTotalBudget` + all non-investment category items including zero. Month rollover order bắt buộc: snapshot previous month first → auto-apply current-month draft plan → mark applied → reload budget. Apply plan replaces exact live budget, not merge. DB v11 adds `budget_plans` + `budget_plan_items`; backup schema v5 includes plan data. `MonthlyPlanScreen` full-screen workflow shows source actions, total budget input, grouped recommendation sections, saved indicator, and future CTA.
 
 ## Dependencies
 

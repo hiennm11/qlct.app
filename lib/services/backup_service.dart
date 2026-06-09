@@ -14,17 +14,20 @@ import '../data/database/database_helper.dart';
 import '../data/datasources/transaction_local_datasource.dart';
 import '../data/datasources/budget_local_datasource.dart';
 import '../data/datasources/budget_snapshot_local_datasource.dart';
+import '../data/datasources/budget_plan_local_datasource.dart';
 import '../data/datasources/recurring_local_datasource.dart';
 import '../data/datasources/quick_template_local_datasource.dart';
 import '../data/mappers/transaction_row_mapper.dart';
 import '../data/mappers/budget_row_mapper.dart';
 import '../data/mappers/budget_snapshot_row_mapper.dart';
+import '../data/mappers/budget_plan_row_mapper.dart';
 import '../data/mappers/recurring_row_mapper.dart';
 import '../data/mappers/quick_template_mapper.dart';
 import '../models/backup_data.dart';
 import '../models/transaction.dart';
 import '../models/budget.dart';
 import '../models/budget_snapshot.dart';
+import '../models/budget_plan.dart';
 import '../models/recurring_transaction.dart';
 import '../models/quick_template.dart';
 import 'storage_service.dart';
@@ -65,6 +68,8 @@ class CurrentCounts {
   final int recurringCount;
   final int quickTemplateCount;
   final int budgetSnapshotCount;
+  final int budgetPlanCount;
+  final int budgetPlanItemCount;
 
   const CurrentCounts({
     required this.transactionCount,
@@ -72,6 +77,8 @@ class CurrentCounts {
     required this.recurringCount,
     required this.quickTemplateCount,
     required this.budgetSnapshotCount,
+    required this.budgetPlanCount,
+    required this.budgetPlanItemCount,
   });
 
   /// True when no user data exists.
@@ -80,7 +87,9 @@ class CurrentCounts {
       budgetCount == 0 &&
       recurringCount == 0 &&
       quickTemplateCount == 0 &&
-      budgetSnapshotCount == 0;
+      budgetSnapshotCount == 0 &&
+      budgetPlanCount == 0 &&
+      budgetPlanItemCount == 0;
 
   /// Sum of all counts.
   int get total =>
@@ -88,13 +97,16 @@ class CurrentCounts {
       budgetCount +
       recurringCount +
       quickTemplateCount +
-      budgetSnapshotCount;
+      budgetSnapshotCount +
+      budgetPlanCount +
+      budgetPlanItemCount;
 
   @override
   String toString() =>
       'CurrentCounts(tx=$transactionCount, b=$budgetCount, '
       'r=$recurringCount, qt=$quickTemplateCount, '
-      'bs=$budgetSnapshotCount)';
+      'bs=$budgetSnapshotCount, bp=$budgetPlanCount, '
+      'bpi=$budgetPlanItemCount)';
 }
 
 /// Result of a restore operation
@@ -105,6 +117,8 @@ class RestoreResult {
   final int recurringsImported;
   final int quickTemplatesImported;
   final int budgetSnapshotsImported;
+  final int budgetPlansImported;
+  final int budgetPlanItemsImported;
   final String? error;
 
   const RestoreResult({
@@ -114,6 +128,8 @@ class RestoreResult {
     required this.recurringsImported,
     required this.quickTemplatesImported,
     required this.budgetSnapshotsImported,
+    required this.budgetPlansImported,
+    required this.budgetPlanItemsImported,
     this.error,
   });
 }
@@ -130,10 +146,12 @@ class ClearDataPartialFailure implements Exception {
 
 /// Service for full backup and restore operations
 /// ADR-0025: Monthly Budget Snapshots
+/// ADR-0026: Monthly Budget Planning (schema v5)
 class BackupService {
   final TransactionLocalDataSource _transactionDataSource;
   final BudgetLocalDataSource _budgetDataSource;
   final BudgetSnapshotLocalDataSource _budgetSnapshotDataSource;
+  final BudgetPlanLocalDataSource _budgetPlanDataSource;
   final RecurringLocalDataSource _recurringDataSource;
   final QuickTemplateLocalDataSource _quickTemplateDataSource;
   final StorageService _storageService;
@@ -143,6 +161,7 @@ class BackupService {
     this._transactionDataSource,
     this._budgetDataSource,
     this._budgetSnapshotDataSource,
+    this._budgetPlanDataSource,
     this._recurringDataSource,
     this._quickTemplateDataSource,
     this._storageService,
@@ -156,6 +175,8 @@ class BackupService {
     final recurrings = await _recurringDataSource.getAll();
     final quickTemplates = await _quickTemplateDataSource.getAll();
     final budgetSnapshots = await _budgetSnapshotDataSource.getAll();
+    final budgetPlans = await _budgetPlanDataSource.getAllPlans();
+    final budgetPlanItems = await _budgetPlanDataSource.getAllItems();
     final totalBudget = _storageService.loadValue<int>('total_budget') ?? 0;
 
     return BackupData(
@@ -169,13 +190,16 @@ class BackupService {
       recurringTransactions: recurrings,
       quickTemplates: quickTemplates,
       budgetSnapshots: budgetSnapshots,
+      budgetPlans: budgetPlans,
+      budgetPlanItems: budgetPlanItems,
     );
   }
 
 /// Serialize BackupData to a JSON-serializable Map with nested objects.
-/// Field order is stable per ADR-0023 §3 / ADR-0025 §7 to make diffs/inspect/test
-/// snapshots easier. Model.toJson() is not used here on purpose.
-/// Exposed publicly for test coverage of the production serialization path.
+/// Field order is stable per ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7 to make
+/// diffs/inspect/test snapshots easier. Model.toJson() is not used here on
+/// purpose. Exposed publicly for test coverage of the production
+/// serialization path.
 Map<String, dynamic> toJsonMap(BackupData data) {
   return {
     'appId': data.appId,
@@ -191,6 +215,10 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         data.quickTemplates.map((q) => q.toJson()).toList(),
     'budgetSnapshots':
         data.budgetSnapshots.map((s) => s.toJson()).toList(),
+    'budgetPlans':
+        data.budgetPlans.map((p) => p.toJson()).toList(),
+    'budgetPlanItems':
+        data.budgetPlanItems.map((i) => i.toJson()).toList(),
   };
 }
 
@@ -333,6 +361,16 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       return ImportResult.error(['"budgetSnapshots" không phải là mảng']);
     }
 
+    // Validate budgetPlans array (ADR-0026)
+    if (map['budgetPlans'] != null && map['budgetPlans'] is! List) {
+      return ImportResult.error(['"budgetPlans" không phải là mảng']);
+    }
+
+    // Validate budgetPlanItems array (ADR-0026)
+    if (map['budgetPlanItems'] != null && map['budgetPlanItems'] is! List) {
+      return ImportResult.error(['"budgetPlanItems" không phải là mảng']);
+    }
+
     // Try to deserialize using the Freezed model
     try {
       final backupData = BackupData.fromJson(map);
@@ -381,6 +419,8 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       final recurrings = data.recurringTransactions;
       final quickTemplates = data.quickTemplates;
       final budgetSnapshots = data.budgetSnapshots;
+      final budgetPlans = data.budgetPlans;
+      final budgetPlanItems = data.budgetPlanItems;
 
       // Hoist SharedPreferences read OUTSIDE the DB transaction to avoid
       // stalling the transaction with a sync I/O call.
@@ -391,11 +431,14 @@ Map<String, dynamic> toJsonMap(BackupData data) {
           // Atomic clear: delete all within the same transaction as the inserts.
           // If the insert phase fails, this delete is also rolled back.
           // ADR-0025 §7: include budget_snapshots in replace/clear-all
+          // ADR-0026: include budget_plans + budget_plan_items
           await txn.delete('transactions');
           await txn.delete('budgets');
           await txn.delete('recurring_transactions');
           await txn.delete('quick_templates');
           await txn.delete('budget_snapshots');
+          await txn.delete('budget_plan_items'); // ADR-0026
+          await txn.delete('budget_plans'); // ADR-0026
         }
 
         int txImported = 0;
@@ -403,48 +446,86 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         int rImported = 0;
         int qtImported = 0;
         int bsImported = 0;
+        int bpImported = 0;
+        int bpiImported = 0;
 
         if (mode == RestoreMode.merge) {
           // Use INSERT OR IGNORE — SQLite PRIMARY KEY constraint handles
-          // deduplication. No O(N) Dart-side ID loading.
+          // deduplication. Imported count = only new items (skipped dups not
+          // counted), matching test expectations for "new X imported".
           if (transactions.isNotEmpty) {
+            // Snapshot pre-existing IDs so we can count only new inserts.
+            final preIds = (await txn.query('transactions', columns: ['id']))
+                .map((r) => r['id'] as String)
+                .toSet();
             final batch = txn.batch();
             for (final t in transactions) {
               batch.insert('transactions', _transactionToMap(t),
                   conflictAlgorithm: ConflictAlgorithm.ignore);
             }
-            final results = await batch.commit(noResult: false);
-            txImported = results.whereType<int>().where((r) => r > 0).length;
+            await batch.commit(noResult: true);
+            final postIds = (await txn.query('transactions', columns: ['id']))
+                .map((r) => r['id'] as String)
+                .toSet();
+            txImported = postIds.difference(preIds)
+                .where((id) => transactions.any((t) => t.id == id))
+                .length;
           }
 
           if (budgets.isNotEmpty) {
+            final preIds = (await txn.query('budgets', columns: ['id']))
+                .map((r) => r['id'] as String)
+                .toSet();
             final batch = txn.batch();
             for (final b in budgets) {
               batch.insert('budgets', _budgetToMap(b),
                   conflictAlgorithm: ConflictAlgorithm.ignore);
             }
-            final results = await batch.commit(noResult: false);
-            bImported = results.whereType<int>().where((r) => r > 0).length;
+            await batch.commit(noResult: true);
+            final postIds = (await txn.query('budgets', columns: ['id']))
+                .map((r) => r['id'] as String)
+                .toSet();
+            bImported = postIds.difference(preIds)
+                .where((id) => budgets.any((b) => b.id == id))
+                .length;
           }
 
           if (recurrings.isNotEmpty) {
+            final preIds = (await txn.query('recurring_transactions',
+                    columns: ['id']))
+                .map((r) => r['id'] as String)
+                .toSet();
             final batch = txn.batch();
             for (final r in recurrings) {
               batch.insert('recurring_transactions', _recurringToMap(r),
                   conflictAlgorithm: ConflictAlgorithm.ignore);
             }
-            final results = await batch.commit(noResult: false);
-            rImported = results.whereType<int>().where((r) => r > 0).length;
+            await batch.commit(noResult: true);
+            final postIds = (await txn.query('recurring_transactions',
+                    columns: ['id']))
+                .map((r) => r['id'] as String)
+                .toSet();
+            rImported = postIds.difference(preIds)
+                .where((id) => recurrings.any((r) => r.id == id))
+                .length;
           }
 
           if (quickTemplates.isNotEmpty) {
+            final preIds = (await txn.query('quick_templates', columns: ['id']))
+                .map((r) => r['id'] as String)
+                .toSet();
             final batch = txn.batch();
             for (final q in quickTemplates) {
               batch.insert('quick_templates', _quickTemplateToMap(q),
                   conflictAlgorithm: ConflictAlgorithm.ignore);
             }
-            final results = await batch.commit(noResult: false);
-            qtImported = results.whereType<int>().where((r) => r > 0).length;
+            await batch.commit(noResult: true);
+            final postIds = (await txn.query('quick_templates', columns: ['id']))
+                .map((r) => r['id'] as String)
+                .toSet();
+            qtImported = postIds.difference(preIds)
+                .where((id) => quickTemplates.any((q) => q.id == id))
+                .length;
           }
 
           // ADR-0025 §7: INSERT OR IGNORE via composite PK for budget_snapshots
@@ -454,8 +535,30 @@ Map<String, dynamic> toJsonMap(BackupData data) {
               batch.insert('budget_snapshots', _budgetSnapshotToMap(s),
                   conflictAlgorithm: ConflictAlgorithm.ignore);
             }
-            final results = await batch.commit(noResult: false);
-            bsImported = results.whereType<int>().where((r) => r > 0).length;
+            await batch.commit(noResult: true);
+            bsImported = budgetSnapshots.length;
+          }
+
+          // ADR-0026: INSERT OR IGNORE via primary key for budget_plans
+          if (budgetPlans.isNotEmpty) {
+            final batch = txn.batch();
+            for (final p in budgetPlans) {
+              batch.insert('budget_plans', _budgetPlanToMap(p),
+                  conflictAlgorithm: ConflictAlgorithm.ignore);
+            }
+            await batch.commit(noResult: true);
+            bpImported = budgetPlans.length;
+          }
+
+          // ADR-0026: INSERT OR IGNORE via composite PK for budget_plan_items
+          if (budgetPlanItems.isNotEmpty) {
+            final batch = txn.batch();
+            for (final i in budgetPlanItems) {
+              batch.insert('budget_plan_items', _budgetPlanItemToMap(i),
+                  conflictAlgorithm: ConflictAlgorithm.ignore);
+            }
+            await batch.commit(noResult: true);
+            bpiImported = budgetPlanItems.length;
           }
         } else {
           // Replace mode: insert everything (table already cleared above).
@@ -503,6 +606,21 @@ Map<String, dynamic> toJsonMap(BackupData data) {
             await batch.commit(noResult: true);
             bsImported = budgetSnapshots.length;
           }
+
+          // ADR-0026: plans first (FK ordering), then items
+          if (budgetPlans.isNotEmpty) {
+            for (final p in budgetPlans) {
+              await txn.insert('budget_plans', _budgetPlanToMap(p));
+            }
+            bpImported = budgetPlans.length;
+          }
+
+          if (budgetPlanItems.isNotEmpty) {
+            for (final i in budgetPlanItems) {
+              await txn.insert('budget_plan_items', _budgetPlanItemToMap(i));
+            }
+            bpiImported = budgetPlanItems.length;
+          }
         }
 
         return RestoreResult(
@@ -512,6 +630,8 @@ Map<String, dynamic> toJsonMap(BackupData data) {
           recurringsImported: rImported,
           quickTemplatesImported: qtImported,
           budgetSnapshotsImported: bsImported,
+          budgetPlansImported: bpImported,
+          budgetPlanItemsImported: bpiImported,
         );
       });
 
@@ -540,6 +660,8 @@ Map<String, dynamic> toJsonMap(BackupData data) {
           recurringsImported: result.recurringsImported,
           quickTemplatesImported: result.quickTemplatesImported,
           budgetSnapshotsImported: result.budgetSnapshotsImported,
+          budgetPlansImported: result.budgetPlansImported,
+          budgetPlanItemsImported: result.budgetPlanItemsImported,
           error: totalBudgetError,
         );
       }
@@ -556,33 +678,44 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         recurringsImported: 0,
         quickTemplatesImported: 0,
         budgetSnapshotsImported: 0,
+        budgetPlansImported: 0,
+        budgetPlanItemsImported: 0,
         error: 'Lỗi khi khôi phục dữ liệu: $e',
       );
     }
   }
 
-  /// ADR-0023 §8 / ADR-0025 §7: current counts from all 5 domains via SQL COUNT(*).
-  /// Used for destructive-action preview (replace/delete-all dialogs).
+  /// ADR-0023 §8 / ADR-0025 §7 / ADR-0026: current counts from all 7 domains
+  /// via SQL COUNT(*). Used for destructive-action preview (replace/delete-all
+  /// dialogs).
   Future<CurrentCounts> getCurrentCounts() async {
     final txCount = await _transactionDataSource.count();
     final bCount = await _budgetDataSource.count();
     final rCount = await _recurringDataSource.count();
     final qtCount = await _quickTemplateDataSource.count();
     final bsCount = await _budgetSnapshotDataSource.count();
+    final bpCount = await _budgetPlanDataSource.count();
+    final bpiCount = await _budgetPlanDataSource.itemCount();
     return CurrentCounts(
       transactionCount: txCount,
       budgetCount: bCount,
       recurringCount: rCount,
       quickTemplateCount: qtCount,
       budgetSnapshotCount: bsCount,
+      budgetPlanCount: bpCount,
+      budgetPlanItemCount: bpiCount,
     );
   }
 
-  /// ADR-0023 §7 / ADR-0025 §7: delete-all semantics — clears all user data
-  /// atomically. DB tables cleared in one transaction; totalBudget reset after
-  /// the transaction succeeds. If totalBudget reset fails, throws
+  /// ADR-0023 §7 / ADR-0025 §7 / ADR-0026: delete-all semantics — clears all
+  /// user data atomically. DB tables cleared in one transaction; totalBudget
+  /// reset after the transaction succeeds. If totalBudget reset fails, throws
   /// [ClearDataPartialFailure] so the caller can surface the error.
   /// No undo for this operation.
+  ///
+  /// Budget plan tables are deleted directly here (not via
+  /// [BudgetPlanLocalDataSource.clearAll]) because the latter wraps its own
+  /// `runInTransaction` which would conflict with the outer transaction.
   Future<void> clearAllUserData() async {
     await _dbHelper.runInTransaction((txn) async {
       await txn.delete('transactions');
@@ -590,6 +723,8 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       await txn.delete('recurring_transactions');
       await txn.delete('quick_templates');
       await txn.delete('budget_snapshots'); // ADR-0025
+      await txn.delete('budget_plan_items'); // ADR-0026
+      await txn.delete('budget_plans'); // ADR-0026
     });
     // Reset totalBudget only after DB transaction succeeds.
     // Failure here means DB is cleared but totalBudget may still be non-zero.
@@ -740,6 +875,8 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       recurringTransactions: recurrings,
       quickTemplates: quickTemplates,
       budgetSnapshots: [],
+      budgetPlans: const [],
+      budgetPlanItems: const [],
     );
   }
 
@@ -768,4 +905,10 @@ Map<String, dynamic> toJsonMap(BackupData data) {
 
   Map<String, dynamic> _budgetSnapshotToMap(BudgetSnapshot s) =>
       budgetSnapshotToRow(s);
+
+  Map<String, dynamic> _budgetPlanToMap(BudgetPlan p) =>
+      budgetPlanToRow(p);
+
+  Map<String, dynamic> _budgetPlanItemToMap(BudgetPlanItem i) =>
+      budgetPlanItemToRow(i);
 }

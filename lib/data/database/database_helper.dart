@@ -5,7 +5,7 @@ import 'package:qlct/core/vietnamese_text_normalizer.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 10;
+  static const _databaseVersion = 11;
 
   Database? _database;
   String? _testPathOverride;
@@ -96,6 +96,32 @@ class DatabaseHelper {
         alert_threshold INTEGER NOT NULL DEFAULT 80,
         created_at      INTEGER NOT NULL,
         PRIMARY KEY (year_month, category_name)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE budget_plans (
+        year_month            TEXT NOT NULL PRIMARY KEY,
+        planned_total_budget  INTEGER NOT NULL DEFAULT 0,
+        source                TEXT NOT NULL,
+        status                TEXT NOT NULL DEFAULT 'draft',
+        created_at            INTEGER NOT NULL,
+        updated_at            INTEGER NOT NULL,
+        applied_at            INTEGER
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE budget_plan_items (
+        year_month                   TEXT NOT NULL,
+        category_name                TEXT NOT NULL,
+        planned_limit                INTEGER NOT NULL DEFAULT 0,
+        alert_threshold              INTEGER NOT NULL DEFAULT 80,
+        suggested_limit              INTEGER NOT NULL DEFAULT 0,
+        base_limit                   INTEGER NOT NULL DEFAULT 0,
+        last_month_spent             INTEGER NOT NULL DEFAULT 0,
+        was_over_budget_last_month   INTEGER NOT NULL DEFAULT 0,
+        recommendation               TEXT NOT NULL,
+        PRIMARY KEY (year_month, category_name),
+        FOREIGN KEY (year_month) REFERENCES budget_plans(year_month) ON DELETE CASCADE
       )
     ''');
   }
@@ -191,6 +217,35 @@ class DatabaseHelper {
           alert_threshold INTEGER NOT NULL DEFAULT 80,
           created_at      INTEGER NOT NULL,
           PRIMARY KEY (year_month, category_name)
+        )
+      ''');
+    }
+    if (oldVersion < 11) {
+      // ADR-0026: monthly budget plans
+      await db.execute('''
+        CREATE TABLE budget_plans (
+          year_month            TEXT NOT NULL PRIMARY KEY,
+          planned_total_budget  INTEGER NOT NULL DEFAULT 0,
+          source                TEXT NOT NULL,
+          status                TEXT NOT NULL DEFAULT 'draft',
+          created_at            INTEGER NOT NULL,
+          updated_at            INTEGER NOT NULL,
+          applied_at            INTEGER
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE budget_plan_items (
+          year_month                   TEXT NOT NULL,
+          category_name                TEXT NOT NULL,
+          planned_limit                INTEGER NOT NULL DEFAULT 0,
+          alert_threshold              INTEGER NOT NULL DEFAULT 80,
+          suggested_limit              INTEGER NOT NULL DEFAULT 0,
+          base_limit                   INTEGER NOT NULL DEFAULT 0,
+          last_month_spent             INTEGER NOT NULL DEFAULT 0,
+          was_over_budget_last_month   INTEGER NOT NULL DEFAULT 0,
+          recommendation               TEXT NOT NULL,
+          PRIMARY KEY (year_month, category_name),
+          FOREIGN KEY (year_month) REFERENCES budget_plans(year_month) ON DELETE CASCADE
         )
       ''');
     }

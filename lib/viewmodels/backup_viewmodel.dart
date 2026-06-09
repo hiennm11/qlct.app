@@ -31,6 +31,8 @@ class BackupViewModel extends ChangeNotifier {
   int? pendingRecurringCount;
   int? pendingQuickTemplateCount;
   int? pendingBudgetSnapshotCount;
+  int? pendingBudgetPlanCount;
+  int? pendingBudgetPlanItemCount;
 
   // Task 3: last backup time
   static const String _lastBackupTimeKey = 'last_backup_time';
@@ -100,6 +102,8 @@ class BackupViewModel extends ChangeNotifier {
     pendingRecurringCount = null;
     pendingQuickTemplateCount = null;
     pendingBudgetSnapshotCount = null;
+    pendingBudgetPlanCount = null;
+    pendingBudgetPlanItemCount = null;
     notifyListeners();
   }
 
@@ -144,6 +148,8 @@ class BackupViewModel extends ChangeNotifier {
       pendingRecurringCount = result.data!.recurringTransactions.length;
       pendingQuickTemplateCount = result.data!.quickTemplates.length;
       pendingBudgetSnapshotCount = result.data!.budgetSnapshots.length;
+      pendingBudgetPlanCount = result.data!.budgetPlans.length;
+      pendingBudgetPlanItemCount = result.data!.budgetPlanItems.length;
       _setLoading(false);
       return result;
     } catch (e, stack) {
@@ -178,6 +184,8 @@ class BackupViewModel extends ChangeNotifier {
       pendingRecurringCount = result.data!.recurringTransactions.length;
       pendingQuickTemplateCount = result.data!.quickTemplates.length;
       pendingBudgetSnapshotCount = result.data!.budgetSnapshots.length;
+      pendingBudgetPlanCount = result.data!.budgetPlans.length;
+      pendingBudgetPlanItemCount = result.data!.budgetPlanItems.length;
 
       final restoreResult = await _backupService.restore(result.data!, mode);
 
@@ -205,6 +213,8 @@ class BackupViewModel extends ChangeNotifier {
         pendingRecurringCount = null;
         pendingQuickTemplateCount = null;
         pendingBudgetSnapshotCount = null;
+        pendingBudgetPlanCount = null;
+        pendingBudgetPlanItemCount = null;
         return;
       }
 
@@ -218,6 +228,8 @@ class BackupViewModel extends ChangeNotifier {
       pendingRecurringCount = null;
       pendingQuickTemplateCount = null;
       pendingBudgetSnapshotCount = null;
+      pendingBudgetPlanCount = null;
+      pendingBudgetPlanItemCount = null;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
       _setError('Thao tác thất bại. Vui lòng thử lại.');
@@ -252,6 +264,8 @@ class BackupViewModel extends ChangeNotifier {
         pendingRecurringCount = null;
         pendingQuickTemplateCount = null;
         pendingBudgetSnapshotCount = null;
+        pendingBudgetPlanCount = null;
+        pendingBudgetPlanItemCount = null;
         return;
       }
 
@@ -264,13 +278,15 @@ class BackupViewModel extends ChangeNotifier {
       pendingRecurringCount = null;
       pendingQuickTemplateCount = null;
       pendingBudgetSnapshotCount = null;
+      pendingBudgetPlanCount = null;
+      pendingBudgetPlanItemCount = null;
     } catch (e, stack) {
       debugPrint('Restore error: $e\n$stack');
       _setError('Thao tác thất bại. Vui lòng thử lại.');
     }
   }
 
-  /// Build restore success message including budgetSnapshotsImported when nonzero.
+  /// Build restore success message including plan counts when nonzero.
   String _buildRestoreSuccessMessage(RestoreResult result, String modeLabel) {
     final sb = StringBuffer('Đã khôi phục ($modeLabel): ');
     sb.write('${result.transactionsImported} giao dịch, ');
@@ -279,6 +295,12 @@ class BackupViewModel extends ChangeNotifier {
     sb.write('${result.quickTemplatesImported} mẫu nhanh');
     if (result.budgetSnapshotsImported > 0) {
       sb.write(', ${result.budgetSnapshotsImported} ảnh chụp ngân sách');
+    }
+    if (result.budgetPlansImported > 0) {
+      sb.write(', ${result.budgetPlansImported} kế hoạch ngân sách');
+    }
+    if (result.budgetPlanItemsImported > 0) {
+      sb.write(' (${result.budgetPlanItemsImported} hạng mục)');
     }
     return sb.toString();
   }

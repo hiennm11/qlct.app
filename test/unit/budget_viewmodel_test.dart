@@ -1,10 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:qlct/models/budget.dart';
+import 'package:qlct/models/budget_plan.dart';
 import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/budget_status.dart';
 import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
@@ -14,24 +16,35 @@ class MockBudgetLocalDataSource extends Mock implements BudgetLocalDataSource {}
 class MockBudgetSnapshotLocalDataSource extends Mock
     implements BudgetSnapshotLocalDataSource {}
 
+class MockBudgetPlanLocalDataSource extends Mock
+    implements BudgetPlanLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class FakeBudgetSnapshot extends Fake implements BudgetSnapshot {}
 
+class FakeBudgetPlan extends Fake implements BudgetPlan {}
+
 void main() {
   late MockBudgetLocalDataSource mockRepo;
   late MockBudgetSnapshotLocalDataSource mockSnapshotRepo;
+  late MockBudgetPlanLocalDataSource mockPlanRepo;
   late MockStorageService mockStorage;
   late BudgetViewModel viewModel;
 
   setUp(() {
     mockRepo = MockBudgetLocalDataSource();
     mockSnapshotRepo = MockBudgetSnapshotLocalDataSource();
+    mockPlanRepo = MockBudgetPlanLocalDataSource();
     mockStorage = MockStorageService();
     when(() => mockRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockSnapshotRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
-    when(() => mockSnapshotRepo.bulkUpsert(any())).thenAnswer((_) async {});
+    when(() => mockSnapshotRepo.bulkUpsert(any())).thenAnswer((_) async => {});
+    when(() => mockPlanRepo.getDraft(any())).thenAnswer((_) async => null);
+    when(() => mockPlanRepo.getPlan(any())).thenAnswer((_) async => null);
+    when(() => mockPlanRepo.getItems(any())).thenAnswer((_) async => []);
+    when(() => mockPlanRepo.markApplied(any(), any())).thenAnswer((_) async => {});
   });
 
   setUpAll(() {
@@ -43,24 +56,25 @@ void main() {
       createdAt: DateTime.now(),
     ));
     registerFallbackValue(FakeBudgetSnapshot());
+    registerFallbackValue(FakeBudgetPlan());
   });
 
   group('initial state', () {
     test('budgets is empty', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
-      expect(viewModel.budgets, isEmpty);
+    viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+    expect(viewModel.budgets, isEmpty);
     });
 
     test('budgetStatuses is empty', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       expect(viewModel.budgetStatuses, isEmpty);
     });
 
     test('isLoading state transitions correctly', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
       expect(viewModel.isLoading, false);
       expect(viewModel.budgets.isEmpty, true);
@@ -68,14 +82,14 @@ void main() {
 
     test('isLoading becomes false after loading', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
       expect(viewModel.isLoading, false);
     });
 
     test('errorMessage is null', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       expect(viewModel.errorMessage, null);
     });
   });
@@ -94,7 +108,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => budgets);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.budgets.length, 1);
@@ -103,7 +117,7 @@ void main() {
 
     test('calls repository.getAll()', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
       verify(() => mockRepo.getAll()).called(1);
     });
@@ -112,7 +126,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenThrow(Exception('DB error'));
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.errorMessage, isNotNull);
@@ -126,7 +140,7 @@ void main() {
       when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
       when(() => mockRepo.getByCategory('Cà phê')).thenAnswer((_) async => null);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setBudget('Cà phê', 500000, 80);
@@ -150,7 +164,7 @@ void main() {
       when(() => mockRepo.getByCategory('Cà phê'))
           .thenAnswer((_) async => existingBudget);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setBudget('Cà phê', 500000, 75);
@@ -163,7 +177,7 @@ void main() {
       when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenThrow(Exception('Upsert failed'));
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setBudget('Cà phê', 500000, 80);
@@ -185,7 +199,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget]);
       when(() => mockRepo.delete('1')).thenAnswer((_) async {});
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.deleteBudget('Cà phê');
@@ -199,7 +213,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
       when(() => mockRepo.delete(any())).thenThrow(Exception('Delete failed'));
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.deleteBudget('Cà phê');
@@ -211,7 +225,7 @@ void main() {
   group('updateStats', () {
     test('updates _stats and notifies listeners', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       final stats = ExpenseStats(
@@ -239,7 +253,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -265,7 +279,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -290,7 +304,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -308,7 +322,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -327,7 +341,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -359,7 +373,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget1, budget2]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -394,7 +408,7 @@ void main() {
       when(() => mockRepo.getAll())
           .thenAnswer((_) async => [invBudget, foodBudget]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -422,7 +436,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -444,7 +458,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockStorage.saveValue('total_budget', any()))
           .thenAnswer((_) async {});
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       // 1M spending + 4M investment = 5M monthExpense in stats
@@ -474,7 +488,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockStorage.saveValue('total_budget', any()))
           .thenAnswer((_) async {});
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       // 8M spending + 5M investment = 13M monthExpense
@@ -500,20 +514,20 @@ void main() {
   group('total budget', () {
     test('totalBudget returns null initially when storage returns null', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       expect(viewModel.totalBudget, null);
     });
 
     test('totalBudget returns value from storage on init', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(10000000);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       expect(viewModel.totalBudget, 10000000);
     });
 
     test('setTotalBudget saves to storage and updates state', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockStorage.saveValue('total_budget', 10000000)).thenAnswer((_) async {});
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setTotalBudget(10000000);
@@ -527,7 +541,7 @@ void main() {
     test('with empty list calls loadBudgets', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setAllBudgets([]);
@@ -545,7 +559,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
       when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setAllBudgets(budgets);
@@ -559,7 +573,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
       when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenThrow(Exception('DB error'));
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setAllBudgets([
@@ -590,7 +604,7 @@ void main() {
           ]);
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
       // Wait for async snapshot creation
       await Future.delayed(Duration.zero);
@@ -617,7 +631,7 @@ void main() {
           ]);
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage, now: () => _testNow);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -629,12 +643,9 @@ void main() {
       // Verify row count
       expect(captured.length, 2);
 
-      // Verify yearMonth is previous month
-      final now = DateTime.now();
-      final prev = DateTime(now.year, now.month - 1, 1);
-      final expectedYMs = '${prev.year.toString().padLeft(4, '0')}-${prev.month.toString().padLeft(2, '0')}';
+      // Verify yearMonth is previous month of _testNow (2026-05)
       for (final snap in captured) {
-        expect(snap.yearMonth, expectedYMs);
+        expect(snap.yearMonth, _testPrevMonthYMs);
       }
 
       // Verify category names and limits
@@ -644,16 +655,15 @@ void main() {
       expect(snapMap['Cà phê']!.limitAmount, 1000000);
       expect(snapMap['Cà phê']!.alertThreshold, 75);
 
-      // Verify createdAt is roughly now (within 5 seconds)
-      final nowSnap = DateTime.now();
+      // Verify createdAt equals _testNow
       for (final snap in captured) {
-        expect(snap.createdAt.isAfter(nowSnap.subtract(const Duration(seconds: 5))), isTrue);
-        expect(snap.createdAt.isBefore(nowSnap.add(const Duration(seconds: 5))), isTrue);
+        expect(snap.createdAt, _testNow,
+            reason: 'Snapshot createdAt must use injected clock');
       }
 
       // Verify no overwrite behavior: all snapshots share the same yearMonth
       // and are independent rows (not replacing the live budgets)
-      final allPrevMonth = captured.every((s) => s.yearMonth == expectedYMs);
+      final allPrevMonth = captured.every((s) => s.yearMonth == _testPrevMonthYMs);
       expect(allPrevMonth, isTrue,
           reason: 'All snapshots should be for the same previous yearMonth');
       // The snapshots are fresh rows — none match the original live createdAt
@@ -669,7 +679,7 @@ void main() {
 
     test('does NOT overwrite existing previous-month snapshots', () async {
       final existingSnap = BudgetSnapshot(
-        yearMonth: _prevMonth(),
+        yearMonth: _testPrevMonthYMs,
         categoryName: 'Ăn ngoài',
         limitAmount: 9999999, // different from current live
         alertThreshold: 80,
@@ -687,7 +697,7 @@ void main() {
       when(() => mockSnapshotRepo.getByYearMonth(any()))
           .thenAnswer((_) async => [existingSnap]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage, now: () => _testNow);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -720,7 +730,7 @@ void main() {
       when(() => mockSnapshotRepo.getByYearMonth(any()))
           .thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -753,7 +763,7 @@ void main() {
       when(() => mockSnapshotRepo.getByYearMonth(any()))
           .thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -778,10 +788,389 @@ void main() {
           reason: 'non-investment must still appear in statuses');
     });
   });
+
+  // ─── Rollover auto-apply tests (ADR-0026 §9) ──────────────────────────────
+
+  group('rollover auto-apply — snapshot before apply', () {
+    test('snapshots previous month BEFORE applying current-month draft plan', () async {
+      // Setup: previous month has no snapshot, current month has a draft plan
+      const currentYMs = '2026-06'; // current month
+      const prevYMs = '2026-05';   // previous month
+
+      // Mutable list that getAll returns — starts with live budgets, receives upserted budgets
+      final appliedBudgets = <Budget>[
+        Budget(id: 'orig1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'orig2', categoryName: 'Cà phê', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 4000000,
+        source: 'previousMonth',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 3500000, alertThreshold: 80, suggestedLimit: 3000000, baseLimit: 3000000, lastMonthSpent: 2800000, wasOverBudgetLastMonth: false, recommendation: 'increase'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Cà phê', plannedLimit: 500000, alertThreshold: 80, suggestedLimit: 500000, baseLimit: 1000000, lastMonthSpent: 800000, wasOverBudgetLastMonth: false, recommendation: 'decrease'),
+      ];
+
+      // No previous month snapshot exists
+      when(() => mockSnapshotRepo.getByYearMonth(prevYMs)).thenAnswer((_) async => []);
+      // getAll returns appliedBudgets (non-empty to allow snapshot creation)
+      when(() => mockRepo.getAll()).thenAnswer((_) async => appliedBudgets);
+      // getByCategory returns null (no existing budget to preserve)
+      when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getPlan(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
+      when(() => mockRepo.upsert(any())).thenAnswer((inv) async {
+        final newBudget = inv.positionalArguments.first as Budget;
+        // Replace existing budget for same category
+        appliedBudgets.removeWhere((b) => b.categoryName == newBudget.categoryName);
+        appliedBudgets.add(newBudget);
+      });
+      when(() => mockRepo.delete(any())).thenAnswer((_) async => {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Verify: snapshot was created BEFORE apply
+      final snapshotCapture = verify(() => mockSnapshotRepo.bulkUpsert(captureAny()))
+          .captured
+          .first as List<BudgetSnapshot>;
+      expect(snapshotCapture.isNotEmpty, true,
+          reason: 'snapshot must be created before apply');
+      expect(snapshotCapture.any((s) => s.categoryName == 'Ăn ngoài'), true);
+      expect(snapshotCapture.any((s) => s.categoryName == 'Cà phê'), true);
+      // Plan should be marked applied
+      verify(() => mockPlanRepo.markApplied(currentYMs, any())).called(1);
+    });
+  });
+
+  group('rollover auto-apply — idempotency', () {
+    test('applied plan does NOT re-apply on second load', () async {
+      const currentYMs = '2026-06';
+
+      final liveBudgets = [
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      // Plan is already applied
+      final appliedPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 4000000,
+        source: 'previousMonth',
+        status: 'applied',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+        appliedAt: DateTime(2026, 6, 1),
+      );
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => null); // no draft
+      when(() => mockPlanRepo.getPlan(currentYMs)).thenAnswer((_) async => appliedPlan); // but plan exists as applied
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Should NOT mark applied again
+      verifyNever(() => mockPlanRepo.markApplied(any(), any()));
+      // Should NOT upsert from plan
+      verifyNever(() => mockRepo.upsert(any()));
+    });
+
+    test('draft plan auto-applies on load', () async {
+      const currentYMs = '2026-06';
+
+      final liveBudgets = [
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 5000000,
+        source: 'previousMonth',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
+      when(() => mockRepo.delete(any())).thenAnswer((_) async => {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      verify(() => mockPlanRepo.markApplied(currentYMs, any())).called(1);
+      verify(() => mockRepo.upsert(any())).called(1);
+    });
+  });
+
+  group('rollover auto-apply — exact semantics', () {
+    test('plan upserts positive limits and deletes zero/missing categories', () async {
+      const currentYMs = '2026-06';
+
+      // Live budgets: 3 categories
+      final liveBudgets = [
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b2', categoryName: 'Cà phê', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b3', categoryName: 'Mua online', monthlyLimit: 2000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      // Draft plan: only 2 categories (Ăn ngoài=5M, Cà phê=0→delete, Mua online missing→delete)
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 5000000,
+        source: 'currentBudget',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Cà phê', plannedLimit: 0, alertThreshold: 80, suggestedLimit: 800000, baseLimit: 1000000, lastMonthSpent: 1200000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+        // Mua online is missing from plan → delete
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
+      when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
+      when(() => mockRepo.delete(any())).thenAnswer((_) async => {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Verify: Cà phê (plannedLimit=0) and Mua online (missing) should be deleted
+      verify(() => mockRepo.delete('b2')).called(1); // Cà phê deleted
+      verify(() => mockRepo.delete('b3')).called(1); // Mua online deleted
+      // Ăn ngoài upserted with 5M
+      verify(() => mockRepo.upsert(any())).called(greaterThan(0));
+    });
+
+    test('total_budget updated from plannedTotalBudget', () async {
+      const currentYMs = '2026-06';
+
+      final liveBudgets = [
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 8000000,
+        source: 'empty',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 8000000, alertThreshold: 80, suggestedLimit: 7000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Verify: total_budget saved with plannedTotalBudget from plan
+      verify(() => mockStorage.saveValue('total_budget', 8000000)).called(1);
+    });
+
+    test('non-investment categories only — investment excluded from apply', () async {
+      const currentYMs = '2026-06';
+
+      final liveBudgets = [
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'inv1', categoryName: 'Đầu tư', monthlyLimit: 10000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 5000000,
+        source: 'currentBudget',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+        // Đầu tư not in plan (investment excluded)
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Verify: only Ăn ngoài upserted, Đầu tư left alone
+      // The investment budget should NOT be deleted
+      verifyNever(() => mockRepo.delete('inv1'));
+    });
+  });
+
+  group('rollover auto-apply — signal', () {
+    test('lastAutoAppliedPlanYearMonth is set after auto-apply', () async {
+      const currentYMs = '2026-06';
+
+      final liveBudgets = [
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 5000000,
+        source: 'empty',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.lastAutoAppliedPlanYearMonth, currentYMs);
+    });
+
+    test('clearAutoAppliedSignal clears the signal', () async {
+      when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      await Future.delayed(Duration.zero);
+
+      expect(viewModel.lastAutoAppliedPlanYearMonth, null);
+
+      viewModel.clearAutoAppliedSignal();
+      expect(viewModel.lastAutoAppliedPlanYearMonth, null);
+    });
+  });
+
+  group('rollover auto-apply — markApplied failure resilience', () {
+    test('if markApplied fails after live budget writes, plan stays draft and second load retries to correct state',
+        () async {
+      // Simulates cross-store non-atomicity: Phase A (live budgets + total_budget)
+      // succeeds, Phase B (markApplied) fails. Next load should retry safely.
+      const currentYMs = '2026-06';
+
+      // Live budgets before rollover
+      final liveBudgets = <Budget>[
+        Budget(id: 'orig1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 7, 1)),
+      ];
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 5000000,
+        source: 'empty',
+        status: 'draft',
+        createdAt: DateTime(2026, 6, 1),
+        updatedAt: DateTime(2026, 6, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
+      ];
+
+      // Track which budgets have been upserted (simulates live DB state)
+      final appliedBudgets = List<Budget>.from(liveBudgets);
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async {
+        // First call: initial load (live budgets)
+        // Second call: after Phase A upsert
+        return List<Budget>.from(appliedBudgets);
+      });
+      when(() => mockRepo.upsert(any())).thenAnswer((inv) async {
+        final b = inv.positionalArguments.first as Budget;
+        appliedBudgets.removeWhere((x) => x.categoryName == b.categoryName);
+        appliedBudgets.add(b);
+      });
+      when(() => mockRepo.delete(any())).thenAnswer((_) async {});
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async {
+        throw Exception('markApplied DB error');
+      });
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async {});
+
+      // First load: Phase A succeeds, Phase B fails
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage, now: () => _testNow);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Plan still draft (markApplied failed)
+      verify(() => mockPlanRepo.markApplied(currentYMs, any())).called(1);
+      expect(viewModel.lastAutoAppliedPlanYearMonth, null);
+
+      // Live budgets were already upserted to the correct values
+      verify(() => mockRepo.upsert(any())).called(1);
+
+      // Reset markApplied to succeed for second load
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async {});
+
+      // Second load: plan still draft → retry apply
+      await viewModel.forceReload();
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // markApplied called again (retry)
+      verify(() => mockPlanRepo.markApplied(currentYMs, any())).called(1);
+      // No duplicate budgets — upsert only once (exact replacement semantics)
+      verify(() => mockRepo.upsert(any())).called(1);
+
+      // After retry, signal is set
+      expect(viewModel.lastAutoAppliedPlanYearMonth, currentYMs);
+    });
+  });
 }
 
-String _prevMonth() {
-  final now = DateTime.now();
-  final prev = DateTime(now.year, now.month - 1, 1);
-  return '${prev.year.toString().padLeft(4, '0')}-${prev.month.toString().padLeft(2, '0')}';
-}
+/// Fixed clock used across the test suite for deterministic yearMonth.
+/// currentYMs = '2026-06' (June) → prevYMs = '2026-05' (May)
+final _testNow = DateTime(2026, 6, 15);
+const _testPrevMonthYMs = '2026-05';

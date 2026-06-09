@@ -6,27 +6,39 @@ import '../models/budget_status.dart';
 import '../models/category.dart';
 import '../models/expense_stats.dart';
 import '../data/datasources/budget_local_datasource.dart';
+import '../data/datasources/budget_plan_local_datasource.dart';
 import '../data/datasources/budget_snapshot_local_datasource.dart';
 import '../services/storage_service.dart';
 
 /// ViewModel for managing budget state and operations
 /// ADR-0025: Monthly Budget Snapshots
+/// ADR-0026: Monthly Budget Planning — rollover auto-apply
 class BudgetViewModel extends ChangeNotifier {
   final BudgetLocalDataSource _dataSource;
   final BudgetSnapshotLocalDataSource _snapshotDataSource;
+  final BudgetPlanLocalDataSource _planDataSource;
   final StorageService _storageService;
+  final DateTime Function() _now;
+
+  /// In-flight guard for [_loadBudgets] so the constructor's microtask and a
+  /// public caller (setBudget/setAllBudgets/deleteBudget/forceReload) cannot
+  /// kick off concurrent loads. New calls reuse the same future.
+  Future<void>? _loadBudgetsFuture;
 
   List<Budget> _budgets = [];
   ExpenseStats? _stats;
   bool _isLoading = false;
   String? _errorMessage;
   int? _totalBudget;
+  String? _lastAutoAppliedPlanYearMonth;
 
   BudgetViewModel(
     this._dataSource,
     this._snapshotDataSource,
-    this._storageService,
-  ) {
+    this._planDataSource,
+    this._storageService, {
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now {
     _totalBudget = _storageService.loadValue<int>('total_budget');
     Future.microtask(() => _loadBudgets());
   }
@@ -39,6 +51,10 @@ class BudgetViewModel extends ChangeNotifier {
 
   /// Calculate budget statuses from budgets and stats (excludes investment)
   List<BudgetStatus> get budgetStatuses => _calculateStatuses();
+
+  /// Last auto-applied plan yearMonth, for UI snackbar signal.
+  /// Set after rollover auto-apply. Null if no plan was auto-applied.
+  String? get lastAutoAppliedPlanYearMonth => _lastAutoAppliedPlanYearMonth;
 
   /// Get total budget status for display (spending-only, excludes investment)
   TotalBudgetStatus? get totalBudgetStatus {
@@ -96,7 +112,7 @@ class BudgetViewModel extends ChangeNotifier {
         categoryName: categoryName,
         monthlyLimit: monthlyLimit,
         alertThreshold: alertThreshold,
-        createdAt: existingBudget?.createdAt ?? DateTime.now(),
+        createdAt: existingBudget?.createdAt ?? _now(),
       );
 
       await _dataSource.upsert(budget);
@@ -135,16 +151,58 @@ class BudgetViewModel extends ChangeNotifier {
     await _loadBudgets();
   }
 
-  /// Load all budgets from repository
-  Future<void> _loadBudgets() async {
+  /// Clear the lastAutoAppliedPlanYearMonth signal.
+  /// UI should call this after showing the snackbar.
+  void clearAutoAppliedSignal() {
+    if (_lastAutoAppliedPlanYearMonth == null) return;
+    _lastAutoAppliedPlanYearMonth = null;
+    notifyListeners();
+  }
+
+  /// Load all budgets from repository.
+  ///
+  /// ADR-0026 §9: rollover order
+  /// 1. Load live budgets
+  /// 2. Ensure previous-month snapshot from current live budgets
+  /// 3. Apply current-month draft BudgetPlan if exists/status=draft
+  /// 4. Mark plan applied + appliedAt
+  /// 5. Reload live budgets if applied
+  ///
+  /// In-flight guard: concurrent callers reuse the same Future so the
+  /// rollover pipeline and auto-apply logic run exactly once at a time.
+  Future<void> _loadBudgets() {
+    final existing = _loadBudgetsFuture;
+    if (existing != null) return existing;
+
+    Future<void> future = _loadBudgetsImpl();
+    future = future.whenComplete(() {
+      if (identical(_loadBudgetsFuture, future)) {
+        _loadBudgetsFuture = null;
+      }
+    });
+    _loadBudgetsFuture = future;
+    return future;
+  }
+
+  Future<void> _loadBudgetsImpl() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      // Step 1: load live budgets
       _budgets = await _dataSource.getAll();
-      // ADR-0025 §4: auto-create previous-month snapshot if missing
+      // Step 2: ADR-0025 §4: auto-create previous-month snapshot if missing
+      // MUST happen before apply — applying the new plan first would cause the
+      // previous month snapshot to capture the new month's plan.
       await _ensurePreviousMonthSnapshot();
+
+      // Step 3-5: ADR-0026 §9: apply current-month draft plan if present
+      final applied = await _applyCurrentMonthDraftPlan();
+      if (applied) {
+        // Step 5: reload live budgets after apply
+        _budgets = await _dataSource.getAll();
+      }
     } catch (e) {
       debugPrint('Error loading budgets: $e');
       _errorMessage = 'Không thể tải dữ liệu. Vui lòng thử lại.';
@@ -152,6 +210,109 @@ class BudgetViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// ADR-0026 §8, §9: apply current-month draft plan.
+  ///
+  /// Idempotent: applied plans are not re-applied.
+  /// Exact apply semantics:
+  ///   - non-investment categories only
+  ///   - plannedLimit > 0 → upsert live Budget preserving existing id/createdAt
+  ///   - plannedLimit == 0 or missing item → delete live Budget for that category
+  ///   - set total_budget to plan.plannedTotalBudget
+  ///
+  /// Cross-store non-atomicity (SQLite + SharedPreferences cannot be wrapped
+  /// in a single transaction). Apply is split into two phases:
+  ///   Phase A — live budget writes (upsert/delete) + total_budget save.
+  ///   Phase B — mark plan applied.
+  /// If Phase A succeeds and Phase B fails, the next _loadBudgets will see
+  /// the plan still in 'draft' status but the live budget already matches
+  /// the plan's exact semantics. Re-running the apply pipeline is safe:
+  ///   - upsert is a no-op replacement with the same values
+  ///   - delete only removes categories not in the plan (already absent)
+  ///   - total_budget save is a value-equal overwrite
+  ///   - markApplied flips the status and writes appliedAt
+  /// Net result: idempotent retry converges to the same correct state with
+  /// no duplicates and no stale budgets.
+  ///
+  /// Returns true if a plan was applied (or re-applied), false otherwise.
+  Future<bool> _applyCurrentMonthDraftPlan() async {
+    try {
+      final now = _now();
+      final currentYMs = _formatYearMonth(now);
+
+      // Only apply if a draft plan exists for current month
+      final draft = await _planDataSource.getDraft(currentYMs);
+      if (draft == null) return false;
+
+      final items = await _planDataSource.getItems(currentYMs);
+
+      // Get current live budgets for id/createdAt preservation
+      final existingBudgets = List<Budget>.from(_budgets);
+
+      // Build a set of non-investment categories from plan items
+      final planCategories = items
+          .where((item) => !_isInvestmentCategory(item.categoryName))
+          .toList();
+
+      // Build a set of categories that should exist after apply
+      final shouldExistCategories = planCategories
+          .where((item) => item.plannedLimit > 0)
+          .map((item) => item.categoryName)
+          .toSet();
+
+      // ── Phase A: live budget writes + total_budget save ─────────────
+      // Step 3a: upsert positive limits
+      for (final item in planCategories) {
+        if (item.plannedLimit > 0) {
+          final existing = existingBudgets
+              .where((b) => b.categoryName == item.categoryName)
+              .firstOrNull;
+          final budget = Budget(
+            id: existing?.id ?? const Uuid().v4(),
+            categoryName: item.categoryName,
+            monthlyLimit: item.plannedLimit,
+            alertThreshold: item.alertThreshold,
+            createdAt: existing?.createdAt ?? _now(),
+          );
+          await _dataSource.upsert(budget);
+        }
+      }
+
+      // Step 3b: delete zero-limit or missing categories
+      for (final existing in existingBudgets) {
+        if (_isInvestmentCategory(existing.categoryName)) continue;
+        if (!shouldExistCategories.contains(existing.categoryName)) {
+          await _dataSource.delete(existing.id);
+        }
+      }
+
+      // Step 3c: set total_budget from plan
+      if (draft.plannedTotalBudget != _totalBudget) {
+        await _storageService.saveValue('total_budget', draft.plannedTotalBudget);
+        _totalBudget = draft.plannedTotalBudget;
+      }
+
+      // ── Phase B: mark plan applied ──────────────────────────────────
+      // Plan stays 'draft' until all live budget writes + total_budget
+      // save succeed. If markApplied fails, the next load retries apply
+      // safely (see cross-store non-atomicity notes above).
+      final appliedAt = _now();
+      await _planDataSource.markApplied(currentYMs, appliedAt);
+
+      // Set signal for UI
+      _lastAutoAppliedPlanYearMonth = currentYMs;
+
+      return true;
+    } catch (e) {
+      debugPrint('Error applying current-month draft plan: $e');
+      return false;
+    }
+  }
+
+  static String _formatYearMonth(DateTime d) {
+    final m = d.month.toString().padLeft(2, '0');
+    return '${d.year.toString().padLeft(4, '0')}-$m';
   }
 
   /// ADR-0025 §4: If no snapshot exists for the previous month, create one
@@ -162,7 +323,7 @@ class BudgetViewModel extends ChangeNotifier {
   /// to exclude investment (ADR-0025 §6).
   Future<void> _ensurePreviousMonthSnapshot() async {
     try {
-      final now = DateTime.now();
+      final now = _now();
       final prev = DateTime(now.year, now.month - 1, 1);
       final prevYearMonth =
           '${prev.year.toString().padLeft(4, '0')}-${prev.month.toString().padLeft(2, '0')}';
@@ -181,7 +342,7 @@ class BudgetViewModel extends ChangeNotifier {
                 categoryName: b.categoryName,
                 limitAmount: b.monthlyLimit,
                 alertThreshold: b.alertThreshold,
-                createdAt: DateTime.now(),
+                createdAt: _now(),
               ))
           .toList();
 

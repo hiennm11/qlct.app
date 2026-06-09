@@ -20,6 +20,7 @@ import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_transaction_datasource.dart';
@@ -27,8 +28,10 @@ import 'package:qlct/data/datasources/sqlite_budget_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_budget_snapshot_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_recurring_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_quick_template_datasource.dart';
+import 'package:qlct/data/datasources/sqlite_budget_plan_datasource.dart';
 import 'package:qlct/models/backup_data.dart';
-import 'package:qlct/models/transaction.dart';
+import 'package:qlct/models/transaction.dart' show Transaction;
+import 'package:sqflite/sqflite.dart' as sqflite show Transaction, Database;
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
@@ -45,6 +48,9 @@ class MockBudgetDataSource extends Mock implements BudgetLocalDataSource {}
 class MockBudgetSnapshotDataSource extends Mock
     implements BudgetSnapshotLocalDataSource {}
 
+class MockBudgetPlanDataSource extends Mock
+    implements BudgetPlanLocalDataSource {}
+
 class MockRecurringDataSource extends Mock
     implements RecurringLocalDataSource {}
 
@@ -55,12 +61,36 @@ class MockStorageService extends Mock implements StorageService {}
 
 class MockDatabaseHelper extends Mock implements DatabaseHelper {}
 
+/// Fake that throws inside runInTransaction. Verifies behavioral guarantee:
+/// saveValue is never called when the DB transaction fails (proving
+/// saveValue sits outside the transaction block in clearAllUserData).
+class _ThrowingDbHelper implements DatabaseHelper {
+  @override
+  Future<T> runInTransaction<T>(
+      Future<T> Function(sqflite.Transaction txn) action) async {
+    throw Exception('Simulated transaction failure');
+  }
+
+  @override
+  Future<sqflite.Database> get database => throw UnimplementedError();
+  @override
+  Future<sqflite.Database> get rawDatabase => throw UnimplementedError();
+  @override
+  Future<void> close() async {}
+  String? get testPathOverride => null;
+  @override
+  set testPathOverride(String? value) {}
+  @override
+  set testDatabase(sqflite.Database db) {}
+}
+
 void main() {
   late DatabaseHelper dbHelper;
   late BackupService backupService;
   late MockTransactionDataSource mockTxRepo;
   late MockBudgetDataSource mockBudgetRepo;
   late MockBudgetSnapshotDataSource mockBudgetSnapshotRepo;
+  late MockBudgetPlanDataSource mockBudgetPlanRepo;
   late MockRecurringDataSource mockRecurringRepo;
   late MockQuickTemplateDataSource mockQuickTemplateRepo;
   late MockStorageService mockStorage;
@@ -137,6 +167,7 @@ setUpAll(() {
     mockTxRepo = MockTransactionDataSource();
     mockBudgetRepo = MockBudgetDataSource();
     mockBudgetSnapshotRepo = MockBudgetSnapshotDataSource();
+    mockBudgetPlanRepo = MockBudgetPlanDataSource();
     mockRecurringRepo = MockRecurringDataSource();
     mockQuickTemplateRepo = MockQuickTemplateDataSource();
     mockStorage = MockStorageService();
@@ -146,6 +177,8 @@ setUpAll(() {
     when(() => mockTxRepo.count()).thenAnswer((_) async => 0);
     when(() => mockBudgetRepo.count()).thenAnswer((_) async => 0);
     when(() => mockBudgetSnapshotRepo.count()).thenAnswer((_) async => 0);
+    when(() => mockBudgetPlanRepo.count()).thenAnswer((_) async => 0);
+    when(() => mockBudgetPlanRepo.itemCount()).thenAnswer((_) async => 0);
     when(() => mockRecurringRepo.count()).thenAnswer((_) async => 0);
     when(() => mockQuickTemplateRepo.count()).thenAnswer((_) async => 0);
 
@@ -153,6 +186,7 @@ setUpAll(() {
       mockTxRepo,
       mockBudgetRepo,
       mockBudgetSnapshotRepo,
+      mockBudgetPlanRepo,
       mockRecurringRepo,
       mockQuickTemplateRepo,
       mockStorage,
@@ -584,18 +618,39 @@ setUpAll(() {
     });
 
     // DB failure → exception propagates, totalBudget NOT touched.
-    // Structural guarantee: saveValue is called OUTSIDE the runInTransaction block.
-    // If runInTransaction throws, saveValue is never reached.
-    // This is verified by code inspection of clearAllUserData():
-    //   await _dbHelper.runInTransaction((txn) async { ... });
-    //   try { await _storageService.saveValue(...); }
-    //   catch (e) { throw ClearDataPartialFailure(...); }
-    // If the transaction throws, execution stops and saveValue is skipped.
-    test('clearAllUserData structural: saveValue is outside transaction block', () {
-      // No run-time assertion needed — the code structure is the guarantee.
-      // Mock-based injection of DB failure is complex (generic method mocking issues).
-      // The architectural guarantee holds: saveValue runs only after txn.commit.
-      expect(true, isTrue);
+    // Behavioral guarantee: saveValue is called OUTSIDE the runInTransaction
+    // block. If runInTransaction throws, saveValue is never reached.
+    // Test injects a fake DatabaseHelper that throws on runInTransaction and
+    // asserts saveValue was never called.
+    test('clearAllUserData: runInTransaction throw → saveValue not called',
+        () async {
+      final throwingDbHelper = _ThrowingDbHelper();
+      final mockPlanRepo = MockBudgetPlanDataSource();
+      when(() => mockPlanRepo.count()).thenAnswer((_) async => 0);
+      when(() => mockPlanRepo.itemCount()).thenAnswer((_) async => 0);
+
+      final svc = BackupService(
+        mockTxRepo,
+        mockBudgetRepo,
+        mockBudgetSnapshotRepo,
+        mockPlanRepo,
+        mockRecurringRepo,
+        mockQuickTemplateRepo,
+        mockStorage,
+        throwingDbHelper,
+      );
+
+      when(() => mockStorage.loadValue<int>('total_budget'))
+          .thenReturn(20000000);
+
+      // runInTransaction throws → clearAllUserData must propagate without
+      // ever calling saveValue.
+      await expectLater(
+        svc.clearAllUserData(),
+        throwsA(anything),
+      );
+
+      verifyNever(() => mockStorage.saveValue('total_budget', any()));
     });
 
     // restore(replace): totalBudget save failure → partial success with error.
@@ -773,10 +828,12 @@ setUpAll(() {
       final realRecurringRepo = SqliteRecurringDataSource(dbHelper);
       final realQuickTemplateRepo = SqliteQuickTemplateDataSource(dbHelper);
 
+      final realBudgetPlanRepo = SqliteBudgetPlanDataSource(dbHelper);
       final realService = BackupService(
         realTxRepo,
         realBudgetRepo,
         realBudgetSnapshotRepo,
+        realBudgetPlanRepo,
         realRecurringRepo,
         realQuickTemplateRepo,
         mockStorage,
