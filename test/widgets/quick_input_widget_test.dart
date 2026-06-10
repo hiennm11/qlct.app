@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
@@ -12,6 +13,9 @@ import 'package:qlct/widgets/quick_input_widget.dart';
 
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
+
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
 
 class MockExportService extends Mock implements ExportService {}
 
@@ -31,6 +35,7 @@ void _useLargeSurface(WidgetTester tester) {
 
 void main() {
   late MockTransactionLocalDataSource mockDs;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockExportService mockExport;
   late ExpenseViewModel expenseVM;
 
@@ -47,12 +52,15 @@ void main() {
 
   setUp(() {
     mockDs = MockTransactionLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockExport = MockExportService();
     when(() => mockDs.getAll()).thenAnswer((_) async => []);
     when(() => mockDs.getAllPaginated(
             offset: any(named: 'offset'),
             limit: any(named: 'limit')))
         .thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
+    when(() => mockCategoryDS.seedDefaultsIfEmpty()).thenAnswer((_) async {});
   });
 
   Future<void> pumpWithHistory(WidgetTester tester, List<Transaction> txs) async {
@@ -62,7 +70,7 @@ void main() {
             offset: any(named: 'offset'),
             limit: any(named: 'limit')))
         .thenAnswer((_) async => txs);
-    expenseVM = ExpenseViewModel(mockDs, mockExport);
+    expenseVM = ExpenseViewModel(mockDs, mockExport, mockCategoryDS);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

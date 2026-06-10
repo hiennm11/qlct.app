@@ -467,15 +467,15 @@ Implemented 2026-06-10.
 Verification:
 
 - Focused category/backup tests passed: 92/92.
-- Full `flutter test` passed: 900/900.
-- `flutter analyze` reports 50 remaining issues, all warnings/infos in legacy or deferred category-bridge areas.
+- Full `flutter test` passed: 902/902 after category bridge cleanup.
+- `flutter analyze` reports 20 remaining issues, all pre-existing warnings/infos outside the category bridge cleanup.
 
 Implementation notes:
 
 - SQLite DB version is now v12 with `categories` table and indexes.
-- `Category.predefined` remains as a temporary compatibility bridge returning seed categories while Phase 2.6 migrates financial tables to `categoryId`.
+- `seedCategories` is used only as default seed/test fixture data and fallback when `CategoryLocalDataSource` returns empty (tests, cold-start).
 - `CategoryViewModel` is app-level Provider state and feeds low-risk new-entry flows: custom input, quick input, quick add, recurring edit, and transaction edit.
 - Backup schema is now v6 and includes `categories`.
 - Restore merge uses last-write-wins by `updatedAt` for category conflicts.
 - Old backups missing `categories` seed defaults when category table is empty.
-- Deferred direct `Category.predefined` references remain in budget/review/planning services, budget dialogs, recurring display widgets, and quick template management until categoryId migration/next cleanup slice.
+- All production code now routes through `CategoryLocalDataSource` / `CategoryViewModel`. `Category.predefined` and `CategoryCompatibilityX` removed from production use.

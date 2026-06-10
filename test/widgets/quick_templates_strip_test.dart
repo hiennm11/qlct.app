@@ -4,10 +4,13 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/quick_template.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
 import 'package:qlct/viewmodels/quick_template_viewmodel.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/widgets/quick_templates_strip.dart';
 
@@ -17,6 +20,9 @@ class MockQuickTemplateDataSource extends Mock
 class MockTransactionDataSource extends Mock
     implements TransactionLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class MockExportService extends Mock implements ExportService {}
 
 class FakeTransaction extends Fake implements Transaction {}
@@ -24,6 +30,7 @@ class FakeTransaction extends Fake implements Transaction {}
 void main() {
   late MockQuickTemplateDataSource mockDs;
   late MockTransactionDataSource mockTxDs;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockExportService mockExport;
   late QuickTemplateViewModel vm;
   late ExpenseViewModel expenseVM;
@@ -49,15 +56,17 @@ void main() {
   setUp(() {
     mockDs = MockQuickTemplateDataSource();
     mockTxDs = MockTransactionDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockExport = MockExportService();
 
     when(() => mockDs.getAll()).thenAnswer((_) async => []);
     when(() => mockTxDs.getAll()).thenAnswer((_) async => []);
     when(() => mockTxDs.getAllPaginated(offset: any(named: 'offset'), limit: any(named: 'limit')))
         .thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
 
     vm = QuickTemplateViewModel(mockDs);
-    expenseVM = ExpenseViewModel(mockTxDs, mockExport);
+    expenseVM = ExpenseViewModel(mockTxDs, mockExport, mockCategoryDS);
   });
 
   Widget buildWidget() {
@@ -67,6 +76,8 @@ void main() {
           providers: [
             ChangeNotifierProvider.value(value: vm),
             ChangeNotifierProvider.value(value: expenseVM),
+            ChangeNotifierProvider<CategoryViewModel>.value(
+                value: CategoryViewModel.seeded(seedCategories)),
           ],
           child: const QuickTemplatesStrip(),
         ),
@@ -224,6 +235,7 @@ void main() {
             providers: [
               ChangeNotifierProvider.value(value: vm),
               ChangeNotifierProvider.value(value: expenseVM),
+              ChangeNotifierProvider<CategoryViewModel>.value(value: CategoryViewModel.seeded(seedCategories)),
             ],
             child: const SingleChildScrollView(
               child: Padding(
@@ -330,6 +342,7 @@ testWidgets('QuickTemplateEditSheet shows suggestion chips for default category'
             providers: [
               ChangeNotifierProvider.value(value: vm),
               ChangeNotifierProvider.value(value: expenseVM),
+              ChangeNotifierProvider<CategoryViewModel>.value(value: CategoryViewModel.seeded(seedCategories)),
             ],
             child: SingleChildScrollView(
               child: Padding(

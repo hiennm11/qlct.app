@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 
@@ -11,9 +12,13 @@ class MockTransactionLocalDataSource extends Mock
 
 class MockExportService extends Mock implements ExportService {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 void main() {
   late MockTransactionLocalDataSource mockRepo;
   late MockExportService mockExport;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late ExpenseViewModel viewModel;
 
   setUpAll(() {
@@ -27,7 +32,7 @@ void main() {
     ));
   });
 
-  final sampleCategory = Category.predefined.firstWhere((c) => c.name == 'Ăn ngoài');
+  final sampleCategory = seedCategories.firstWhere((c) => c.name == 'Ăn ngoài');
 
   Transaction makeTransaction({String id = '1', int amount = 50000, DateTime? date}) {
     return Transaction(
@@ -43,6 +48,7 @@ void main() {
   setUp(() {
     mockRepo = MockTransactionLocalDataSource();
     mockExport = MockExportService();
+    mockCategoryDS = MockCategoryLocalDataSource();
     when(() => mockRepo.getAll()).thenAnswer((_) async => []);
     // Default: pagination returns empty page for any offset/limit
     when(() => mockRepo.getAllPaginated(
@@ -51,16 +57,19 @@ void main() {
     // Default: delete does nothing (needed for splice tests)
     when(() => mockRepo.delete(any())).thenAnswer((_) async {});
     when(() => mockRepo.deleteMultiple(any())).thenAnswer((_) async {});
+    // Default: category datasource returns seed categories so getters
+    // resolve synchronously without an extra await in test setup.
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => seedCategories);
   });
 
-  test('categories returns all predefined categories', () {
-    viewModel = ExpenseViewModel(mockRepo, mockExport);
+  test('categories returns all seed categories', () {
+    viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
     expect(viewModel.categories.length, 11);
   });
 
   group('transactions getter', () {
     test('returns empty list initially', () {
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       expect(viewModel.transactions, isEmpty);
     });
 
@@ -73,7 +82,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2, t3]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       // Wait for async _loadInitialPage to complete
       await Future.delayed(Duration.zero);
 
@@ -89,7 +98,7 @@ void main() {
       when(() => mockRepo.add(any())).thenAnswer((_) async {});
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
 
       await viewModel.addTransaction(
         amount: 50000,
@@ -107,7 +116,7 @@ void main() {
       when(() => mockRepo.search('test')).thenAnswer((_) async => []);
       when(() => mockRepo.add(any())).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       // Set search active
@@ -142,7 +151,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.delete('1')).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.transactions.length, 1);
@@ -161,7 +170,7 @@ void main() {
           .thenAnswer((_) async => [makeTransaction()]);
       when(() => mockRepo.clearAll()).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.transactions.length, 1);
@@ -182,7 +191,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateFilter(DateTime(2026, 6, 3));
@@ -198,7 +207,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [makeTransaction(id: '1')]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setCategoryFilter('Ăn ngoài');
@@ -213,7 +222,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [makeTransaction(id: '1')]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setCategoryFilter('Cà phê');
@@ -229,7 +238,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateFilter(DateTime(2026, 6, 3));
@@ -267,7 +276,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.stats.todayExpense, 30000);
@@ -288,7 +297,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.stats.monthExpense, 80000);
@@ -309,7 +318,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.stats.categoryTotals['Ăn ngoài'], 80000);
@@ -318,7 +327,7 @@ void main() {
 
   group('search', () {
     test('searchQuery defaults to null', () {
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       expect(viewModel.searchQuery, isNull);
     });
 
@@ -328,7 +337,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
       when(() => mockRepo.search('ăn')).thenAnswer((_) async => [t1]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       await viewModel.setSearchQuery('ăn');
@@ -345,7 +354,7 @@ void main() {
           .thenAnswer((_) async => [t1, t2]);
       when(() => mockRepo.search('t1')).thenAnswer((_) async => [t1]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       await viewModel.setSearchQuery('t1');
@@ -362,7 +371,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       final result = viewModel.transactions;
@@ -376,7 +385,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.search('q')).thenAnswer((_) async => [t1]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       await viewModel.setSearchQuery('q');
@@ -393,7 +402,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.search('q')).thenAnswer((_) async => [t1]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       await viewModel.setSearchQuery('q');
@@ -411,7 +420,7 @@ void main() {
       // Search returns both
       when(() => mockRepo.search('test')).thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       await viewModel.setSearchQuery('test');
@@ -438,7 +447,7 @@ void main() {
       // Search returns only t1
       when(() => mockRepo.search('ăn')).thenAnswer((_) async => [t1]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       // Stats before search
@@ -457,7 +466,7 @@ void main() {
     test('setDateRangeFilter sets start and end', () async {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
@@ -468,7 +477,7 @@ void main() {
     test('setDateRangeFilter clears single date filter (mutual exclusive)', () async {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateFilter(DateTime(2026, 6, 3));
@@ -482,7 +491,7 @@ void main() {
     test('setDateFilter clears date range filter (mutual exclusive)', () async {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
@@ -500,7 +509,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 5));
@@ -524,7 +533,7 @@ void main() {
           .thenAnswer((_) async => [t1, t2, t3]);
       when(() => mockRepo.deleteMultiple(any())).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.transactions.length, 3);
@@ -547,7 +556,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       // First access
@@ -572,7 +581,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       // First access
@@ -592,7 +601,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       // First access caches
@@ -618,7 +627,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.transactions; // cache
@@ -635,7 +644,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateFilter(DateTime(2026, 6, 3));
@@ -654,7 +663,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.add(any())).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       final firstStats = viewModel.stats;
@@ -681,7 +690,7 @@ void main() {
           .thenAnswer((_) async => [t1, t2]);
       when(() => mockRepo.delete('2')).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.stats; // cache stats
@@ -698,7 +707,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.transactions; // cache
@@ -715,19 +724,19 @@ void main() {
 
   group('hasActiveFilters', () {
     test('returns false when no filters', () {
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       expect(viewModel.hasActiveFilters, isFalse);
     });
 
     test('returns true when date filter set', () async {
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
       viewModel.setDateFilter(DateTime(2026, 6, 3));
       expect(viewModel.hasActiveFilters, isTrue);
     });
 
     test('returns true when category filter set', () async {
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
       viewModel.setCategoryFilter('Ăn ngoài');
       expect(viewModel.hasActiveFilters, isTrue);
@@ -735,7 +744,7 @@ void main() {
 
     test('returns true when search query set', () async {
       when(() => mockRepo.search(any())).thenAnswer((_) async => []);
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
       await viewModel.setSearchQuery('test');
       expect(viewModel.hasActiveFilters, isTrue);
@@ -743,7 +752,7 @@ void main() {
 
     test('clearFilters also clears search and range', () async {
       when(() => mockRepo.search(any())).thenAnswer((_) async => []);
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateFilter(DateTime(2026, 6, 3));
@@ -770,7 +779,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => [t1]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       verify(() => mockRepo.getAllPaginated(offset: 0, limit: 50)).called(1);
@@ -783,7 +792,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => page);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.hasMore, isTrue);
@@ -794,7 +803,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => page);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.hasMore, isFalse);
@@ -809,7 +818,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 50, limit: 50))
           .thenAnswer((_) async => page2);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.allTransactions.length, 50);
@@ -826,7 +835,7 @@ void main() {
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) async => page);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.hasMore, isFalse);
@@ -845,7 +854,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.add(any())).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.allTransactions.length, 1);
@@ -867,7 +876,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.delete('1')).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.allTransactions.length, 1);
@@ -884,7 +893,7 @@ void main() {
           .thenAnswer((_) async => [t1, t2]);
       when(() => mockRepo.deleteMultiple(any())).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.allTransactions.length, 2);
@@ -901,7 +910,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.update(any())).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       final updated = makeTransaction(id: '1', amount: 99999);
@@ -917,7 +926,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.add(any())).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.allTransactions.length, 1);
@@ -937,7 +946,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.add(any())).thenAnswer((_) async {});
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       final t2 = makeTransaction(id: '2', amount: 22222);
@@ -954,7 +963,7 @@ void main() {
           .thenAnswer((_) async => [t1]);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       await viewModel.refresh();
@@ -974,7 +983,7 @@ void main() {
           .thenAnswer((_) async => [makeTransaction(id: '1')]);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setCategoryFilter('Ăn ngoài');
@@ -991,7 +1000,7 @@ void main() {
           .thenAnswer((_) async => [makeTransaction(id: '1')]);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateFilter(DateTime(2026, 6, 3));
@@ -1008,7 +1017,7 @@ void main() {
           .thenAnswer((_) async => [makeTransaction(id: '1')]);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setDateRangeFilter(DateTime(2026, 6, 1), DateTime(2026, 6, 7));
@@ -1027,7 +1036,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
       when(() => mockRepo.search(any())).thenAnswer((_) async => []);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       await viewModel.setSearchQuery('test query');
@@ -1048,7 +1057,7 @@ void main() {
           .thenAnswer((_) async => [allItems[50]]);
       when(() => mockRepo.getAll()).thenAnswer((_) async => allItems);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       // Load more to accumulate pages
@@ -1084,7 +1093,7 @@ void main() {
         return firstPageCalls == 1 ? oldData : newData;
       });
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.allTransactions.first.id, 'old');
@@ -1104,7 +1113,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
       when(() => mockRepo.search(any())).thenAnswer((_) async => []);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       // Set ALL filter types
@@ -1132,7 +1141,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => [makeTransaction(id: '1')]);
       when(() => mockRepo.search(any())).thenAnswer((_) async => []);
 
-      viewModel = ExpenseViewModel(mockRepo, mockExport);
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
       viewModel.setCategoryFilter('Ăn ngoài');

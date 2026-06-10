@@ -49,37 +49,6 @@ class Category with _$Category {
 
   factory Category.fromJson(Map<String, dynamic> json) =>
       _$CategoryFromJson(json);
-
-  /// Seed default categories — mirrors the legacy predefined list with
-  /// new ADR-0027 fields. IDs are stable semantic slugs.
-  ///
-  /// Phase 2.5A: Category.predefined stays for backward compatibility.
-  /// Slice 2 will replace runtime reads with persisted catalog.
-  static List<Category> get predefined => seedCategories;
-}
-
-/// Phase 2.5A compatibility getters on the generated Freezed class.
-///
-/// Legacy call sites (BudgetViewModel, MonthlyBudgetPlanBuilder,
-/// MonthlyReviewBuilder, QuickInputWidget, voice parsers, budget dialogs)
-/// use `isInvestment`, `minAmount`, `defaultAmount`, `maxAmount`, `phrases`.
-/// These extensions keep them compiling until Slice 2 migrates all reads to
-/// the persisted catalog.
-extension CategoryCompatibilityX on Category {
-  @Deprecated('Use kind == CategoryKind.investment instead')
-  bool get isInvestment => kind == CategoryKind.investment;
-
-  @Deprecated('Use quickAmountMin instead')
-  int get minAmount => quickAmountMin;
-
-  @Deprecated('Use quickAmountDefault instead')
-  int get defaultAmount => quickAmountDefault;
-
-  @Deprecated('Use quickAmountMax instead')
-  int get maxAmount => quickAmountMax;
-
-  @Deprecated('Use voicePhrases instead')
-  List<String> get phrases => voicePhrases;
 }
 
 /// Seed default categories per ADR-0027 §5 and §10.

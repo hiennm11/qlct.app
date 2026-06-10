@@ -5,6 +5,7 @@ import '../models/category.dart';
 import '../models/transaction.dart';
 import '../viewmodels/quick_template_viewmodel.dart';
 import '../viewmodels/expense_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 import '../core/theme.dart';
 import '../core/formatters.dart';
 import '../services/transaction_suggestion_engine.dart';
@@ -61,15 +62,19 @@ class QuickTemplatesStrip extends StatelessWidget {
   Future<void> _applyTemplate(BuildContext context, QuickTemplate t) async {
     final messenger = ScaffoldMessenger.of(context);
 
-    // Fallback category: if the template's category is not predefined, use 'Khác'
-    final predefined = Category.predefined;
-    final isKnownCategory = predefined.any((c) => c.name == t.categoryName);
+    // Resolve from CategoryViewModel when available; fall back to seed
+    // defaults when the provider is missing (e.g. tests) or empty.
+    final catVM = context.read<CategoryViewModel>();
+    final knownCats = catVM.activeCategories.isNotEmpty
+        ? catVM.activeCategories
+        : seedCategories;
+    final isKnownCategory = knownCats.any((c) => c.name == t.categoryName);
     final category = isKnownCategory ? t.categoryName : 'Khác';
     final emoji = isKnownCategory
-        ? (predefined
+        ? (knownCats
               .firstWhere(
                 (c) => c.name == category,
-                orElse: () => predefined.last,
+                orElse: () => knownCats.last,
               )
               .emoji)
         : (t.emoji.isNotEmpty ? t.emoji : '📌');
@@ -470,9 +475,13 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
     // change (initial load completes, pagination appends, add/update/delete).
     // read() would freeze suggestions at the moment the sheet was opened.
     final expenseVM = context.watch<ExpenseViewModel>();
-    final category = Category.predefined.firstWhere(
+    final catVM = context.watch<CategoryViewModel>();
+    final knownCats = catVM.activeCategories.isNotEmpty
+        ? catVM.activeCategories
+        : seedCategories;
+    final category = knownCats.firstWhere(
       (c) => c.name == _selectedCategory,
-      orElse: () => Category.predefined.first,
+      orElse: () => knownCats.first,
     );
     final engine = TransactionSuggestionEngine();
     final List<Transaction> recent = expenseVM.allTransactions;
@@ -549,6 +558,10 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
     final RenderBox box =
         _categoryKey.currentContext!.findRenderObject() as RenderBox;
     final Offset offset = box.localToGlobal(Offset.zero);
+    final catVM = context.read<CategoryViewModel>();
+    final cats = catVM.activeCategories.isNotEmpty
+        ? catVM.activeCategories
+        : seedCategories;
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -557,7 +570,7 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
         offset.dx + box.size.width,
         offset.dy + box.size.height,
       ),
-      items: Category.predefined.map((cat) {
+      items: cats.map((cat) {
         return PopupMenuItem<String>(
           value: cat.name,
           child: Row(

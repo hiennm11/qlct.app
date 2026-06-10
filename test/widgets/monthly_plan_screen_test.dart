@@ -8,6 +8,9 @@ import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
+import 'package:qlct/models/category.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:qlct/services/monthly_budget_plan_builder.dart';
 import 'package:qlct/viewmodels/monthly_plan_viewmodel.dart';
@@ -17,6 +20,7 @@ class MockBudgetPlanLocalDataSource extends Mock implements BudgetPlanLocalDataS
 class MockBudgetLocalDataSource extends Mock implements BudgetLocalDataSource {}
 class MockBudgetSnapshotLocalDataSource extends Mock implements BudgetSnapshotLocalDataSource {}
 class MockTransactionLocalDataSource extends Mock implements TransactionLocalDataSource {}
+class MockCategoryLocalDataSource extends Mock implements CategoryLocalDataSource {}
 class MockStorageService extends Mock implements StorageService {}
 
 class FakeBudgetPlan extends Fake implements BudgetPlan {}
@@ -27,6 +31,7 @@ void main() {
   late MockBudgetLocalDataSource mockBudgetDS;
   late MockBudgetSnapshotLocalDataSource mockSnapshotDS;
   late MockTransactionLocalDataSource mockTxDS;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockStorageService mockStorage;
   late MonthlyPlanViewModel vm;
   late DateTime fixedNow;
@@ -41,6 +46,7 @@ void main() {
     mockBudgetDS = MockBudgetLocalDataSource();
     mockSnapshotDS = MockBudgetSnapshotLocalDataSource();
     mockTxDS = MockTransactionLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockStorage = MockStorageService();
 
     // Stub all datasources
@@ -51,6 +57,7 @@ void main() {
     when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => []);
     when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => []);
     when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => seedCategories);
 
     // Fix current month so targetMonth is predictable
     fixedNow = DateTime(2026, 6, 10);
@@ -60,6 +67,7 @@ void main() {
       budgetDataSource: mockBudgetDS,
       budgetSnapshotDataSource: mockSnapshotDS,
       transactionDataSource: mockTxDS,
+      categoryDataSource: mockCategoryDS,
       storageService: mockStorage,
       builder: MonthlyBudgetPlanBuilder(),
       now: fixedNow,
@@ -70,8 +78,12 @@ void main() {
 
   Widget buildScreen() {
     return MaterialApp(
-      home: ChangeNotifierProvider<MonthlyPlanViewModel>.value(
-        value: vm,
+      home: MultiProvider(
+        providers: [
+          ChangeNotifierProvider<MonthlyPlanViewModel>.value(value: vm),
+          ChangeNotifierProvider<CategoryViewModel>.value(
+              value: CategoryViewModel.seeded(seedCategories)),
+        ],
         child: const MonthlyPlanScreen(),
       ),
     );

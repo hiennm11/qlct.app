@@ -7,6 +7,7 @@ import '../data/datasources/budget_plan_local_datasource.dart';
 import '../data/datasources/budget_local_datasource.dart';
 import '../data/datasources/budget_snapshot_local_datasource.dart';
 import '../data/datasources/transaction_local_datasource.dart';
+import '../data/datasources/category_local_datasource.dart';
 import '../data/mappers/budget_snapshot_row_mapper.dart';
 import '../services/storage_service.dart';
 import '../services/monthly_budget_plan_builder.dart';
@@ -28,6 +29,7 @@ class MonthlyPlanViewModel extends ChangeNotifier {
   final BudgetLocalDataSource _budgetDataSource;
   final BudgetSnapshotLocalDataSource _snapshotDataSource;
   final TransactionLocalDataSource _transactionDataSource;
+  final CategoryLocalDataSource _categoryDataSource;
   final StorageService _storageService;
   final MonthlyBudgetPlanBuilder _builder;
   final DateTime _now;
@@ -44,6 +46,7 @@ class MonthlyPlanViewModel extends ChangeNotifier {
     required BudgetLocalDataSource budgetDataSource,
     required BudgetSnapshotLocalDataSource budgetSnapshotDataSource,
     required TransactionLocalDataSource transactionDataSource,
+    required CategoryLocalDataSource categoryDataSource,
     required StorageService storageService,
     required MonthlyBudgetPlanBuilder builder,
     required DateTime now,
@@ -51,6 +54,7 @@ class MonthlyPlanViewModel extends ChangeNotifier {
         _budgetDataSource = budgetDataSource,
         _snapshotDataSource = budgetSnapshotDataSource,
         _transactionDataSource = transactionDataSource,
+        _categoryDataSource = categoryDataSource,
         _storageService = storageService,
         _builder = builder,
         _now = now,
@@ -187,6 +191,7 @@ class MonthlyPlanViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final categories = await _categoryDataSource.getAll();
       final recentTxs = await _fetchRecentCompletedMonthTransactions(_now);
       final prevTxs = await _fetchPreviousMonthTransactions(_now);
       final baseBudgets = await _resolveBaseBudgets(_data!.plan.source);
@@ -196,6 +201,7 @@ class MonthlyPlanViewModel extends ChangeNotifier {
       _data = _builder.buildDraft(
         targetMonth: _targetMonth,
         source: _data!.plan.source,
+        categories: categories,
         baseBudgets: baseBudgets,
         previousMonthBudgets: prevMonthBudgets,
         liveTotalBudget: liveTotal,
@@ -230,6 +236,7 @@ class MonthlyPlanViewModel extends ChangeNotifier {
   /// Create a new draft using the builder.
   Future<MonthlyBudgetPlanData> _createDraft({required String source}) async {
     final now = _now;
+    final categories = await _categoryDataSource.getAll();
     final recentTxs = await _fetchRecentCompletedMonthTransactions(now);
     final prevTxs = await _fetchPreviousMonthTransactions(now);
     final baseBudgets = await _resolveBaseBudgets(source);
@@ -239,6 +246,7 @@ class MonthlyPlanViewModel extends ChangeNotifier {
     final data = _builder.buildDraft(
       targetMonth: _targetMonth,
       source: source,
+      categories: categories,
       baseBudgets: baseBudgets,
       previousMonthBudgets: prevMonthBudgets,
       liveTotalBudget: liveTotal,

@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/widgets/chart_widget.dart';
@@ -13,10 +14,14 @@ import 'package:qlct/widgets/section_header.dart';
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class MockExportService extends Mock implements ExportService {}
 
 void main() {
   late MockTransactionLocalDataSource mockRepo;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockExportService mockExport;
 
   setUpAll(() {
@@ -32,11 +37,13 @@ void main() {
 
   setUp(() {
     mockRepo = MockTransactionLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockExport = MockExportService();
     // Default: pagination returns empty page (needed after ADR-0017 D3.2)
     when(() => mockRepo.getAllPaginated(
             offset: any(named: 'offset'), limit: any(named: 'limit')))
         .thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
   });
 
   Widget wrap(ExpenseViewModel vm) {
@@ -54,7 +61,7 @@ void main() {
     when(() => mockRepo.getAll()).thenAnswer((_) async => txs);
     when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
         .thenAnswer((_) async => txs);
-    return ExpenseViewModel(mockRepo, mockExport);
+    return ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
   }
 
   group('ChartWidget - SectionHeader integration (data state)', () {
@@ -122,7 +129,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) => completer.future);
       when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
           .thenAnswer((_) => completer.future);
-      final vm = ExpenseViewModel(mockRepo, mockExport);
+      final vm = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
 
       // Pump once to capture the loading state before async completes
       await tester.pumpWidget(wrap(vm));

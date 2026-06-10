@@ -4,6 +4,7 @@ import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/sqlite_recurring_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_transaction_datasource.dart';
+import 'package:qlct/data/datasources/sqlite_category_datasource.dart';
 import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
@@ -62,6 +63,26 @@ void main() {
           ''');
           await db.execute(
               'CREATE INDEX idx_recurring_next_run ON recurring_transactions(is_active, next_run_at)');
+          await db.execute('''
+            CREATE TABLE categories (
+              id              TEXT PRIMARY KEY,
+              name            TEXT NOT NULL,
+              normalized_name TEXT NOT NULL,
+              emoji           TEXT NOT NULL DEFAULT '',
+              kind            TEXT NOT NULL,
+              budget_behavior TEXT NOT NULL DEFAULT 'flexible',
+              quick_amount_min     INTEGER NOT NULL DEFAULT 0,
+              quick_amount_default INTEGER NOT NULL DEFAULT 0,
+              quick_amount_max     INTEGER NOT NULL DEFAULT 0,
+              voice_phrases    TEXT NOT NULL DEFAULT '[]',
+              sort_order       INTEGER NOT NULL DEFAULT 0,
+              is_system        INTEGER NOT NULL DEFAULT 0,
+              is_archived      INTEGER NOT NULL DEFAULT 0,
+              created_at       INTEGER NOT NULL DEFAULT 0,
+              updated_at       INTEGER NOT NULL DEFAULT 0
+            )
+          ''');
+          await db.execute('CREATE INDEX idx_categories_name ON categories(name)');
         },
       ),
     );
@@ -74,15 +95,14 @@ void main() {
 
     recurringDs = SqliteRecurringDataSource(dbHelper);
     transactionDs = SqliteTransactionDataSource(dbHelper);
-
-    recurringDs = SqliteRecurringDataSource(dbHelper);
-    transactionDs = SqliteTransactionDataSource(dbHelper);
+    final categoryDs = SqliteCategoryDataSource(dbHelper);
 
     recurringVm =
-        RecurringTransactionViewModel(recurringDs, transactionDs);
+        RecurringTransactionViewModel(recurringDs, transactionDs, categoryDs);
     expenseVm = ExpenseViewModel(
       transactionDs,
       ExportService(),
+      categoryDs,
     );
   });
 

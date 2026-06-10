@@ -4,6 +4,7 @@ import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
 
 class MockRecurringLocalDataSource extends Mock
@@ -12,9 +13,13 @@ class MockRecurringLocalDataSource extends Mock
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 void main() {
   late MockRecurringLocalDataSource mockRecurringRepo;
   late MockTransactionLocalDataSource mockTxRepo;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late RecurringTransactionViewModel viewModel;
 
   final ruleDaily = RecurringTransaction(
@@ -81,12 +86,14 @@ void main() {
   setUp(() {
     mockRecurringRepo = MockRecurringLocalDataSource();
     mockTxRepo = MockTransactionLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockTxRepo.getAll()).thenAnswer((_) async => []);
     // D2.1: dedup now uses existsBySourceRecurringIdAndDate; default to false
     // (no existing transaction) for tests that don't care about dedup.
     when(() => mockTxRepo.existsBySourceRecurringIdAndDate(any(), any()))
         .thenAnswer((_) async => false);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
   });
 
   group('initial load', () {
@@ -97,6 +104,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -108,6 +116,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -121,6 +130,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -136,6 +146,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -158,6 +169,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -179,6 +191,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -196,6 +209,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -214,6 +228,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -234,6 +249,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -257,6 +273,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -275,6 +292,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -307,6 +325,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -342,6 +361,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -384,6 +404,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -400,6 +421,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -424,6 +446,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -447,6 +470,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -466,6 +490,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -489,6 +514,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -504,6 +530,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -533,6 +560,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -575,6 +603,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -608,6 +637,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -625,6 +655,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -645,6 +676,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -676,6 +708,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -693,6 +726,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 
@@ -728,6 +762,7 @@ void main() {
       viewModel = RecurringTransactionViewModel(
         mockRecurringRepo,
         mockTxRepo,
+        mockCategoryDS,
       );
       await Future.delayed(Duration.zero);
 

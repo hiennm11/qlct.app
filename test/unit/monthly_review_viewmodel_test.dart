@@ -8,6 +8,7 @@ import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/viewmodels/monthly_review_viewmodel.dart';
 
 class MockTransactionLocalDataSource extends Mock
@@ -22,6 +23,9 @@ class MockBudgetSnapshotLocalDataSource extends Mock
 class MockRecurringLocalDataSource extends Mock
     implements RecurringLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class FakeTransaction extends Fake implements Transaction {}
 
 class FakeBudget extends Fake implements Budget {}
@@ -35,6 +39,7 @@ void main() {
   late MockBudgetLocalDataSource mockBudgetDS;
   late MockBudgetSnapshotLocalDataSource mockSnapshotDS;
   late MockRecurringLocalDataSource mockRecurringDS;
+  late MockCategoryLocalDataSource mockCategoryDS;
 
   setUpAll(() {
     registerFallbackValue(FakeTransaction());
@@ -49,11 +54,13 @@ void main() {
     mockBudgetDS = MockBudgetLocalDataSource();
     mockSnapshotDS = MockBudgetSnapshotLocalDataSource();
     mockRecurringDS = MockRecurringLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     // Default: return empty data
     when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => []);
     when(() => mockBudgetDS.getAll()).thenAnswer((_) async => []);
     when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => []);
     when(() => mockRecurringDS.getAll()).thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
   });
 
   MonthlyReviewViewModel makeVm() {
@@ -62,6 +69,7 @@ void main() {
       budgetDataSource: mockBudgetDS,
       budgetSnapshotDataSource: mockSnapshotDS,
       recurringDataSource: mockRecurringDS,
+      categoryDataSource: mockCategoryDS,
     );
   }
 

@@ -24,22 +24,30 @@ class MonthlyReviewBuilder {
     required List<Transaction> previousPeriodTxs,
     required List<Budget> budgets,
     required List<RecurringTransaction> activeRecurringRules,
+    required List<Category> categories,
     required DateTime selectedMonth,
     required DateTime currentPeriodStart,
     required DateTime currentPeriodEnd,
     required DateTime previousPeriodStart,
     required DateTime previousPeriodEnd,
   }) {
+    bool isCatInvestment(String name) {
+      for (final c in categories) {
+        if (c.name == name) return c.kind == CategoryKind.investment;
+      }
+      return false;
+    }
+
     // Separate spending vs investment
     final currentSpending = currentMonthTxs
-        .where((t) => !_isInvestment(t.category))
+        .where((t) => !isCatInvestment(t.category))
         .toList();
     final currentInvestment = currentMonthTxs
-        .where((t) => _isInvestment(t.category))
+        .where((t) => isCatInvestment(t.category))
         .toList();
 
     final previousSpending = previousPeriodTxs
-        .where((t) => !_isInvestment(t.category))
+        .where((t) => !isCatInvestment(t.category))
         .toList();
 
     final spendingTotal = currentSpending.fold(0, (sum, t) => sum + t.amount);
@@ -49,21 +57,23 @@ class MonthlyReviewBuilder {
     final spendingDelta = spendingTotal - previousSpendingTotal;
 
     // Category summaries (exclude investment)
-    final topCategories = _buildTopCategories(currentSpending, spendingTotal);
+    final topCategories = _buildTopCategories(currentSpending, spendingTotal, categories);
     final remainingCategoryTotal = _computeRemainingCategoryTotal(currentSpending, topCategories);
 
     // Biggest increase/decrease
     final hasEnoughData = currentSpending.length >= 3;
     final biggestIncrease = _buildBiggestDelta(
       currentSpending, previousPeriodTxs
-          .where((t) => !_isInvestment(t.category))
+          .where((t) => !isCatInvestment(t.category))
           .toList(),
+      categories: categories,
       positive: true,
     );
     final biggestDecrease = _buildBiggestDelta(
       currentSpending, previousPeriodTxs
-          .where((t) => !_isInvestment(t.category))
+          .where((t) => !isCatInvestment(t.category))
           .toList(),
+      categories: categories,
       positive: false,
     );
 
@@ -71,10 +81,11 @@ class MonthlyReviewBuilder {
     final fixedExpenseSummary = _buildFixedExpenseSummary(
       currentMonthTxs,
       activeRecurringRules,
+      categories,
     );
 
     // Budget highlights (ADR-0025 §6: skip investment categories)
-    final budgetHighlights = _buildBudgetHighlights(currentSpending, budgets);
+    final budgetHighlights = _buildBudgetHighlights(currentSpending, budgets, categories);
 
     // Biggest spending day (only from spending, exclude investment)
     final biggestSpendingDay = _buildBiggestSpendingDay(currentSpending);
@@ -101,16 +112,10 @@ class MonthlyReviewBuilder {
     );
   }
 
-  bool _isInvestment(String categoryName) {
-    final cat = Category.predefined
-        .where((c) => c.name == categoryName)
-        .firstOrNull;
-    return cat?.isInvestment ?? false;
-  }
-
   List<MonthlyReviewCategorySummary> _buildTopCategories(
     List<Transaction> spendingTxs,
     int totalSpending,
+    List<Category> categories,
   ) {
     // Group by category
     final categoryTotals = <String, int>{};
@@ -125,9 +130,7 @@ class MonthlyReviewBuilder {
     final top5 = sorted.take(5).toList();
 
     return top5.map((entry) {
-      final cat = Category.predefined
-          .where((c) => c.name == entry.key)
-          .firstOrNull;
+      final cat = categories.where((c) => c.name == entry.key).firstOrNull;
       final emoji = cat?.emoji ?? '📌';
       final percent = totalSpending > 0
           ? ((entry.value / totalSpending) * 100).round()
@@ -152,9 +155,10 @@ class MonthlyReviewBuilder {
 
   MonthlyReviewCategoryDelta? _buildBiggestDelta(
     List<Transaction> currentSpending,
-    List<Transaction> previousSpending,
-    {required bool positive}
-  ) {
+    List<Transaction> previousSpending, {
+    required List<Category> categories,
+    required bool positive,
+  }) {
     // Group by category
     final currentTotals = <String, int>{};
     final previousTotals = <String, int>{};
@@ -207,7 +211,7 @@ class MonthlyReviewBuilder {
     final best = deltas.first;
     if (best.currentAmount == 0 && best.previousAmount == 0) return null;
 
-    final cat = Category.predefined
+    final cat = categories
         .where((c) => c.name == best.categoryName)
         .firstOrNull;
 
@@ -225,6 +229,7 @@ class MonthlyReviewBuilder {
   MonthlyReviewFixedExpenseSummary _buildFixedExpenseSummary(
     List<Transaction> currentMonthTxs,
     List<RecurringTransaction> activeRecurringRules,
+    List<Category> categories,
   ) {
     // Subscription category transactions
     final subscriptionTxs = currentMonthTxs
@@ -232,10 +237,17 @@ class MonthlyReviewBuilder {
         .toList();
 
     // Recurring-generated transactions (sourceRecurringId != null), exclude investment
+    bool isCatInvestment(String name) {
+      for (final c in categories) {
+        if (c.name == name) return c.kind == CategoryKind.investment;
+      }
+      return false;
+    }
+
     final recurringGeneratedTxs = currentMonthTxs
         .where((t) =>
             t.sourceRecurringId != null &&
-            !_isInvestment(t.category))
+            !isCatInvestment(t.category))
         .toList();
 
     // Union distinct by transaction.id
@@ -282,7 +294,7 @@ class MonthlyReviewBuilder {
     final activeRules = activeRecurringRules
         .where((r) => r.isActive)
         .map((r) {
-          final cat = Category.predefined
+          final cat = categories
               .where((c) => c.name == r.categoryName)
               .firstOrNull;
           return MonthlyReviewActiveRecurringRule(
@@ -308,6 +320,7 @@ class MonthlyReviewBuilder {
   List<MonthlyReviewBudgetHighlight> _buildBudgetHighlights(
     List<Transaction> currentSpending,
     List<Budget> budgets,
+    List<Category> categories,
   ) {
     // Group spending by category
     final categoryTotals = <String, int>{};
@@ -319,8 +332,8 @@ class MonthlyReviewBuilder {
     final highlights = <MonthlyReviewBudgetHighlight>[];
 
     // ADR-0025 §6: skip investment categories in budget highlights
-    for (final category in Category.predefined) {
-      if (category.isInvestment) continue;
+    for (final category in categories) {
+      if (category.kind == CategoryKind.investment) continue;
       final budget = budgetMap[category.name];
       if (budget == null) continue;
 

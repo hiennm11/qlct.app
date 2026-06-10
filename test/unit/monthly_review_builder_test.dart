@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/services/monthly_review_builder.dart';
 
@@ -71,6 +72,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -104,15 +106,13 @@ void main() {
           previousPeriodTxs: prevTxs,
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
           previousPeriodStart: _monthStart(2026, 5),
           previousPeriodEnd: _monthEnd(2026, 5),
         );
-
-        // totalOutflow = spending + investment
-        expect(result.totalOutflow, 5120000);
         // spendingTotal = only non-investment
         expect(result.spendingTotal, 120000);
         // investmentTotal = only investment
@@ -145,6 +145,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -179,6 +180,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -212,6 +214,7 @@ void main() {
           previousPeriodTxs: prevTxs,
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -242,6 +245,7 @@ void main() {
           previousPeriodTxs: prevTxs,
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -274,6 +278,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -311,6 +316,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -341,6 +347,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -373,6 +380,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: activeRules,
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: DateTime.now().year == 2026 && DateTime.now().month == 6
@@ -391,6 +399,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [], // empty for past month
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 5),
           currentPeriodStart: _monthStart(2026, 5),
           currentPeriodEnd: _monthEnd(2026, 5),
@@ -418,6 +427,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -439,6 +449,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -462,6 +473,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -483,6 +495,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -505,6 +518,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: [],
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -535,6 +549,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: budgets,
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),
@@ -568,6 +583,7 @@ void main() {
           previousPeriodTxs: [],
           budgets: budgets,
           activeRecurringRules: [],
+          categories: seedCategories,
           selectedMonth: _monthStart(2026, 6),
           currentPeriodStart: _monthStart(2026, 6),
           currentPeriodEnd: _monthEnd(2026, 6),

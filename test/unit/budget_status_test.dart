@@ -14,7 +14,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 2000000);
+        final status = BudgetStatus.fromBudget(budget, 2000000, emoji: '🍜');
 
         expect(status.alertLevel, AlertLevel.normal);
         expect(status.percentUsed, 40);
@@ -32,7 +32,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 4500000);
+        final status = BudgetStatus.fromBudget(budget, 4500000, emoji: '🍜');
 
         expect(status.alertLevel, AlertLevel.warning);
         expect(status.percentUsed, 90);
@@ -48,7 +48,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 800000);
+        final status = BudgetStatus.fromBudget(budget, 800000, emoji: '🍜');
 
         expect(status.alertLevel, AlertLevel.warning);
         expect(status.percentUsed, 80);
@@ -65,7 +65,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 6000000);
+        final status = BudgetStatus.fromBudget(budget, 6000000, emoji: '🍜');
 
         expect(status.alertLevel, AlertLevel.exceeded);
         expect(status.percentUsed, 100);
@@ -81,7 +81,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 1000000);
+        final status = BudgetStatus.fromBudget(budget, 1000000, emoji: '🍜');
 
         expect(status.alertLevel, AlertLevel.exceeded);
         expect(status.percentUsed, 100);
@@ -98,7 +98,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 0);
+        final status = BudgetStatus.fromBudget(budget, 0, emoji: '🍜');
 
         expect(status.alertLevel, AlertLevel.normal);
         expect(status.percentUsed, 0);
@@ -114,7 +114,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 0);
+        final status = BudgetStatus.fromBudget(budget, 0, emoji: '🍜');
 
         expect(status.percentUsed, 0);
         expect(status.remaining, 0);
@@ -129,7 +129,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 6000000);
+        final status = BudgetStatus.fromBudget(budget, 6000000, emoji: '🍜');
 
         expect(status.remaining, 0);
       });
@@ -145,12 +145,12 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 100000);
+        final status = BudgetStatus.fromBudget(budget, 100000, emoji: '☕');
 
         expect(status.categoryName, 'Cà phê');
       });
 
-      test('sets emoji from Category.predefined', () {
+      test('sets emoji from caller-provided value', () {
         final budget = Budget(
           id: '1',
           categoryName: 'Cà phê',
@@ -159,9 +159,23 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 100000);
+        final status = BudgetStatus.fromBudget(budget, 100000, emoji: '☕');
 
         expect(status.emoji, '☕');
+      });
+
+      test('sets emoji via seed fallback when category unknown', () {
+        final budget = Budget(
+          id: '1',
+          categoryName: 'Unknown Category',
+          monthlyLimit: 500000,
+          alertThreshold: 80,
+          createdAt: DateTime.now(),
+        );
+
+        final status = BudgetStatus.fromBudget(budget, 100000, emoji: '📌');
+
+        expect(status.emoji, '📌');
       });
 
       test('sets spent from parameter', () {
@@ -173,7 +187,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 1500000);
+        final status = BudgetStatus.fromBudget(budget, 1500000, emoji: '🍜');
 
         expect(status.spent, 1500000);
       });
@@ -187,7 +201,7 @@ void main() {
           createdAt: DateTime.now(),
         );
 
-        final status = BudgetStatus.fromBudget(budget, 500000);
+        final status = BudgetStatus.fromBudget(budget, 500000, emoji: '🍜');
 
         expect(status.limit, 3000000);
       });

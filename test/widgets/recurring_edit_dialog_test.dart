@@ -6,6 +6,7 @@ import 'package:qlct/models/category.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
@@ -13,6 +14,9 @@ import 'package:qlct/widgets/recurring_edit_dialog.dart';
 
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
+
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
 
 class MockExportService extends Mock implements ExportService {}
 
@@ -22,6 +26,7 @@ class _FakeCategoryViewModel extends CategoryViewModel {
 
 void main() {
   late MockTransactionLocalDataSource mockDs;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockExportService mockExport;
   late ExpenseViewModel expenseVM;
 
@@ -38,13 +43,15 @@ void main() {
 
   setUp(() {
     mockDs = MockTransactionLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockExport = MockExportService();
     when(() => mockDs.getAll()).thenAnswer((_) async => []);
     when(() => mockDs.getAllPaginated(
             offset: any(named: 'offset'),
             limit: any(named: 'limit')))
         .thenAnswer((_) async => []);
-    expenseVM = ExpenseViewModel(mockDs, mockExport);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
+    expenseVM = ExpenseViewModel(mockDs, mockExport, mockCategoryDS);
   });
 
   /// Wrap any child in a [ChangeNotifierProvider] with the shared [expenseVM].
@@ -80,7 +87,7 @@ void main() {
       final dropdown = tester.widget<DropdownButtonFormField<String>>(
         find.byType(DropdownButtonFormField<String>),
       );
-      expect(dropdown.initialValue, Category.predefined.first.name);
+      expect(dropdown.initialValue, seedCategories.first.name);
     });
 
     testWidgets('amount field is empty in add mode', (tester) async {
@@ -147,12 +154,12 @@ void main() {
       await tester.pumpWidget(wrapWithProvider(const RecurringEditDialog()));
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
-      for (final c in Category.predefined) {
+      for (final c in seedCategories) {
         expect(find.text(c.name), findsAtLeastNWidgets(1));
       }
       expect(
         find.byType(DropdownMenuItem<String>),
-        findsAtLeastNWidgets(Category.predefined.length),
+        findsAtLeastNWidgets(seedCategories.length),
       );
     });
   });
@@ -236,7 +243,7 @@ void main() {
       expect(result!.amount, 100000);
       expect(result!.frequency, 'weekly');
       expect(result!.id, isNull);
-      expect(result!.categoryName, Category.predefined.first.name);
+      expect(result!.categoryName, seedCategories.first.name);
     });
 
     testWidgets('save in edit mode returns existing id', (tester) async {
@@ -356,7 +363,7 @@ void main() {
               offset: any(named: 'offset'),
               limit: any(named: 'limit')))
           .thenAnswer((_) async => txs);
-      expenseVM = ExpenseViewModel(mockDs, mockExport);
+      expenseVM = ExpenseViewModel(mockDs, mockExport, mockCategoryDS);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

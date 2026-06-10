@@ -8,6 +8,7 @@ import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
 
@@ -19,6 +20,9 @@ class MockBudgetSnapshotLocalDataSource extends Mock
 class MockBudgetPlanLocalDataSource extends Mock
     implements BudgetPlanLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class FakeBudgetSnapshot extends Fake implements BudgetSnapshot {}
@@ -29,6 +33,7 @@ void main() {
   late MockBudgetLocalDataSource mockRepo;
   late MockBudgetSnapshotLocalDataSource mockSnapshotRepo;
   late MockBudgetPlanLocalDataSource mockPlanRepo;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockStorageService mockStorage;
   late BudgetViewModel viewModel;
 
@@ -36,6 +41,7 @@ void main() {
     mockRepo = MockBudgetLocalDataSource();
     mockSnapshotRepo = MockBudgetSnapshotLocalDataSource();
     mockPlanRepo = MockBudgetPlanLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockStorage = MockStorageService();
     when(() => mockRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockSnapshotRepo.getAll()).thenAnswer((_) async => []);
@@ -45,6 +51,7 @@ void main() {
     when(() => mockPlanRepo.getPlan(any())).thenAnswer((_) async => null);
     when(() => mockPlanRepo.getItems(any())).thenAnswer((_) async => []);
     when(() => mockPlanRepo.markApplied(any(), any())).thenAnswer((_) async => {});
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
   });
 
   setUpAll(() {
@@ -62,19 +69,19 @@ void main() {
   group('initial state', () {
     test('budgets is empty', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-    viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+    viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
     expect(viewModel.budgets, isEmpty);
     });
 
     test('budgetStatuses is empty', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       expect(viewModel.budgetStatuses, isEmpty);
     });
 
     test('isLoading state transitions correctly', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       expect(viewModel.isLoading, false);
       expect(viewModel.budgets.isEmpty, true);
@@ -82,14 +89,14 @@ void main() {
 
     test('isLoading becomes false after loading', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       expect(viewModel.isLoading, false);
     });
 
     test('errorMessage is null', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       expect(viewModel.errorMessage, null);
     });
   });
@@ -108,7 +115,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => budgets);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.budgets.length, 1);
@@ -117,7 +124,7 @@ void main() {
 
     test('calls repository.getAll()', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       verify(() => mockRepo.getAll()).called(1);
     });
@@ -126,7 +133,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenThrow(Exception('DB error'));
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.errorMessage, isNotNull);
@@ -140,7 +147,7 @@ void main() {
       when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
       when(() => mockRepo.getByCategory('Cà phê')).thenAnswer((_) async => null);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setBudget('Cà phê', 500000, 80);
@@ -164,7 +171,7 @@ void main() {
       when(() => mockRepo.getByCategory('Cà phê'))
           .thenAnswer((_) async => existingBudget);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setBudget('Cà phê', 500000, 75);
@@ -177,7 +184,7 @@ void main() {
       when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenThrow(Exception('Upsert failed'));
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setBudget('Cà phê', 500000, 80);
@@ -199,7 +206,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget]);
       when(() => mockRepo.delete('1')).thenAnswer((_) async {});
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.deleteBudget('Cà phê');
@@ -213,7 +220,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
       when(() => mockRepo.delete(any())).thenThrow(Exception('Delete failed'));
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.deleteBudget('Cà phê');
@@ -225,7 +232,7 @@ void main() {
   group('updateStats', () {
     test('updates _stats and notifies listeners', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       final stats = ExpenseStats(
@@ -253,7 +260,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -279,7 +286,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -304,7 +311,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -322,7 +329,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -341,7 +348,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -373,7 +380,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => [budget1, budget2]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -408,7 +415,7 @@ void main() {
       when(() => mockRepo.getAll())
           .thenAnswer((_) async => [invBudget, foodBudget]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -436,7 +443,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       viewModel.updateStats(ExpenseStats(
@@ -458,7 +465,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockStorage.saveValue('total_budget', any()))
           .thenAnswer((_) async {});
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       // 1M spending + 4M investment = 5M monthExpense in stats
@@ -488,7 +495,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockStorage.saveValue('total_budget', any()))
           .thenAnswer((_) async {});
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       // 8M spending + 5M investment = 13M monthExpense
@@ -514,20 +521,20 @@ void main() {
   group('total budget', () {
     test('totalBudget returns null initially when storage returns null', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       expect(viewModel.totalBudget, null);
     });
 
     test('totalBudget returns value from storage on init', () {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(10000000);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       expect(viewModel.totalBudget, 10000000);
     });
 
     test('setTotalBudget saves to storage and updates state', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockStorage.saveValue('total_budget', 10000000)).thenAnswer((_) async {});
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setTotalBudget(10000000);
@@ -541,7 +548,7 @@ void main() {
     test('with empty list calls loadBudgets', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setAllBudgets([]);
@@ -559,7 +566,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
       when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setAllBudgets(budgets);
@@ -573,7 +580,7 @@ void main() {
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
       when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenThrow(Exception('DB error'));
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       await viewModel.setAllBudgets([
@@ -604,7 +611,7 @@ void main() {
           ]);
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       // Wait for async snapshot creation
       await Future.delayed(Duration.zero);
@@ -631,7 +638,7 @@ void main() {
           ]);
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage, now: () => _testNow);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage, now: () => _testNow);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -697,7 +704,7 @@ void main() {
       when(() => mockSnapshotRepo.getByYearMonth(any()))
           .thenAnswer((_) async => [existingSnap]);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage, now: () => _testNow);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage, now: () => _testNow);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -730,7 +737,7 @@ void main() {
       when(() => mockSnapshotRepo.getByYearMonth(any()))
           .thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -763,7 +770,7 @@ void main() {
       when(() => mockSnapshotRepo.getByYearMonth(any()))
           .thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -835,7 +842,7 @@ void main() {
       when(() => mockRepo.delete(any())).thenAnswer((_) async => {});
       when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -876,7 +883,7 @@ void main() {
       when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => null); // no draft
       when(() => mockPlanRepo.getPlan(currentYMs)).thenAnswer((_) async => appliedPlan); // but plan exists as applied
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -914,7 +921,7 @@ void main() {
       when(() => mockRepo.delete(any())).thenAnswer((_) async => {});
       when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -959,7 +966,7 @@ void main() {
       when(() => mockRepo.delete(any())).thenAnswer((_) async => {});
       when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -997,7 +1004,7 @@ void main() {
       when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
       when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -1034,7 +1041,7 @@ void main() {
       when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
       when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -1072,7 +1079,7 @@ void main() {
       when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
       when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 
@@ -1083,7 +1090,7 @@ void main() {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
 
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
       expect(viewModel.lastAutoAppliedPlanYearMonth, null);
@@ -1140,7 +1147,7 @@ void main() {
       when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async {});
 
       // First load: Phase A succeeds, Phase B fails
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage, now: () => _testNow);
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage, now: () => _testNow);
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
 

@@ -9,6 +9,7 @@ import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:qlct/viewmodels/budget_viewmodel.dart';
 import 'package:qlct/widgets/budget_overview_widget.dart';
@@ -22,6 +23,9 @@ class MockBudgetSnapshotLocalDataSource extends Mock
 class MockBudgetPlanDataSource extends Mock
     implements BudgetPlanLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class FakeBudgetSnapshot extends Fake implements BudgetSnapshot {}
@@ -30,6 +34,7 @@ void main() {
   late MockBudgetLocalDataSource mockRepo;
   late MockBudgetSnapshotLocalDataSource mockSnapshotRepo;
   late MockBudgetPlanDataSource mockPlanRepo;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockStorageService mockStorage;
   late BudgetViewModel vm;
 
@@ -61,6 +66,7 @@ void main() {
     mockRepo = MockBudgetLocalDataSource();
     mockSnapshotRepo = MockBudgetSnapshotLocalDataSource();
     mockPlanRepo = MockBudgetPlanDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockStorage = MockStorageService();
     // BudgetLocalDataSource stubs
     when(() => mockRepo.getAll()).thenAnswer((_) async => <Budget>[]);
@@ -88,11 +94,13 @@ void main() {
     when(() => mockPlanRepo.getAllItems()).thenAnswer((_) async => <BudgetPlanItem>[]);
     when(() => mockPlanRepo.count()).thenAnswer((_) async => 0);
     when(() => mockPlanRepo.itemCount()).thenAnswer((_) async => 0);
+    // CategoryLocalDataSource stub
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
     // StorageService stubs
     when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
     // Pre-load so _loadBudgetsFuture resolves before any test body runs.
     // This ensures pumpWidget() in the first two tests sees a settled VM.
-    vm = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockStorage);
+    vm = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
     // Wait for constructor's Future.microtask to complete so _loadBudgetsImpl
     // finishes before test body starts. This prevents pumpAndSettle timeout.
     vm.forceReload(); // fire and forget — _loadBudgetsFuture now resolves async

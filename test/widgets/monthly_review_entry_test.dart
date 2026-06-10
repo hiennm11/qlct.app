@@ -7,6 +7,7 @@ import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/viewmodels/monthly_review_viewmodel.dart';
@@ -25,6 +26,9 @@ class MockBudgetSnapshotLocalDataSource extends Mock
 class MockRecurringLocalDataSource extends Mock
     implements RecurringLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class MockExportService extends Mock implements ExportService {}
 
 void main() {
@@ -32,6 +36,7 @@ void main() {
   late MockBudgetLocalDataSource mockBudgetDS;
   late MockBudgetSnapshotLocalDataSource mockSnapshotDS;
   late MockRecurringLocalDataSource mockRecurringDS;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockExportService mockExport;
 
   setUpAll(() {
@@ -52,6 +57,7 @@ void main() {
     mockBudgetDS = MockBudgetLocalDataSource();
     mockSnapshotDS = MockBudgetSnapshotLocalDataSource();
     mockRecurringDS = MockRecurringLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockExport = MockExportService();
     when(() => mockTxDS.getAllPaginated(
             offset: any(named: 'offset'), limit: any(named: 'limit')))
@@ -60,6 +66,7 @@ void main() {
     when(() => mockBudgetDS.getAll()).thenAnswer((_) async => []);
     when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => []);
     when(() => mockRecurringDS.getAll()).thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
   });
 
   testWidgets('tapping monthly stats card opens MonthlyReviewScreen', (tester) async {
@@ -78,12 +85,13 @@ void main() {
     when(() => mockBudgetDS.getAll()).thenAnswer((_) async => []);
     when(() => mockRecurringDS.getAll()).thenAnswer((_) async => []);
 
-    final expenseVm = ExpenseViewModel(mockTxDS, mockExport);
+    final expenseVm = ExpenseViewModel(mockTxDS, mockExport, mockCategoryDS);
     final reviewVm = MonthlyReviewViewModel(
       transactionDataSource: mockTxDS,
       budgetDataSource: mockBudgetDS,
       budgetSnapshotDataSource: mockSnapshotDS,
       recurringDataSource: mockRecurringDS,
+      categoryDataSource: mockCategoryDS,
     );
 
     await tester.pumpWidget(

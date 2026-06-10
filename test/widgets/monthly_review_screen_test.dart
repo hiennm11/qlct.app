@@ -7,6 +7,7 @@ import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/viewmodels/monthly_review_viewmodel.dart';
 import 'package:qlct/views/monthly_review_screen.dart';
 
@@ -22,6 +23,9 @@ class MockBudgetSnapshotLocalDataSource extends Mock
 class MockRecurringLocalDataSource extends Mock
     implements RecurringLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 void main() {
   // NOTE: do NOT call initializeDateFormatting('vi_VN') here. The header label
   // formatter must work without any locale-data initialization. A previous
@@ -31,16 +35,19 @@ void main() {
   late MockBudgetLocalDataSource mockBudgetDS;
   late MockBudgetSnapshotLocalDataSource mockSnapshotDS;
   late MockRecurringLocalDataSource mockRecurringDS;
+  late MockCategoryLocalDataSource mockCategoryDS;
 
   setUp(() {
     mockTxDS = MockTransactionLocalDataSource();
     mockBudgetDS = MockBudgetLocalDataSource();
     mockSnapshotDS = MockBudgetSnapshotLocalDataSource();
     mockRecurringDS = MockRecurringLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => []);
     when(() => mockBudgetDS.getAll()).thenAnswer((_) async => []);
     when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => []);
     when(() => mockRecurringDS.getAll()).thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
   });
 
   MonthlyReviewViewModel makeVm() {
@@ -49,6 +56,7 @@ void main() {
       budgetDataSource: mockBudgetDS,
       budgetSnapshotDataSource: mockSnapshotDS,
       recurringDataSource: mockRecurringDS,
+      categoryDataSource: mockCategoryDS,
     );
   }
 

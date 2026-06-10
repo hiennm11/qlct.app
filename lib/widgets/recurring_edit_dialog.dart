@@ -116,7 +116,7 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
           _selectedCategory = vm.quickInputCategories.first.name;
         }
       } catch (_) {
-        _selectedCategory = Category.predefined.first.name;
+        _selectedCategory = seedCategories.first.name;
       }
     }
   }
@@ -156,7 +156,7 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
           if (catVM.activeCategories.isNotEmpty) {
             found = catVM.activeCategories.first;
           } else {
-            found = Category.predefined.first;
+            found = seedCategories.first;
           }
         }
         final category = found;
@@ -244,7 +244,7 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
                 builder: (context, catVM, _) {
                   final cats = catVM.quickInputCategories.isNotEmpty
                       ? catVM.quickInputCategories
-                      : Category.predefined;
+                      : seedCategories;
                   return DropdownButtonFormField<String>(
                     initialValue: cats.any((c) => c.name == _selectedCategory)
                         ? _selectedCategory

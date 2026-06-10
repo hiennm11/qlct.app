@@ -8,6 +8,7 @@ import '../models/expense_stats.dart';
 import '../data/datasources/budget_local_datasource.dart';
 import '../data/datasources/budget_plan_local_datasource.dart';
 import '../data/datasources/budget_snapshot_local_datasource.dart';
+import '../data/datasources/category_local_datasource.dart';
 import '../services/storage_service.dart';
 
 /// ViewModel for managing budget state and operations
@@ -17,6 +18,7 @@ class BudgetViewModel extends ChangeNotifier {
   final BudgetLocalDataSource _dataSource;
   final BudgetSnapshotLocalDataSource _snapshotDataSource;
   final BudgetPlanLocalDataSource _planDataSource;
+  final CategoryLocalDataSource _categoryDataSource;
   final StorageService _storageService;
   final DateTime Function() _now;
 
@@ -26,6 +28,7 @@ class BudgetViewModel extends ChangeNotifier {
   Future<void>? _loadBudgetsFuture;
 
   List<Budget> _budgets = [];
+  List<Category> _categories = const [];
   ExpenseStats? _stats;
   bool _isLoading = false;
   String? _errorMessage;
@@ -36,10 +39,15 @@ class BudgetViewModel extends ChangeNotifier {
     this._dataSource,
     this._snapshotDataSource,
     this._planDataSource,
+    this._categoryDataSource,
     this._storageService, {
     DateTime Function()? now,
+    List<Category>? initialCategories,
   }) : _now = now ?? DateTime.now {
     _totalBudget = _storageService.loadValue<int>('total_budget');
+    if (initialCategories != null) {
+      _categories = List.unmodifiable(initialCategories);
+    }
     Future.microtask(() => _loadBudgets());
   }
 
@@ -354,10 +362,18 @@ class BudgetViewModel extends ChangeNotifier {
   }
 
   bool _isInvestmentCategory(String categoryName) {
-    final cat = Category.predefined
-        .where((c) => c.name == categoryName)
-        .firstOrNull;
-    return cat?.isInvestment ?? false;
+    for (final c in _categories) {
+      if (c.name == categoryName) {
+        return c.kind == CategoryKind.investment;
+      }
+    }
+    // Fallback: check seed defaults for test scenarios
+    for (final c in seedCategories) {
+      if (c.name == categoryName) {
+        return c.kind == CategoryKind.investment;
+      }
+    }
+    return false;
   }
 
   /// ADR-0025 §6: Compute spending-only total by excluding investment categories
@@ -381,7 +397,10 @@ class BudgetViewModel extends ChangeNotifier {
           .toList();
       final statuses = nonInvestmentBudgets
           .map((b) => BudgetStatus.fromBudget(
-              b, _stats?.categoryTotals[b.categoryName] ?? 0))
+              b,
+              _stats?.categoryTotals[b.categoryName] ?? 0,
+              emoji: _resolveEmoji(b.categoryName),
+            ))
           .toList();
       statuses.sort((a, b) => b.percentUsed.compareTo(a.percentUsed));
       return statuses;
@@ -396,19 +415,20 @@ class BudgetViewModel extends ChangeNotifier {
         if (!_isInvestmentCategory(b.categoryName)) b.categoryName: b
     };
 
-    // For each predefined category (excluding investment)
-    for (final category in Category.predefined) {
-      if (category.isInvestment) continue; // ADR-0025 §6
+    // For each category (excluding investment)
+    final iterationList = _categories.isNotEmpty ? _categories : seedCategories;
+    for (final category in iterationList) {
+      if (category.kind == CategoryKind.investment) continue; // ADR-0025 §6
 
       final spent = categoryTotals[category.name] ?? 0;
 
       if (budgetMap.containsKey(category.name)) {
         // Has budget - calculate status
         final budget = budgetMap[category.name]!;
-        statuses.add(BudgetStatus.fromBudget(budget, spent));
+        statuses.add(BudgetStatus.fromBudget(budget, spent, emoji: category.emoji));
       } else if (spent > 0) {
         // No budget but has spent - show with limit=0
-        statuses.add(BudgetStatus.noBudget(category.name, spent));
+        statuses.add(BudgetStatus.noBudget(category.name, spent, emoji: category.emoji));
       }
       // If no budget and no spent, skip entirely
     }
@@ -417,5 +437,26 @@ class BudgetViewModel extends ChangeNotifier {
     statuses.sort((a, b) => b.percentUsed.compareTo(a.percentUsed));
 
     return statuses;
+  }
+
+  /// Resolve emoji for a category name from the loaded categories,
+  /// falling back to seed defaults, then 📌.
+  String _resolveEmoji(String categoryName) {
+    for (final c in _categories) {
+      if (c.name == categoryName) return c.emoji;
+    }
+    for (final c in seedCategories) {
+      if (c.name == categoryName) return c.emoji;
+    }
+    return '📌';
+  }
+
+  /// Reload categories. Used after restore or external mutation.
+  Future<void> reloadCategories() async {
+    final cats = await _categoryDataSource.getAll();
+    if (cats.isNotEmpty) {
+      _categories = List.unmodifiable(cats);
+      notifyListeners();
+    }
   }
 }

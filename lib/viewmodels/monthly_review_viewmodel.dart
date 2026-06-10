@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart' show visibleForTesting, ChangeNotifier,
 import '../models/budget.dart';
 import '../models/recurring_transaction.dart';
 import '../models/monthly_review_data.dart';
+import '../models/category.dart';
 import '../data/datasources/transaction_local_datasource.dart';
 import '../data/datasources/budget_local_datasource.dart';
 import '../data/datasources/budget_snapshot_local_datasource.dart';
 import '../data/datasources/recurring_local_datasource.dart';
+import '../data/datasources/category_local_datasource.dart';
 import '../data/mappers/budget_snapshot_row_mapper.dart';
 import '../services/monthly_review_builder.dart';
 
@@ -21,6 +23,7 @@ class MonthlyReviewViewModel extends ChangeNotifier {
   final BudgetLocalDataSource _budgetDataSource;
   final BudgetSnapshotLocalDataSource _budgetSnapshotDataSource;
   final RecurringLocalDataSource _recurringDataSource;
+  final CategoryLocalDataSource _categoryDataSource;
   final MonthlyReviewBuilder _builder;
 
   DateTime _selectedMonth = _firstOfMonth(DateTime.now());
@@ -41,11 +44,13 @@ class MonthlyReviewViewModel extends ChangeNotifier {
     required BudgetLocalDataSource budgetDataSource,
     required BudgetSnapshotLocalDataSource budgetSnapshotDataSource,
     required RecurringLocalDataSource recurringDataSource,
+    required CategoryLocalDataSource categoryDataSource,
     MonthlyReviewBuilder? builder,
   })  : _transactionDataSource = transactionDataSource,
         _budgetDataSource = budgetDataSource,
         _budgetSnapshotDataSource = budgetSnapshotDataSource,
         _recurringDataSource = recurringDataSource,
+        _categoryDataSource = categoryDataSource,
         _builder = builder ?? MonthlyReviewBuilder();
 
   // Getters
@@ -185,12 +190,19 @@ class MonthlyReviewViewModel extends ChangeNotifier {
           ? allRecurring.where((r) => r.isActive).toList()
           : <RecurringTransaction>[];
 
+      // Load categories (ADR-0027 §10: persisted catalog, never Category.predefined)
+      var categories = await _categoryDataSource.getAll();
+      if (categories.isEmpty) {
+        categories = List.of(seedCategories);
+      }
+
       // Build review data
       _data = _builder.build(
         currentMonthTxs: currentTxs,
         previousPeriodTxs: previousTxs,
         budgets: budgets,
         activeRecurringRules: activeRecurring,
+        categories: categories,
         selectedMonth: selectedStart,
         currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,

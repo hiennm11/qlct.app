@@ -8,6 +8,7 @@ import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/recurring_overview_widget.dart';
 
@@ -17,6 +18,9 @@ class MockRecurringLocalDataSource extends Mock
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class _FakeCategoryViewModel extends CategoryViewModel {
   _FakeCategoryViewModel() : super.seeded(seedCategories);
 }
@@ -24,6 +28,7 @@ class _FakeCategoryViewModel extends CategoryViewModel {
 void main() {
   late MockRecurringLocalDataSource mockRecurringRepo;
   late MockTransactionLocalDataSource mockTransactionRepo;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late RecurringTransactionViewModel vm;
 
   setUpAll(() {
@@ -39,11 +44,13 @@ void main() {
   setUp(() {
     mockRecurringRepo = MockRecurringLocalDataSource();
     mockTransactionRepo = MockTransactionLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
 
     when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockTransactionRepo.getAll()).thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
 
-    vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+    vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
   });
 
   Widget buildWidget() {
@@ -123,7 +130,7 @@ void main() {
     testWidgets('shows list of recurring rules', (tester) async {
       when(() => mockRecurringRepo.getAll())
           .thenAnswer((_) async => [sampleRule1, sampleRule2]);
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
@@ -137,7 +144,7 @@ void main() {
     testWidgets('shows frequency label "Hàng ngày" for daily', (tester) async {
       when(() => mockRecurringRepo.getAll())
           .thenAnswer((_) async => [sampleRule1]);
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
@@ -148,7 +155,7 @@ void main() {
     testWidgets('shows frequency label "Hàng tuần" for weekly', (tester) async {
       when(() => mockRecurringRepo.getAll())
           .thenAnswer((_) async => [sampleRule2]);
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
@@ -165,7 +172,7 @@ void main() {
       );
       when(() => mockRecurringRepo.getAll())
           .thenAnswer((_) async => [monthlyRule]);
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
@@ -186,7 +193,7 @@ void main() {
         ),
       );
       when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => rules);
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
@@ -219,7 +226,7 @@ void main() {
         createdAt: DateTime(2026, 6, 1),
       );
       when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => [rule]);
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
@@ -265,7 +272,7 @@ void main() {
       );
       when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => [rule]);
       when(() => mockRecurringRepo.update(any())).thenAnswer((_) async {});
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
@@ -287,7 +294,7 @@ void main() {
         createdAt: DateTime(2026, 6, 1),
       );
       when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => [rule]);
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
@@ -315,7 +322,7 @@ void main() {
     testWidgets('shows error message when errorMessage is set', (tester) async {
       when(() => mockRecurringRepo.getAll())
           .thenThrow(Exception('Database corrupted'));
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
       await vm.forceReload(); // Trigger load with throwing mock
 
       await tester.pumpWidget(buildWidget());
@@ -330,7 +337,7 @@ void main() {
     testWidgets('error text uses AppColors.error', (tester) async {
       when(() => mockRecurringRepo.getAll())
           .thenThrow(Exception('Test error'));
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
       await vm.forceReload(); // Trigger load with throwing mock
 
       await tester.pumpWidget(buildWidget());
@@ -349,7 +356,7 @@ void main() {
     testWidgets('error state shows SectionHeader with recurring title', (tester) async {
       when(() => mockRecurringRepo.getAll())
           .thenThrow(Exception('Error'));
-      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
       await vm.forceReload(); // Trigger load with throwing mock
 
       await tester.pumpWidget(buildWidget());

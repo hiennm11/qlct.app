@@ -19,6 +19,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -31,8 +32,8 @@ void main() {
     expect(names.contains('Đầu tư'), isFalse,
         reason: 'Đầu tư must be excluded');
 
-    final nonInvestment = Category.predefined
-        .where((c) => !c.isInvestment)
+    final nonInvestment = seedCategories
+        .where((c) => c.kind != CategoryKind.investment)
         .map((c) => c.name)
         .toList();
     expect(names.length, nonInvestment.length,
@@ -45,6 +46,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -81,6 +83,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -103,6 +106,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -127,6 +131,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -148,6 +153,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -168,6 +174,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -185,6 +192,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -208,6 +216,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -228,6 +237,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -247,6 +257,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -264,6 +275,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -293,6 +305,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: prevBudgets,
       liveTotalBudget: null,
@@ -320,6 +333,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: prevBudgets,
       liveTotalBudget: null,
@@ -343,6 +357,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -371,6 +386,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: baseBudgets,
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -397,6 +413,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: baseBudgets,
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -415,6 +432,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -437,6 +455,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -464,6 +483,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: baseBudgets,
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -486,6 +506,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -505,6 +526,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'currentBudget',
+      categories: seedCategories,
       baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -523,6 +545,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'currentBudget',
+      categories: seedCategories,
       baseBudgets: [_budget('Ăn ngoài', 3000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -544,6 +567,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'currentBudget',
+      categories: seedCategories,
       baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: 5000000,
@@ -562,6 +586,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'currentBudget',
+      categories: seedCategories,
       baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -580,6 +605,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'previousMonth',
+      categories: seedCategories,
       baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: 8000000,
@@ -598,6 +624,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'previousMonth',
+      categories: seedCategories,
       baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: 500000,
@@ -616,6 +643,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: 10000000,
@@ -635,6 +663,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 15),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -651,6 +680,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 1, 5),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -666,6 +696,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -681,6 +712,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -697,6 +729,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -711,10 +744,11 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────────
   // Grouping & sorting
   // ─────────────────────────────────────────────────────────────────────────
-  test('items sorted by Category.predefined order', () {
+  test('items sorted by seedCategories order', () {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -723,13 +757,13 @@ void main() {
       now: fixedNow,
     );
 
-    final expectedOrder = Category.predefined
-        .where((c) => !c.isInvestment)
+    final expectedOrder = seedCategories
+        .where((c) => c.kind != CategoryKind.investment)
         .map((c) => c.name)
         .toList();
     final actualOrder = data.items.map((i) => i.categoryName).toList();
     expect(actualOrder, expectedOrder,
-        reason: 'items must follow Category.predefined order');
+        reason: 'items must follow seedCategories order');
   });
 
   test('increaseItems/decreaseItems/keepItems sorted same as items', () {
@@ -742,6 +776,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: baseBudgets,
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -782,6 +817,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -801,6 +837,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -823,6 +860,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: baseBudgets,
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -841,6 +879,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: prevBudgets,
       liveTotalBudget: null,
@@ -858,6 +897,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -878,6 +918,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: baseBudgets,
       previousMonthBudgets: prevBudgets,
       liveTotalBudget: null,
@@ -904,6 +945,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -926,6 +968,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,
@@ -947,6 +990,7 @@ void main() {
       () => builder.buildDraft(
         targetMonth: DateTime(2026, 7, 1),
         source: 'bogus',
+        categories: seedCategories,
         baseBudgets: [],
         previousMonthBudgets: [],
         liveTotalBudget: null,
@@ -964,10 +1008,28 @@ void main() {
       () => builder.buildDraft(
         targetMonth: DateTime(2026, 7, 1),
         source: 'empty',
+        categories: seedCategories,
         baseBudgets: [],
         previousMonthBudgets: [],
         liveTotalBudget: null,
         recentCompletedMonthTransactions: [month, month, month, month],
+        previousMonthTransactions: [],
+        now: fixedNow,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('throws ArgumentError when categories is empty', () {
+    expect(
+      () => builder.buildDraft(
+        targetMonth: DateTime(2026, 7, 1),
+        source: 'empty',
+        categories: const [],
+        baseBudgets: [],
+        previousMonthBudgets: [],
+        liveTotalBudget: null,
+        recentCompletedMonthTransactions: [],
         previousMonthTransactions: [],
         now: fixedNow,
       ),
@@ -983,6 +1045,7 @@ void main() {
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
+      categories: seedCategories,
       baseBudgets: [],
       previousMonthBudgets: [],
       liveTotalBudget: null,

@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../models/category.dart';
 import '../models/recurring_transaction.dart';
 import '../viewmodels/recurring_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 import 'recurring_edit_dialog.dart';
 
 /// Full recurring transactions list bottom sheet.
@@ -77,7 +78,7 @@ class RecurringListSheet extends StatelessWidget {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (vm.errorMessage != null)
+                  if (vm.errorMessage != null) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
@@ -88,6 +89,7 @@ class RecurringListSheet extends StatelessWidget {
                         ),
                       ),
                     );
+                  }
 
                   final rules = vm.recurrings;
 
@@ -132,9 +134,13 @@ class RecurringListSheet extends StatelessWidget {
     RecurringTransaction rule,
     RecurringTransactionViewModel vm,
   ) {
-    final category = Category.predefined.firstWhere(
+    final catVM = context.read<CategoryViewModel>();
+    final knownCats = catVM.activeCategories.isNotEmpty
+        ? catVM.activeCategories
+        : seedCategories;
+    final category = knownCats.firstWhere(
       (c) => c.name == rule.categoryName,
-      orElse: () => Category.predefined.first,
+      orElse: () => knownCats.first,
     );
 
     return Dismissible(

@@ -64,7 +64,7 @@ void main() {
         _wrap(
           VoiceCoordinator(
             onResult: (_) {},
-            categories: Category.predefined,
+            categories: seedCategories,
             child: const Text('tap me'),
           ),
         ),
@@ -78,7 +78,7 @@ void main() {
         _wrap(
           VoiceCoordinator(
             onResult: (_) {},
-            categories: Category.predefined,
+            categories: seedCategories,
             voiceService: fake,
             child: const Text('mic'),
           ),
@@ -101,7 +101,7 @@ void main() {
         _wrap(
           VoiceCoordinator(
             onResult: (r) => captured = r,
-            categories: Category.predefined,
+            categories: seedCategories,
             voiceService: fake,
             child: const Text('mic'),
           ),
@@ -137,7 +137,7 @@ void main() {
         _wrap(
           VoiceCoordinator(
             onResult: (_) => called = true,
-            categories: Category.predefined,
+            categories: seedCategories,
             voiceService: fake,
             child: const Text('mic'),
           ),

@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
@@ -79,6 +81,10 @@ class _FakeTransactionDataSource implements TransactionLocalDataSource {
       List.of(_store);
 }
 
+/// Mock category data source — used by ExpenseViewModel for catalog lookups.
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 /// Fake export service — returns valid File objects so success SnackBars fire.
 class _FakeExportService extends ExportService {
   @override
@@ -134,10 +140,13 @@ Transaction _makeTx(String id, {int amount = 10000, String category = 'Ăn ngoà
 void main() {
   late ExpenseViewModel vm;
   late _FakeTransactionDataSource repo;
+  late MockCategoryLocalDataSource mockCategoryDS;
 
   setUp(() {
     repo = _FakeTransactionDataSource();
-    vm = ExpenseViewModel(repo, _FakeExportService());
+    mockCategoryDS = MockCategoryLocalDataSource();
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
+    vm = ExpenseViewModel(repo, _FakeExportService(), mockCategoryDS);
   });
 
   group('TransactionListWidget filter row', () {

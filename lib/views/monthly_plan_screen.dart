@@ -4,6 +4,7 @@ import 'package:qlct/core/formatters.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/category.dart';
 import 'package:qlct/services/monthly_budget_plan_builder.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/viewmodels/monthly_plan_viewmodel.dart';
 
 /// Full-screen Monthly Budget Planning screen.
@@ -368,7 +369,11 @@ class _ItemRowState extends State<_ItemRow> {
   }
 
   String _getEmoji(String categoryName) {
-    final cat = Category.predefined.where((c) => c.name == categoryName).firstOrNull;
+    final catVM = context.read<CategoryViewModel>();
+    final cats = catVM.activeCategories.isNotEmpty
+        ? catVM.activeCategories
+        : seedCategories;
+    final cat = cats.where((c) => c.name == categoryName).firstOrNull;
     return cat?.emoji ?? '📌';
   }
 

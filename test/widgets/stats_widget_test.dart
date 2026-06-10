@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
 import 'package:qlct/widgets/section_header.dart';
@@ -12,10 +13,14 @@ import 'package:qlct/widgets/stats_widget.dart';
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class MockExportService extends Mock implements ExportService {}
 
 void main() {
   late MockTransactionLocalDataSource mockRepo;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockExportService mockExport;
 
   setUpAll(() {
@@ -31,11 +36,13 @@ void main() {
 
   setUp(() {
     mockRepo = MockTransactionLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockExport = MockExportService();
     // Default: pagination returns empty page (needed after ADR-0017 D3.2)
     when(() => mockRepo.getAllPaginated(
             offset: any(named: 'offset'), limit: any(named: 'limit')))
         .thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
   });
 
   Widget wrap(
@@ -62,7 +69,7 @@ void main() {
     when(() => mockRepo.getAll()).thenAnswer((_) async => txs);
     when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
         .thenAnswer((_) async => txs);
-    return ExpenseViewModel(mockRepo, mockExport);
+    return ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
   }
 
   group('StatsWidget - SectionHeader integration (data state)', () {
@@ -146,7 +153,7 @@ void main() {
       // The loading skeleton is transient; we verify SectionHeader is rendered
       // at least once in any non-empty state.
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
-      final vm = ExpenseViewModel(mockRepo, mockExport);
+      final vm = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
 
       await tester.pumpWidget(wrap(vm));
       await tester.pumpAndSettle();

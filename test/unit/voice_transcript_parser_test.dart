@@ -7,7 +7,7 @@ void main() {
     late List<Category> categories;
 
     setUpAll(() {
-      categories = Category.predefined;
+      categories = seedCategories;
     });
 
     // ── Amount recognized ──────────────────────────────────────────────

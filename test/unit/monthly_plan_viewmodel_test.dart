@@ -9,6 +9,7 @@ import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:qlct/services/monthly_budget_plan_builder.dart';
 import 'package:qlct/viewmodels/monthly_plan_viewmodel.dart';
@@ -25,6 +26,9 @@ class MockBudgetSnapshotLocalDataSource extends Mock
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
+class MockCategoryLocalDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class FakeBudgetPlan extends Fake implements BudgetPlan {}
@@ -37,11 +41,14 @@ class FakeBudgetSnapshot extends Fake implements BudgetSnapshot {}
 
 class FakeTransaction extends Fake implements Transaction {}
 
+class FakeCategory extends Fake implements Category {}
+
 void main() {
   late MockBudgetPlanDataSource mockPlanDS;
   late MockBudgetLocalDataSource mockBudgetDS;
   late MockBudgetSnapshotLocalDataSource mockSnapshotDS;
   late MockTransactionLocalDataSource mockTxDS;
+  late MockCategoryLocalDataSource mockCategoryDS;
   late MockStorageService mockStorage;
   late MonthlyBudgetPlanBuilder builder;
 
@@ -51,6 +58,7 @@ void main() {
     registerFallbackValue(FakeBudget());
     registerFallbackValue(FakeBudgetSnapshot());
     registerFallbackValue(FakeTransaction());
+    registerFallbackValue(FakeCategory());
     registerFallbackValue(DateTime(2026, 6, 1));
   });
 
@@ -59,8 +67,11 @@ void main() {
     mockBudgetDS = MockBudgetLocalDataSource();
     mockSnapshotDS = MockBudgetSnapshotLocalDataSource();
     mockTxDS = MockTransactionLocalDataSource();
+    mockCategoryDS = MockCategoryLocalDataSource();
     mockStorage = MockStorageService();
     builder = MonthlyBudgetPlanBuilder();
+    // Stub category data source to return seed categories
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => seedCategories);
   });
 
   // Helper: make a simple transaction
@@ -103,6 +114,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -120,6 +132,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: DateTime(2026, 6, 15),
@@ -135,6 +148,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: DateTime(2026, 6, 15),
@@ -181,6 +195,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: DateTime(2026, 6, 15),
@@ -247,6 +262,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -294,6 +310,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -333,6 +350,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -363,6 +381,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -409,6 +428,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -449,6 +469,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -476,6 +497,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -508,6 +530,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -539,6 +562,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -568,6 +592,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -602,6 +627,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
@@ -649,14 +675,15 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: now,
       );
       await Future.delayed(Duration.zero);
 
-      final investmentCategories = Category.predefined
-          .where((c) => c.isInvestment)
+      final investmentCategories = seedCategories
+          .where((c) => c.kind == CategoryKind.investment)
           .map((c) => c.name)
           .toList();
 
@@ -685,6 +712,7 @@ void main() {
         budgetDataSource: mockBudgetDS,
         budgetSnapshotDataSource: mockSnapshotDS,
         transactionDataSource: mockTxDS,
+        categoryDataSource: mockCategoryDS,
         storageService: mockStorage,
         builder: builder,
         now: DateTime(2026, 6, 15),

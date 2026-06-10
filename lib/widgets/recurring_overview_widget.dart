@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../models/category.dart';
 import '../models/recurring_transaction.dart';
 import '../viewmodels/recurring_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 import 'recurring_edit_dialog.dart';
 import 'recurring_list_sheet.dart';
 import 'section_header.dart';
@@ -52,7 +53,7 @@ class RecurringOverviewWidget extends StatelessWidget {
           );
         }
 
-        if (vm.errorMessage != null)
+        if (vm.errorMessage != null) {
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -66,6 +67,7 @@ class RecurringOverviewWidget extends StatelessWidget {
               ),
             ),
           );
+        }
 
         return Card(
           child: Padding(
@@ -102,9 +104,13 @@ class RecurringOverviewWidget extends StatelessWidget {
   }
 
   Widget _buildRuleCard(BuildContext context, RecurringTransaction rule) {
-    final category = Category.predefined.firstWhere(
+    final catVM = context.read<CategoryViewModel>();
+    final knownCats = catVM.activeCategories.isNotEmpty
+        ? catVM.activeCategories
+        : seedCategories;
+    final category = knownCats.firstWhere(
       (c) => c.name == rule.categoryName,
-      orElse: () => Category.predefined.first,
+      orElse: () => knownCats.first,
     );
 
     return Dismissible(

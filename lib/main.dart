@@ -203,20 +203,29 @@ class MyApp extends StatelessWidget {
           create: (_) => CategoryViewModel(categoryDataSource),
         ),
         ChangeNotifierProvider(
-          create: (_) => ExpenseViewModel(transactionDataSource, exportService),
+          create: (_) => ExpenseViewModel(
+            transactionDataSource,
+            exportService,
+            categoryDataSource,
+          ),
         ),
         ChangeNotifierProxyProvider<ExpenseViewModel, BudgetViewModel>(
           create: (_) => BudgetViewModel(
             budgetDataSource,
             budgetSnapshotDataSource,
             budgetPlanDataSource,
+            categoryDataSource,
             storageService,
           ),
           update: (_, expenseVM, budgetVM) => budgetVM!
             ..updateStats(expenseVM.stats),
         ),
         ChangeNotifierProvider(
-          create: (_) => RecurringTransactionViewModel(recurringDataSource, transactionDataSource),
+          create: (_) => RecurringTransactionViewModel(
+            recurringDataSource,
+            transactionDataSource,
+            categoryDataSource,
+          ),
         ),
         ChangeNotifierProvider(
           create: (_) => QuickTemplateViewModel(quickTemplateDataSource),
@@ -237,6 +246,7 @@ class MyApp extends StatelessWidget {
             budgetDataSource: budgetDataSource,
             budgetSnapshotDataSource: budgetSnapshotDataSource,
             recurringDataSource: recurringDataSource,
+            categoryDataSource: categoryDataSource,
           ),
         ),
         ChangeNotifierProvider(
@@ -245,6 +255,7 @@ class MyApp extends StatelessWidget {
             budgetDataSource: budgetDataSource,
             budgetSnapshotDataSource: budgetSnapshotDataSource,
             transactionDataSource: transactionDataSource,
+            categoryDataSource: categoryDataSource,
             storageService: storageService,
             builder: MonthlyBudgetPlanBuilder(),
             now: DateTime.now(),

@@ -23,11 +23,11 @@ Transaction _tx({
 void main() {
   final engine = TransactionSuggestionEngine();
 
-  final anNgoai = Category.predefined.firstWhere((c) => c.name == 'Ăn ngoài');
-  final caPhe = Category.predefined.firstWhere((c) => c.name == 'Cà phê');
-  final subscription = Category.predefined.firstWhere((c) => c.name == 'Subscription');
-  final mucNha = Category.predefined.firstWhere((c) => c.name == 'Ăn nhà');
-  final khac = Category.predefined.firstWhere((c) => c.name == 'Khác');
+  final anNgoai = seedCategories.firstWhere((c) => c.name == 'Ăn ngoài');
+  final caPhe = seedCategories.firstWhere((c) => c.name == 'Cà phê');
+  final subscription = seedCategories.firstWhere((c) => c.name == 'Subscription');
+  final mucNha = seedCategories.firstWhere((c) => c.name == 'Ăn nhà');
+  final khac = seedCategories.firstWhere((c) => c.name == 'Khác');
 
   group('getSuggestedAmounts', () {
     test('empty transactions returns empty list', () {

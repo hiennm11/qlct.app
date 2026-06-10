@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/budget_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 import '../models/category.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
@@ -95,8 +96,6 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.categoryName != null;
-    // Get categories that don't have a budget yet (only when adding new)
-    final availableCategories = Category.predefined;
 
     return AlertDialog(
       title: Text(isEditing ? 'Sửa ngân sách' : 'Thêm ngân sách'),
@@ -108,55 +107,50 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!isEditing) ...[
-                const Text('Danh mục', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedCategory,
-                  decoration: const InputDecoration(
-                    hintText: 'Chọn danh mục',
-                  ),
-                  items: availableCategories
-                      .map((c) => DropdownMenuItem(
-                            value: c.name,
-                            child: Row(
-                              children: [
-                                Text(c.emoji, style: const TextStyle(fontSize: 18)),
-                                const SizedBox(width: 8),
-                                Text(c.name),
-                              ],
-                            ),
-                          ))
-                      .toList(),
-                  onChanged: (value) => setState(() => _selectedCategory = value),
-                  validator: (value) => value == null ? 'Vui lòng chọn danh mục' : null,
+                Consumer<CategoryViewModel>(
+                  builder: (context, catVM, _) {
+                    final availableCategories = catVM.activeCategories.isNotEmpty
+                        ? catVM.activeCategories
+                        : seedCategories;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Danh mục', style: TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedCategory,
+                          decoration: const InputDecoration(
+                            hintText: 'Chọn danh mục',
+                          ),
+                          items: availableCategories
+                              .map((c) => DropdownMenuItem(
+                                    value: c.name,
+                                    child: Row(
+                                      children: [
+                                        Text(c.emoji, style: const TextStyle(fontSize: 18)),
+                                        const SizedBox(width: 8),
+                                        Text(c.name),
+                                      ],
+                                    ),
+                                  ))
+                              .toList(),
+                          onChanged: (value) => setState(() => _selectedCategory = value),
+                          validator: (value) => value == null ? 'Vui lòng chọn danh mục' : null,
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
               ] else
-                Row(
-                  children: [
-                    Text(
-                      Category.predefined
-                          .firstWhere(
-                            (c) => c.name == widget.categoryName,
-                            orElse: () => Category(
-                              id: '',
-                              name: '',
-                              normalizedName: '',
-                              emoji: '📌',
-                              kind: CategoryKind.spending,
-                              budgetBehavior: BudgetBehavior.flexible,
-                              quickAmountMin: 0,
-                              quickAmountDefault: 0,
-                              quickAmountMax: 0,
-                              voicePhrases: [],
-                              sortOrder: 9999,
-                              isSystem: false,
-                              isArchived: false,
-                              createdAt: DateTime(1970),
-                              updatedAt: DateTime(1970),
-                            ),
-                          )
-                          .emoji,
+                Consumer<CategoryViewModel>(
+                  builder: (context, catVM, _) {
+                    final cat = catVM.categoryByName(widget.categoryName!);
+                    final emoji = cat?.emoji ?? '📌';
+                    return Row(
+                      children: [
+                        Text(
+                          emoji,
                       style: const TextStyle(fontSize: 20),
                     ),
                     const SizedBox(width: 8),
@@ -165,7 +159,9 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ],
-                ),
+                );
+              },
+            ),
               const SizedBox(height: 16),
               const Text('Hạn mức tháng', style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),

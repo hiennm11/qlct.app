@@ -5,17 +5,27 @@ import '../models/transaction.dart';
 import '../models/category.dart';
 import '../data/datasources/recurring_local_datasource.dart';
 import '../data/datasources/transaction_local_datasource.dart';
+import '../data/datasources/category_local_datasource.dart';
 
 class RecurringTransactionViewModel extends ChangeNotifier {
   final RecurringLocalDataSource _recurringDataSource;
   final TransactionLocalDataSource _transactionDataSource;
+  final CategoryLocalDataSource _categoryDataSource;
 
   List<RecurringTransaction> _recurrings = [];
+  List<Category> _categories = const [];
   bool _isLoading = false;
   String? _errorMessage;
   bool _isGenerating = false;
 
-  RecurringTransactionViewModel(this._recurringDataSource, this._transactionDataSource) {
+  RecurringTransactionViewModel(
+    this._recurringDataSource,
+    this._transactionDataSource,
+    this._categoryDataSource, {
+    List<Category>? initialCategories,
+  }) : _categories = initialCategories != null
+      ? List.unmodifiable(initialCategories)
+      : const [] {
     Future.microtask(() => _loadRecurrings());
   }
 
@@ -27,6 +37,14 @@ class RecurringTransactionViewModel extends ChangeNotifier {
   /// Force reload recurring rules from repository (used after restore)
   Future<void> forceReload() async {
     await _loadRecurrings();
+  }
+
+  /// Reload categories from datasource. Used after restore or external mutation.
+  Future<void> reloadCategories() async {
+    final cats = await _categoryDataSource.getAll();
+    if (cats.isEmpty) return;
+    _categories = List.unmodifiable(cats);
+    notifyListeners();
   }
 
   /// Load all recurring rules
@@ -65,10 +83,11 @@ class RecurringTransactionViewModel extends ChangeNotifier {
           final alreadyExists = await _transactionDataSource.existsBySourceRecurringIdAndDate(rule.id, dateStr);
           if (alreadyExists) continue;
 
-          // Get emoji from category
-          final category = Category.predefined.firstWhere(
+          // Get emoji from cached categories
+          final cats = _categories.isNotEmpty ? _categories : seedCategories;
+          final category = cats.firstWhere(
             (c) => c.name == rule.categoryName,
-            orElse: () => Category.predefined.first,
+            orElse: () => cats.first,
           );
 
           // Create transaction
@@ -88,7 +107,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
           // Update nextRunAt
           final next = calculateNextRun(now, rule.frequency);
           await _recurringDataSource.updateNextRunAt(rule.id, next);
-        } catch (e, stack) {
+        } catch (e) {
           debugPrint('❌ Failed to generate for rule ${rule.id}: $e');
           // continue to next rule
         }

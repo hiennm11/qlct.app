@@ -5,6 +5,7 @@ import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/expense_stats.dart';
 import '../data/datasources/transaction_local_datasource.dart';
+import '../data/datasources/category_local_datasource.dart';
 import '../services/export_service.dart';
 import 'dart:io';
 
@@ -12,6 +13,7 @@ import 'dart:io';
 class ExpenseViewModel extends ChangeNotifier {
   final TransactionLocalDataSource _dataSource;
   final ExportService _exportService;
+  final CategoryLocalDataSource _categoryDataSource;
 
   List<Transaction> _transactions = [];
   List<Transaction> _searchResults = [];
@@ -40,7 +42,17 @@ class ExpenseViewModel extends ChangeNotifier {
     _statsDirty = true;
   }
 
-  ExpenseViewModel(this._dataSource, this._exportService) {
+  ExpenseViewModel(
+    this._dataSource,
+    this._exportService,
+    this._categoryDataSource, {
+    List<Category>? initialCategories,
+  }) {
+    // Pre-seeded categories for tests / sync callers. Otherwise the
+    // datasource is hit on first `categories` access.
+    if (initialCategories != null) {
+      _cachedCategories = List.unmodifiable(initialCategories);
+    }
     Future.microtask(() => _loadInitialPage());
   }
 
@@ -67,7 +79,40 @@ class ExpenseViewModel extends ChangeNotifier {
     }
     return _cachedStats!;
   }
-  List<Category> get categories => Category.predefined;
+  /// Cached category list loaded from [CategoryLocalDataSource] on first
+  /// access. Seeded from `initialCategories` in constructor (test seam)
+  /// to keep public API synchronous for widgets that read this getter
+  /// during build.
+  List<Category> _cachedCategories = const [];
+  List<Category> get categories {
+    if (_cachedCategories.isEmpty) {
+      // Lazy fallback for the period between constructor and first reload:
+      // seed defaults so widgets never see an empty list. The async
+      // reload below replaces the list with persisted data.
+      _cachedCategories = List.unmodifiable(seedCategories);
+      // Kick off async refresh if we don't have real data yet.
+      if (!_categoryLoadInFlight) {
+        _categoryLoadInFlight = true;
+        _categoryDataSource.getAll().then((cats) {
+          _categoryLoadInFlight = false;
+          if (cats.isEmpty) return;
+          _cachedCategories = List.unmodifiable(cats);
+          notifyListeners();
+        });
+      }
+    }
+    return _cachedCategories;
+  }
+
+  bool _categoryLoadInFlight = false;
+
+  /// Force reload of categories. Called by BackupViewModel after restore.
+  Future<void> reloadCategories() async {
+    final cats = await _categoryDataSource.getAll();
+    if (cats.isEmpty) return;
+    _cachedCategories = List.unmodifiable(cats);
+    notifyListeners();
+  }
 
   /// True if any filter (date, category, range, or search) is active
   bool get hasActiveFilters =>

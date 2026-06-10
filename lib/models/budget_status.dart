@@ -1,5 +1,4 @@
 import '../models/budget.dart';
-import '../models/category.dart';
 
 /// Alert level for budget status
 enum AlertLevel { normal, warning, exceeded }
@@ -65,8 +64,11 @@ class BudgetStatus {
     required this.alertLevel,
   });
 
-  /// Create BudgetStatus from Budget and spent amount
-  factory BudgetStatus.fromBudget(Budget budget, int spent) {
+  /// Create BudgetStatus from Budget and spent amount.
+  ///
+  /// [emoji] must be provided by the caller — do not read category catalog
+  /// here per ADR-0027 §12.
+  factory BudgetStatus.fromBudget(Budget budget, int spent, {required String emoji}) {
     final limit = budget.monthlyLimit;
     final remaining = (limit - spent).clamp(0, limit);
     final percentUsed = limit > 0 ? ((spent / limit) * 100).round().clamp(0, 100) : 0;
@@ -80,31 +82,9 @@ class BudgetStatus {
       alertLevel = AlertLevel.normal;
     }
 
-    // Find emoji from Category.predefined
-    final category = Category.predefined.firstWhere(
-      (c) => c.name == budget.categoryName,
-      orElse: () => Category(
-        id: '',
-        name: '',
-        normalizedName: '',
-        emoji: '📌',
-        kind: CategoryKind.spending,
-        budgetBehavior: BudgetBehavior.flexible,
-        quickAmountMin: 0,
-        quickAmountDefault: 0,
-        quickAmountMax: 0,
-        voicePhrases: [],
-        sortOrder: 9999,
-        isSystem: false,
-        isArchived: false,
-        createdAt: DateTime(1970),
-        updatedAt: DateTime(1970),
-      ),
-    );
-
     return BudgetStatus(
       categoryName: budget.categoryName,
-      emoji: category.emoji,
+      emoji: emoji,
       spent: spent,
       limit: limit,
       remaining: remaining,
@@ -113,32 +93,13 @@ class BudgetStatus {
     );
   }
 
-  /// Create BudgetStatus for category with spending but no budget
-  factory BudgetStatus.noBudget(String categoryName, int spent) {
-    final category = Category.predefined.firstWhere(
-      (c) => c.name == categoryName,
-      orElse: () => Category(
-        id: '',
-        name: '',
-        normalizedName: '',
-        emoji: '📌',
-        kind: CategoryKind.spending,
-        budgetBehavior: BudgetBehavior.flexible,
-        quickAmountMin: 0,
-        quickAmountDefault: 0,
-        quickAmountMax: 0,
-        voicePhrases: [],
-        sortOrder: 9999,
-        isSystem: false,
-        isArchived: false,
-        createdAt: DateTime(1970),
-        updatedAt: DateTime(1970),
-      ),
-    );
-
+  /// Create BudgetStatus for category with spending but no budget.
+  ///
+  /// [emoji] must be provided by the caller per ADR-0027 §12.
+  factory BudgetStatus.noBudget(String categoryName, int spent, {required String emoji}) {
     return BudgetStatus(
       categoryName: categoryName,
-      emoji: category.emoji,
+      emoji: emoji,
       spent: spent,
       limit: 0,
       remaining: 0,

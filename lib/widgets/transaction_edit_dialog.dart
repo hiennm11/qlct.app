@@ -77,7 +77,7 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
           if (catVM.activeCategories.isNotEmpty) {
             found = catVM.activeCategories.first;
           } else {
-            found = Category.predefined.first;
+            found = seedCategories.first;
           }
         }
         final category = found;
@@ -191,7 +191,7 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
                 builder: (context, catVM, _) {
                   final cats = catVM.quickInputCategories.isNotEmpty
                       ? catVM.quickInputCategories
-                      : Category.predefined;
+                      : seedCategories;
                   return DropdownButtonFormField<String>(
                     initialValue: cats.any((c) => c.name == _selectedCategory)
                         ? _selectedCategory

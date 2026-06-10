@@ -22,12 +22,17 @@ const kMaxRecentCompletedMonths = 3;
 /// All computation is deterministic given the same inputs.
 ///
 /// ADR-0026: Monthly Budget Planning
+/// ADR-0027: Uses caller-supplied [categories] for investment checks and
+/// item iteration (no Category.predefined).
 class MonthlyBudgetPlanBuilder {
   /// Build a planning draft for [targetMonth].
   ///
   /// [source] — initialization source: must be one of
   ///   `kBudgetPlanSourcePreviousMonth` | `kBudgetPlanSourceCurrentBudget`
   ///   | `kBudgetPlanSourceEmpty`. Throws [ArgumentError] otherwise.
+  /// [categories] — all categories for investment exclusion and item iteration.
+  ///   Caller typically provides `CategoryViewModel.allCategories` or seeds.
+  ///   Throws [ArgumentError] if empty.
   /// [baseBudgets] — source-selected base budgets for `baseLimit` and `alertThreshold`.
   /// [previousMonthBudgets] — for over-budget detection.
   /// [liveTotalBudget] — current live total budget (used in `currentBudget` and
@@ -43,6 +48,7 @@ class MonthlyBudgetPlanBuilder {
   MonthlyBudgetPlanData buildDraft({
     required DateTime targetMonth,
     required String source,
+    required List<Category> categories,
     required List<Budget> baseBudgets,
     required List<Budget> previousMonthBudgets,
     required int? liveTotalBudget,
@@ -55,6 +61,13 @@ class MonthlyBudgetPlanBuilder {
         source,
         'source',
         'must be one of ${_kValidSources.join(' | ')}',
+      );
+    }
+    if (categories.isEmpty) {
+      throw ArgumentError.value(
+        categories,
+        'categories',
+        'must not be empty',
       );
     }
     if (recentCompletedMonthTransactions.length > kMaxRecentCompletedMonths) {
@@ -73,10 +86,18 @@ class MonthlyBudgetPlanBuilder {
       for (final b in previousMonthBudgets) b.categoryName: b
     };
 
+    // Investment category lookup by name from injected list
+    bool isCatInvestment(String name) {
+      for (final c in categories) {
+        if (c.name == name) return c.kind == CategoryKind.investment;
+      }
+      return false;
+    }
+
     // lastMonthSpent aggregated per non-investment category
     final lastMonthSpentMap = <String, int>{};
     for (final tx in previousMonthTransactions) {
-      if (_isInvestment(tx.category)) continue;
+      if (isCatInvestment(tx.category)) continue;
       lastMonthSpentMap[tx.category] =
           (lastMonthSpentMap[tx.category] ?? 0) + tx.amount;
     }
@@ -86,18 +107,18 @@ class MonthlyBudgetPlanBuilder {
     for (final monthTxs in recentCompletedMonthTransactions) {
       final monthByCategory = <String, int>{};
       for (final tx in monthTxs) {
-        if (_isInvestment(tx.category)) continue;
+        if (isCatInvestment(tx.category)) continue;
         monthByCategory[tx.category] =
             (monthByCategory[tx.category] ?? 0) + tx.amount;
       }
-      for (final cat in Category.predefined.where((c) => !c.isInvestment)) {
+      for (final cat in categories.where((c) => c.kind != CategoryKind.investment)) {
         (recentMonthSpends[cat.name] ??= []).add(monthByCategory[cat.name] ?? 0);
       }
     }
 
     final items = <BudgetPlanItem>[];
-    for (final cat in Category.predefined) {
-      if (cat.isInvestment) continue;
+    for (final cat in categories) {
+      if (cat.kind == CategoryKind.investment) continue;
 
       final base = baseMap[cat.name];
       final previous = previousMap[cat.name];
@@ -250,13 +271,6 @@ class MonthlyBudgetPlanBuilder {
       default:
         return sumPlanned;
     }
-  }
-
-  bool _isInvestment(String categoryName) {
-    final cat = Category.predefined
-        .where((c) => c.name == categoryName)
-        .firstOrNull;
-    return cat?.isInvestment ?? false;
   }
 
   String _formatYearMonth(DateTime d) {
