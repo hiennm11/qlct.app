@@ -7,7 +7,7 @@ Flutter mobile app. Personal expense tracker. Converted from HTML/JS SPA prototy
 | Term (vi) | Term (code) | Definition |
 |-----------|-------------|------------|
 | **Giao dịch** | `Transaction` | 1 expense entry: amount + category + emoji + date + optional note |
-| **Danh mục** | `Category` | Spending/investment classification used by transactions, quick input, voice matching, budget, review, and planning. ADR-0027 persisted category catalog: stable `id`, display `name`, emoji, quick amount range, voice phrases, `CategoryKind`, and `BudgetBehavior`. Runtime category reads route through persisted catalog APIs; `seedCategories` is only default seed/test fixture data. |
+| **Danh mục** | `Category` | Spending/investment classification used by transactions, quick input, voice matching, budget, review, and planning. ADR-0027 persisted category catalog: stable `id`, display `name`, emoji, quick amount range, voice phrases, `CategoryKind`, and `BudgetBehavior`. ADR-0028 category management edits safe fields only (`emoji`, quick amount range, voice phrases, sort order, archive); rename/create/delete wait for `categoryId` migration. Runtime category reads route through persisted catalog APIs; `seedCategories` is only default seed/test fixture data. |
 | **Loại danh mục** | `CategoryKind` | ADR-0027 category classification: `spending` or `investment`. Investment remains capital allocation, not consumption spending. |
 | **Hành vi ngân sách của danh mục** | `BudgetBehavior` | ADR-0027 category budget behavior: `flexible`, `fixed`, or `excluded`. Flexible categories can participate in budget/planning/rollover; fixed categories represent fixed-ish spending; excluded categories stay out of spending budget semantics. |
 | **Ghi chép nhanh** | Quick Input | Category grid with range sliders. Tap "Thêm" to log at preset/default amount |
@@ -68,7 +68,7 @@ Storage: SQLite (sqflite) — transactions, budgets, budget_snapshots, budget_pl
 lib/
 ├── core/           — Constants, theme, formatters, Vietnamese number parser
 ├── data/
-│   ├── database/   — DatabaseHelper (SQLite connection, version 11, migration, runInTransaction)
+│   ├── database/   — DatabaseHelper (SQLite connection, version 12, migration, runInTransaction)
 │   ├── datasources/— TransactionLocalDataSource, BudgetLocalDataSource,
 │   │                 BudgetSnapshotLocalDataSource, BudgetPlanLocalDataSource,
 │   │                 RecurringLocalDataSource,
@@ -88,14 +88,16 @@ lib/
 │                     TransactionSuggestionEngine (pure derived suggestions, no DB)
 ├── viewmodels/     — ExpenseViewModel, BudgetViewModel,
 │                     MonthlyPlanViewModel, RecurringTransactionViewModel,
-│                     QuickTemplateViewModel, BackupViewModel
+│                     QuickTemplateViewModel, CategoryViewModel, BackupViewModel
 │                     (multi-VM, depend on DataSource interfaces, not Repository)
-├── views/          — HomeScreen, BackupRestoreScreen, MonthlyPlanScreen
+├── views/          — HomeScreen, BackupRestoreScreen, MonthlyPlanScreen,
+│                     CategoryManagementScreen
 ├── widgets/        — StatsWidget, QuickAddBar, QuickInputWidget, CustomInputWidget,
 │                     QuickTemplatesStrip, ManageTemplatesSheet, QuickTemplateEditSheet,
 │                     TransactionListWidget, ChartWidget, BudgetOverviewWidget,
 │                     RecurringOverviewWidget, RecurringEditDialog,
 │                     RecurringListSheet, TransactionEditDialog, TransactionDetailSheet,
+│                     CategoryEditSheet,
 │                     voice/ (VoiceCoordinator, VoiceResult, VoiceTranscriptParser,
 │                     VoiceInputModal),
 │                     transaction_filter_row, transaction_row,
@@ -159,7 +161,7 @@ Monthly Review budget insight → MonthlyReviewViewModel.loadMonth(selectedMonth
 2. **SQLite storage via DataSource** — `SqliteTransactionDataSource` handles all CRUD. ViewModels phụ thuộc DataSource interface trực tiếp (không qua Repository). Row mappers trong `data/mappers/`. Xem ADR-0004, ADR-0018.
 3. **UUID primary keys** — `Transaction.id` is `String` (UUID v4). Rationale: future-proof for multi-device sync, no collision risk. See ADR-0004.
 4. **Server-side query filtering** — `getByDate`, `getByCategory`, `getByDateRange` use SQL WHERE clauses, not in-memory filtering. Only `getAll()` loads full list (for ViewModel stats calculation).
-5. **Persisted category catalog** — ADR-0027 moved category source of truth to SQLite `categories` table exposed through `CategoryLocalDataSource` and `CategoryViewModel`. Default categories have stable semantic IDs, future custom categories use UUIDs, names are globally unique by normalized Vietnamese name, and current Phase 2.5A keeps legacy financial tables on `categoryName` until Phase 2.6 adds `categoryId` references. `seedCategories` remains default seed/test fixture data only.
+5. **Persisted category catalog** — ADR-0027 moved category source of truth to SQLite `categories` table exposed through `CategoryLocalDataSource` and `CategoryViewModel`. ADR-0028 adds safe-fields category management: users may edit emoji, quick amount range, voice phrases, sort order, and archive status; rename/create/delete/kind/behavior edits wait until after the `categoryId` migration. Default categories have stable semantic IDs, future custom categories use UUIDs, names are globally unique by normalized Vietnamese name, and current Phase 2.5A keeps legacy financial tables on `categoryName` until Phase 2.6 adds `categoryId` references. `seedCategories` remains default seed/test fixture data only.
 6. **Voice → number parser** — `VietnameseNumberParser` handles "năm mươi nghìn" → 50000, plus numeric "50.000" format.
 7. **CSV via package:csv** — Not manual string join. Uses `ListToCsvConverter`.
 8. **Chart via fl_chart** — PieChart (`PieChart`) with legend. Only month-to-date category breakdown.

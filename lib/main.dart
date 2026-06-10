@@ -200,7 +200,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => CategoryViewModel(categoryDataSource),
+          create: (_) => CategoryViewModel(categoryDataSource, budgetDataSource),
         ),
         ChangeNotifierProvider(
           create: (_) => ExpenseViewModel(

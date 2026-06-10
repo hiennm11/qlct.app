@@ -14,6 +14,7 @@ import '../core/constants.dart';
 import '../core/theme.dart';
 import 'backup_restore_screen.dart';
 import 'monthly_review_screen.dart';
+import 'category_management_screen.dart';
 
 /// Main home screen for the expense tracking app
 class HomeScreen extends StatefulWidget {
@@ -170,6 +171,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   );
                   break;
+                case 'category_management':
+                  CategoryManagementScreen.navigateTo(context);
+                  break;
                 case 'about':
                   _showAboutDialog();
                   break;
@@ -208,6 +212,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListTile(
                     leading: Icon(Icons.backup),
                     title: Text('Sao lưu & Khôi phục'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'category_management',
+                  child: ListTile(
+                    leading: Icon(Icons.category),
+                    title: Text('Quản lý danh mục'),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),

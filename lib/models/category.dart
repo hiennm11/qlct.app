@@ -51,6 +51,41 @@ class Category with _$Category {
       _$CategoryFromJson(json);
 }
 
+/// ADR-0028 §8: Validate safe fields for edit on the Category model.
+/// Returns a list of human-readable error messages (empty = valid).
+extension CategoryEditValidation on Category {
+  List<String> validateForEdit() {
+    final errors = <String>[];
+
+    if (emoji.trim().isEmpty) {
+      errors.add('Emoji không được trống');
+    }
+    if (quickAmountMin <= 0) {
+      errors.add('Số tiền tối thiểu phải lớn hơn 0');
+    }
+    if (quickAmountMin > quickAmountDefault) {
+      errors.add('Số tiền tối thiểu không được lớn hơn số tiền mặc định');
+    }
+    if (quickAmountDefault > quickAmountMax) {
+      errors.add('Số tiền mặc định không được lớn hơn số tiền tối đa');
+    }
+    if (quickAmountMax > 999999999) {
+      errors.add('Số tiền tối đa không được vượt quá 999.999.999');
+    }
+    if (voicePhrases.any((p) => p.trim().isEmpty)) {
+      errors.add('Danh sách cụm từ không được chứa giá trị rỗng');
+    }
+    if (sortOrder <= 0) {
+      errors.add('Thứ tự hiển thị phải lớn hơn 0');
+    }
+    if (id == 'other' && isArchived) {
+      errors.add('Không thể lưu trữ danh mục "Khác" vì đây là danh mục mặc định');
+    }
+
+    return errors;
+  }
+}
+
 /// Seed default categories per ADR-0027 §5 and §10.
 List<Category> get seedCategories {
   final now = DateTime(2026, 1, 1, 0, 0, 0);

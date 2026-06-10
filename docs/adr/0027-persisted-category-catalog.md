@@ -479,3 +479,4 @@ Implementation notes:
 - Restore merge uses last-write-wins by `updatedAt` for category conflicts.
 - Old backups missing `categories` seed defaults when category table is empty.
 - All production code now routes through `CategoryLocalDataSource` / `CategoryViewModel`. `Category.predefined` and `CategoryCompatibilityX` removed from production use.
+- ADR-0028 safe-fields management UI added: `Category.validateForEdit()` extension, `CategoryViewModel.updateCategory/resetSystemCategory/toggleArchive` mutations (with budget-aware archive guard), full-screen `CategoryManagementScreen` reachable from the gear menu as "Quản lý danh mục", and `CategoryEditSheet` bottom sheet for editing safe fields (emoji, quick amounts, voice phrases, sort order, archive). Rename/create/hard-delete still deferred.

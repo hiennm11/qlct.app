@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/category_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_local_datasource.dart';
 
 /// No-op datasource used only by the test constructor.
 class _NullDataSource implements CategoryLocalDataSource {
@@ -28,12 +29,13 @@ class _NullDataSource implements CategoryLocalDataSource {
 /// Does NOT block runApp.
 class CategoryViewModel extends ChangeNotifier {
   final CategoryLocalDataSource _dataSource;
+  final BudgetLocalDataSource? _budgetDataSource;
 
   List<Category> _allCategories = [];
   bool _isLoading = false;
   String? _errorMessage;
 
-  CategoryViewModel(this._dataSource) {
+  CategoryViewModel(this._dataSource, [this._budgetDataSource]) {
     Future.microtask(() => reload());
   }
 
@@ -41,8 +43,24 @@ class CategoryViewModel extends ChangeNotifier {
   /// Skips datasource interaction entirely. Use in tests to avoid async setup.
   @visibleForTesting
   CategoryViewModel.seeded(List<Category> categories)
-      : _dataSource = _NullDataSource() {
+      : _dataSource = _NullDataSource(),
+        _budgetDataSource = null {
     _allCategories = List.from(categories);
+  }
+
+  /// Test constructor with explicit fake datasources.
+  /// Uses microtask to load categories; tests should wait for the load
+  /// to complete (or use a small delay) before calling mutations.
+  @visibleForTesting
+  CategoryViewModel.seededWithDeps(
+    CategoryLocalDataSource catDs,
+    BudgetLocalDataSource? budgetDs,
+  )  : _dataSource = catDs,
+        _budgetDataSource = budgetDs {
+    Future.microtask(() async {
+      _allCategories = await catDs.getAll();
+      notifyListeners();
+    });
   }
 
   // Getters
@@ -123,6 +141,113 @@ class CategoryViewModel extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  // ===== ADR-0028 §9: Mutation methods =====
+
+  /// Update a category's safe fields (emoji, quick amounts, voicePhrases,
+  /// sortOrder, isArchived). Validates first.
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> updateCategory(Category updated) async {
+    final errors = updated.validateForEdit();
+    if (errors.isNotEmpty) {
+      _errorMessage = errors.first;
+      notifyListeners();
+      return false;
+    }
+    try {
+      await _dataSource.upsert(updated);
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Reset a system category to seed defaults for safe fields only.
+  /// Safe fields: emoji, quick amounts, voicePhrases, sortOrder, isArchived=false.
+  /// Keeps: id, name, normalizedName, kind, budgetBehavior, isSystem, createdAt.
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> resetSystemCategory(String categoryId) async {
+    final existing = categoryById(categoryId);
+    if (existing == null || !existing.isSystem) {
+      _errorMessage = 'Không tìm thấy danh mục hệ thống';
+      notifyListeners();
+      return false;
+    }
+    final seed = seedCategories
+        .cast<Category?>()
+        .firstWhere((s) => s!.id == categoryId, orElse: () => null);
+    if (seed == null) {
+      _errorMessage = 'Không tìm thấy danh mục hệ thống';
+      notifyListeners();
+      return false;
+    }
+    final restored = existing.copyWith(
+      emoji: seed.emoji,
+      quickAmountMin: seed.quickAmountMin,
+      quickAmountDefault: seed.quickAmountDefault,
+      quickAmountMax: seed.quickAmountMax,
+      voicePhrases: seed.voicePhrases,
+      sortOrder: seed.sortOrder,
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    );
+    try {
+      await _dataSource.upsert(restored);
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Toggle archive state. Blocks `other` id and blocks archiving if a live
+  /// budget with monthlyLimit > 0 exists for this category.
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> toggleArchive(String categoryId) async {
+    final existing = categoryById(categoryId);
+    if (existing == null) {
+      _errorMessage = 'Không tìm thấy danh mục';
+      notifyListeners();
+      return false;
+    }
+    if (categoryId == 'other') {
+      _errorMessage = 'Không thể lưu trữ danh mục "Khác" vì đây là danh mục mặc định';
+      notifyListeners();
+      return false;
+    }
+    // Archive guard: if archiving, check for live budget with limit > 0
+    if (!existing.isArchived) {
+      final budgetDs = _budgetDataSource;
+      if (budgetDs != null) {
+        final budget = await budgetDs.getByCategory(existing.name);
+        if (budget != null && budget.monthlyLimit > 0) {
+          _errorMessage =
+              'Không thể lưu trữ danh mục "${existing.name}" vì đang có ngân sách hoạt động. '
+              'Vui lòng xoá ngân sách trước.';
+          notifyListeners();
+          return false;
+        }
+      }
+    }
+    final toggled = existing.copyWith(
+      isArchived: !existing.isArchived,
+      updatedAt: DateTime.now(),
+    );
+    try {
+      await _dataSource.upsert(toggled);
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
   }
 
   /// Normalizes Vietnamese text for category name matching.
