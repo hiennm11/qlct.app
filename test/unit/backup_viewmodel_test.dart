@@ -181,6 +181,7 @@ void main() {
         budgetSnapshotCount: 4,
         budgetPlanCount: 1,
         budgetPlanItemCount: 3,
+        categoryCount: 11,
       );
       when(() => backupService.getCurrentCounts())
           .thenAnswer((_) async => expected);
@@ -188,7 +189,7 @@ void main() {
       final result = await viewModel.getCurrentCounts();
 
       expect(result, equals(expected));
-      expect(result.total, 28);
+      expect(result.total, 39);
       expect(result.isEmpty, isFalse);
     });
 
@@ -201,6 +202,7 @@ void main() {
         budgetSnapshotCount: 0,
         budgetPlanCount: 0,
         budgetPlanItemCount: 0,
+        categoryCount: 0,
       );
       when(() => backupService.getCurrentCounts())
           .thenAnswer((_) async => expected);
@@ -330,6 +332,7 @@ void main() {
                 budgetSnapshotsImported: 0,
                 budgetPlansImported: 0,
                 budgetPlanItemsImported: 0,
+                categoriesImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -356,6 +359,7 @@ void main() {
                 budgetSnapshotsImported: 0,
                 budgetPlansImported: 0,
                 budgetPlanItemsImported: 0,
+                categoriesImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -386,13 +390,14 @@ void main() {
       when(() => mockBackupService.restore(any(), any()))
           .thenAnswer((_) async => const RestoreResult(
                 success: true,
-                transactionsImported: 5,
-                budgetsImported: 2,
-                recurringsImported: 1,
-                quickTemplatesImported: 3,
+                transactionsImported: 0,
+                budgetsImported: 0,
+                recurringsImported: 0,
+                quickTemplatesImported: 0,
                 budgetSnapshotsImported: 4,
                 budgetPlansImported: 0,
                 budgetPlanItemsImported: 0,
+                categoriesImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -431,6 +436,7 @@ void main() {
                 budgetSnapshotsImported: 0,
                 budgetPlansImported: 0,
                 budgetPlanItemsImported: 0,
+                categoriesImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -480,6 +486,7 @@ void main() {
                 budgetSnapshotsImported: 0,
                 budgetPlansImported: 0,
                 budgetPlanItemsImported: 0,
+                categoriesImported: 0,
               ));
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
           .thenAnswer((_) async {});
@@ -525,6 +532,7 @@ void main() {
           budgetSnapshotsImported: 0,
           budgetPlansImported: 2,
           budgetPlanItemsImported: 8,
+          categoriesImported: 0,
         ),
       );
       when(() => mockExpenseVM.refreshAfterExternalDataChange())
@@ -564,6 +572,7 @@ void main() {
           budgetSnapshotsImported: 0,
           budgetPlansImported: 1,
           budgetPlanItemsImported: 5,
+          categoriesImported: 0,
         ),
       );
       when(() => mockExpenseVM.refreshAfterExternalDataChange())

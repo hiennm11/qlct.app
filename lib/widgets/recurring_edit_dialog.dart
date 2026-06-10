@@ -6,23 +6,27 @@ import '../models/transaction.dart';
 import '../core/formatters.dart';
 import '../services/transaction_suggestion_engine.dart';
 import '../viewmodels/expense_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 
 class RecurringEditDialog extends StatefulWidget {
   final RecurringTransaction? existing; // null = add mode
   /// Optional ExpenseViewModel for suggestion chips.
   /// When provided, chips are shown. When null, chips are hidden.
   final ExpenseViewModel? expenseViewModel;
+  final CategoryViewModel? categoryViewModel;
 
   const RecurringEditDialog({
     super.key,
     this.existing,
     this.expenseViewModel,
+    this.categoryViewModel,
   });
 
   static Future<RecurringEditResult?> show(
     BuildContext context, {
     RecurringTransaction? existing,
     ExpenseViewModel? expenseViewModel,
+    CategoryViewModel? categoryViewModel,
   }) {
     // Resolve view model from context if not passed explicitly.
     // Use try-catch because the dialog's new route does not inherit
@@ -35,12 +39,32 @@ class RecurringEditDialog extends StatefulWidget {
         vm = null;
       }
     }
+    CategoryViewModel? catVM = categoryViewModel;
+    if (catVM == null) {
+      try {
+        catVM = Provider.of<CategoryViewModel>(context, listen: false);
+      } catch (_) {
+        catVM = null;
+      }
+    }
     return showDialog<RecurringEditResult>(
       context: context,
-      builder: (_) => RecurringEditDialog(
-        existing: existing,
-        expenseViewModel: vm,
-      ),
+      builder: (_) {
+        if (catVM != null) {
+          return ChangeNotifierProvider<CategoryViewModel>.value(
+            value: catVM,
+            child: RecurringEditDialog(
+              existing: existing,
+              expenseViewModel: vm,
+              categoryViewModel: catVM,
+            ),
+          );
+        }
+        return RecurringEditDialog(
+          existing: existing,
+          expenseViewModel: vm,
+        );
+      },
     );
   }
 
@@ -69,7 +93,7 @@ class RecurringEditResult {
 class _RecurringEditDialogState extends State<RecurringEditDialog> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
-  String _selectedCategory = Category.predefined.first.name;
+  String _selectedCategory = 'Ăn ngoài'; // fallback; actual value set from VM if available
   String _selectedFrequency = 'daily';
   DateTime _startDate = DateTime.now();
   final _formKey = GlobalKey<FormState>();
@@ -84,6 +108,16 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
       _noteController.text = existing.note;
       _selectedFrequency = existing.frequency;
       _startDate = existing.nextRunAt;
+    } else {
+      // Use persisted catalog if available, fallback to legacy.
+      try {
+        final vm = Provider.of<CategoryViewModel>(context, listen: false);
+        if (vm.quickInputCategories.isNotEmpty) {
+          _selectedCategory = vm.quickInputCategories.first.name;
+        }
+      } catch (_) {
+        _selectedCategory = Category.predefined.first.name;
+      }
     }
   }
 
@@ -116,10 +150,16 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
     return ListenableBuilder(
       listenable: expenseVM,
       builder: (context, _) {
-        final category = Category.predefined.firstWhere(
-          (c) => c.name == _selectedCategory,
-          orElse: () => Category.predefined.first,
-        );
+        final catVM = Provider.of<CategoryViewModel>(context, listen: false);
+        Category? found = catVM.categoryByName(_selectedCategory);
+        if (found == null) {
+          if (catVM.activeCategories.isNotEmpty) {
+            found = catVM.activeCategories.first;
+          } else {
+            found = Category.predefined.first;
+          }
+        }
+        final category = found;
         final engine = TransactionSuggestionEngine();
         final List<Transaction> recent = expenseVM.allTransactions;
         final amounts = engine.getSuggestedAmounts(category, recent);
@@ -200,30 +240,44 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Category
-              DropdownButtonFormField<String>(
-                initialValue: _selectedCategory,
-                decoration: const InputDecoration(labelText: 'Danh mục'),
-                items: Category.predefined
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c.name,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              c.emoji,
-                              style: const TextStyle(fontSize: 18),
+              Consumer<CategoryViewModel>(
+                builder: (context, catVM, _) {
+                  final cats = catVM.quickInputCategories.isNotEmpty
+                      ? catVM.quickInputCategories
+                      : Category.predefined;
+                  return DropdownButtonFormField<String>(
+                    initialValue: cats.any((c) => c.name == _selectedCategory)
+                        ? _selectedCategory
+                        : cats.first.name,
+                    decoration: const InputDecoration(labelText: 'Danh mục'),
+                    items: cats
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c.name,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  c.emoji,
+                                  style: const TextStyle(fontSize: 18),
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    c.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Text(c.name),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedCategory = v!),
-                validator: (v) =>
-                    v == null ? 'Vui lòng chọn danh mục' : null,
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedCategory = v!),
+                    validator: (v) =>
+                        v == null ? 'Vui lòng chọn danh mục' : null,
+                  );
+                },
               ),
               const SizedBox(height: 8),
               _buildSuggestionChips(context),

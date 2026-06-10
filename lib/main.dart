@@ -10,6 +10,7 @@ import 'data/datasources/sqlite_budget_datasource.dart';
 import 'data/datasources/sqlite_budget_snapshot_datasource.dart';
 import 'data/datasources/sqlite_budget_plan_datasource.dart';
 import 'data/datasources/sqlite_recurring_datasource.dart';
+import 'data/datasources/sqlite_category_datasource.dart';
 import 'data/datasources/sqlite_quick_template_datasource.dart';
 import 'data/datasources/transaction_local_datasource.dart';
 import 'data/datasources/budget_local_datasource.dart';
@@ -17,6 +18,7 @@ import 'data/datasources/budget_snapshot_local_datasource.dart';
 import 'data/datasources/budget_plan_local_datasource.dart';
 import 'data/datasources/recurring_local_datasource.dart';
 import 'data/datasources/quick_template_local_datasource.dart';
+import 'data/datasources/category_local_datasource.dart';
 import 'data/migrations/shared_prefs_to_sqlite.dart';
 import 'services/storage_service.dart';
 import 'services/export_service.dart';
@@ -29,6 +31,7 @@ import 'viewmodels/quick_template_viewmodel.dart';
 import 'viewmodels/backup_viewmodel.dart';
 import 'viewmodels/monthly_review_viewmodel.dart';
 import 'viewmodels/monthly_plan_viewmodel.dart';
+import 'viewmodels/category_viewmodel.dart';
 import 'views/home_screen.dart';
 
 Future<void> main() async {
@@ -83,8 +86,9 @@ Future<void> _initApp() async {
   final exportService = ExportService();
   debugPrint('✅ Export service ready');
 
-  debugPrint('💾 Setting up transaction data source...');
-  debugPrint('✅ Transaction data source ready');
+  debugPrint('💾 Setting up category data source...');
+  final categoryDataSource = SqliteCategoryDataSource(dbHelper);
+  debugPrint('✅ Category data source ready');
 
   debugPrint('💰 Setting up budget data source...');
   final budgetDataSource = SqliteBudgetDataSource(dbHelper);
@@ -114,6 +118,7 @@ Future<void> _initApp() async {
     budgetPlanDataSource,
     recurringDataSource,
     quickTemplateDataSource,
+    categoryDataSource,
     storageService,
     dbHelper,
   );
@@ -127,6 +132,7 @@ Future<void> _initApp() async {
     budgetPlanDataSource: budgetPlanDataSource,
     recurringDataSource: recurringDataSource,
     quickTemplateDataSource: quickTemplateDataSource,
+    categoryDataSource: categoryDataSource,
     exportService: exportService,
     storageService: storageService,
     backupService: backupService,
@@ -170,6 +176,7 @@ class MyApp extends StatelessWidget {
   final BudgetPlanLocalDataSource budgetPlanDataSource;
   final RecurringLocalDataSource recurringDataSource;
   final QuickTemplateLocalDataSource quickTemplateDataSource;
+  final CategoryLocalDataSource categoryDataSource;
   final ExportService exportService;
   final StorageService storageService;
   final BackupService backupService;
@@ -182,6 +189,7 @@ class MyApp extends StatelessWidget {
     required this.budgetPlanDataSource,
     required this.recurringDataSource,
     required this.quickTemplateDataSource,
+    required this.categoryDataSource,
     required this.exportService,
     required this.storageService,
     required this.backupService,
@@ -191,6 +199,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(
+          create: (_) => CategoryViewModel(categoryDataSource),
+        ),
         ChangeNotifierProvider(
           create: (_) => ExpenseViewModel(transactionDataSource, exportService),
         ),

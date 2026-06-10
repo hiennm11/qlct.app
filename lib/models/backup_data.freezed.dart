@@ -36,7 +36,8 @@ mixin _$BackupData {
       throw _privateConstructorUsedError; // ADR-0026: monthly budget plans
   List<BudgetPlan> get budgetPlans => throw _privateConstructorUsedError;
   List<BudgetPlanItem> get budgetPlanItems =>
-      throw _privateConstructorUsedError;
+      throw _privateConstructorUsedError; // ADR-0027 §13: persisted category catalog
+  List<Category> get categories => throw _privateConstructorUsedError;
 
   /// Serializes this BackupData to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -68,6 +69,7 @@ abstract class $BackupDataCopyWith<$Res> {
     List<BudgetSnapshot> budgetSnapshots,
     List<BudgetPlan> budgetPlans,
     List<BudgetPlanItem> budgetPlanItems,
+    List<Category> categories,
   });
 }
 
@@ -98,6 +100,7 @@ class _$BackupDataCopyWithImpl<$Res, $Val extends BackupData>
     Object? budgetSnapshots = null,
     Object? budgetPlans = null,
     Object? budgetPlanItems = null,
+    Object? categories = null,
   }) {
     return _then(
       _value.copyWith(
@@ -149,6 +152,10 @@ class _$BackupDataCopyWithImpl<$Res, $Val extends BackupData>
                 ? _value.budgetPlanItems
                 : budgetPlanItems // ignore: cast_nullable_to_non_nullable
                       as List<BudgetPlanItem>,
+            categories: null == categories
+                ? _value.categories
+                : categories // ignore: cast_nullable_to_non_nullable
+                      as List<Category>,
           )
           as $Val,
     );
@@ -177,6 +184,7 @@ abstract class _$$BackupDataImplCopyWith<$Res>
     List<BudgetSnapshot> budgetSnapshots,
     List<BudgetPlan> budgetPlans,
     List<BudgetPlanItem> budgetPlanItems,
+    List<Category> categories,
   });
 }
 
@@ -206,6 +214,7 @@ class __$$BackupDataImplCopyWithImpl<$Res>
     Object? budgetSnapshots = null,
     Object? budgetPlans = null,
     Object? budgetPlanItems = null,
+    Object? categories = null,
   }) {
     return _then(
       _$BackupDataImpl(
@@ -257,6 +266,10 @@ class __$$BackupDataImplCopyWithImpl<$Res>
             ? _value._budgetPlanItems
             : budgetPlanItems // ignore: cast_nullable_to_non_nullable
                   as List<BudgetPlanItem>,
+        categories: null == categories
+            ? _value._categories
+            : categories // ignore: cast_nullable_to_non_nullable
+                  as List<Category>,
       ),
     );
   }
@@ -278,13 +291,15 @@ class _$BackupDataImpl implements _BackupData {
     final List<BudgetSnapshot> budgetSnapshots = const [],
     final List<BudgetPlan> budgetPlans = const [],
     final List<BudgetPlanItem> budgetPlanItems = const [],
+    final List<Category> categories = const [],
   }) : _transactions = transactions,
        _budgets = budgets,
        _recurringTransactions = recurringTransactions,
        _quickTemplates = quickTemplates,
        _budgetSnapshots = budgetSnapshots,
        _budgetPlans = budgetPlans,
-       _budgetPlanItems = budgetPlanItems;
+       _budgetPlanItems = budgetPlanItems,
+       _categories = categories;
 
   factory _$BackupDataImpl.fromJson(Map<String, dynamic> json) =>
       _$$BackupDataImplFromJson(json);
@@ -369,9 +384,20 @@ class _$BackupDataImpl implements _BackupData {
     return EqualUnmodifiableListView(_budgetPlanItems);
   }
 
+  // ADR-0027 §13: persisted category catalog
+  final List<Category> _categories;
+  // ADR-0027 §13: persisted category catalog
+  @override
+  @JsonKey()
+  List<Category> get categories {
+    if (_categories is EqualUnmodifiableListView) return _categories;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_categories);
+  }
+
   @override
   String toString() {
-    return 'BackupData(appId: $appId, schemaVersion: $schemaVersion, exportedAt: $exportedAt, appVersion: $appVersion, totalBudget: $totalBudget, transactions: $transactions, budgets: $budgets, recurringTransactions: $recurringTransactions, quickTemplates: $quickTemplates, budgetSnapshots: $budgetSnapshots, budgetPlans: $budgetPlans, budgetPlanItems: $budgetPlanItems)';
+    return 'BackupData(appId: $appId, schemaVersion: $schemaVersion, exportedAt: $exportedAt, appVersion: $appVersion, totalBudget: $totalBudget, transactions: $transactions, budgets: $budgets, recurringTransactions: $recurringTransactions, quickTemplates: $quickTemplates, budgetSnapshots: $budgetSnapshots, budgetPlans: $budgetPlans, budgetPlanItems: $budgetPlanItems, categories: $categories)';
   }
 
   @override
@@ -412,6 +438,10 @@ class _$BackupDataImpl implements _BackupData {
             const DeepCollectionEquality().equals(
               other._budgetPlanItems,
               _budgetPlanItems,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._categories,
+              _categories,
             ));
   }
 
@@ -431,6 +461,7 @@ class _$BackupDataImpl implements _BackupData {
     const DeepCollectionEquality().hash(_budgetSnapshots),
     const DeepCollectionEquality().hash(_budgetPlans),
     const DeepCollectionEquality().hash(_budgetPlanItems),
+    const DeepCollectionEquality().hash(_categories),
   );
 
   /// Create a copy of BackupData
@@ -461,6 +492,7 @@ abstract class _BackupData implements BackupData {
     final List<BudgetSnapshot> budgetSnapshots,
     final List<BudgetPlan> budgetPlans,
     final List<BudgetPlanItem> budgetPlanItems,
+    final List<Category> categories,
   }) = _$BackupDataImpl;
 
   factory _BackupData.fromJson(Map<String, dynamic> json) =
@@ -489,7 +521,9 @@ abstract class _BackupData implements BackupData {
   @override
   List<BudgetPlan> get budgetPlans;
   @override
-  List<BudgetPlanItem> get budgetPlanItems;
+  List<BudgetPlanItem> get budgetPlanItems; // ADR-0027 §13: persisted category catalog
+  @override
+  List<Category> get categories;
 
   /// Create a copy of BackupData
   /// with the given fields replaced by the non-null parameter values.

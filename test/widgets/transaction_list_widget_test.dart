@@ -4,9 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/transaction.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/transaction_list_widget.dart';
 
 /// In-memory fake data source — returns empty list by default.
@@ -101,11 +103,18 @@ class _FakeExportService extends ExportService {
   }
 }
 
+class _FakeCategoryViewModel extends CategoryViewModel {
+  _FakeCategoryViewModel() : super.seeded(seedCategories);
+}
+
 Widget _wrap(ExpenseViewModel vm) {
   return MaterialApp(
     theme: AppTheme.lightTheme,
-    home: ChangeNotifierProvider<ExpenseViewModel>.value(
-      value: vm,
+    home: MultiProvider(
+      providers: [
+        ChangeNotifierProvider<ExpenseViewModel>.value(value: vm),
+        ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+      ],
       child: const Scaffold(body: SingleChildScrollView(child: TransactionListWidget())),
     ),
   );

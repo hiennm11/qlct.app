@@ -5,6 +5,7 @@ import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/budget_plan.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
+import 'package:qlct/models/category.dart';
 
 part 'backup_data.freezed.dart';
 part 'backup_data.g.dart';
@@ -15,7 +16,8 @@ part 'backup_data.g.dart';
 /// v3: adds top-level appId identifier (ADR-0023).
 /// v4: adds budgetSnapshots (ADR-0025).
 /// v5: adds budgetPlans + budgetPlanItems (ADR-0026).
-const int currentSchemaVersion = 5;
+/// v6: adds categories (ADR-0027 §13).
+const int currentSchemaVersion = 6;
 
 /// App identifier stamped into every v3+ backup so a stray foreign backup
 /// file (e.g. from a different app) is rejected at validation time.
@@ -39,6 +41,8 @@ class BackupData with _$BackupData {
     // ADR-0026: monthly budget plans
     @Default([]) List<BudgetPlan> budgetPlans,
     @Default([]) List<BudgetPlanItem> budgetPlanItems,
+    // ADR-0027 §13: persisted category catalog
+    @Default([]) List<Category> categories,
   }) = _BackupData;
 
   factory BackupData.fromJson(Map<String, dynamic> json) =>

@@ -8,12 +8,17 @@ import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/recurring_edit_dialog.dart';
 
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
 class MockExportService extends Mock implements ExportService {}
+
+class _FakeCategoryViewModel extends CategoryViewModel {
+  _FakeCategoryViewModel() : super.seeded(seedCategories);
+}
 
 void main() {
   late MockTransactionLocalDataSource mockDs;
@@ -46,8 +51,11 @@ void main() {
   Widget wrapWithProvider(Widget child) {
     return MaterialApp(
       home: Scaffold(
-        body: ChangeNotifierProvider<ExpenseViewModel>.value(
-          value: expenseVM,
+        body: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+            ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+          ],
           child: child,
         ),
       ),
@@ -197,12 +205,18 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ChangeNotifierProvider<ExpenseViewModel>.value(
-              value: expenseVM,
+            body: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+                ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+              ],
               child: Builder(
                 builder: (context) => ElevatedButton(
                   onPressed: () async {
-                    result = await RecurringEditDialog.show(context);
+                    result = await RecurringEditDialog.show(
+                      context,
+                      categoryViewModel: _FakeCategoryViewModel(),
+                    );
                   },
                   child: const Text('open'),
                 ),
@@ -238,14 +252,18 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ChangeNotifierProvider<ExpenseViewModel>.value(
-              value: expenseVM,
+            body: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+                ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+              ],
               child: Builder(
                 builder: (context) => ElevatedButton(
                   onPressed: () async {
                     result = await RecurringEditDialog.show(
                       context,
                       existing: existing,
+                      categoryViewModel: _FakeCategoryViewModel(),
                     );
                   },
                   child: const Text('open'),
@@ -271,12 +289,18 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ChangeNotifierProvider<ExpenseViewModel>.value(
-              value: expenseVM,
+            body: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+                ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+              ],
               child: Builder(
                 builder: (context) => ElevatedButton(
                   onPressed: () async {
-                    result = await RecurringEditDialog.show(context);
+                    result = await RecurringEditDialog.show(
+                      context,
+                      categoryViewModel: _FakeCategoryViewModel(),
+                    );
                   },
                   child: const Text('open'),
                 ),
@@ -297,12 +321,18 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ChangeNotifierProvider<ExpenseViewModel>.value(
-              value: expenseVM,
+            body: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+                ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+              ],
               child: Builder(
                 builder: (context) => ElevatedButton(
                   onPressed: () async {
-                    result = await RecurringEditDialog.show(context);
+                    result = await RecurringEditDialog.show(
+                      context,
+                      categoryViewModel: _FakeCategoryViewModel(),
+                    );
                   },
                   child: const Text('open'),
                 ),
@@ -330,7 +360,16 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: RecurringEditDialog(expenseViewModel: expenseVM),
+            body: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+                ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+              ],
+              child: RecurringEditDialog(
+                expenseViewModel: expenseVM,
+                categoryViewModel: _FakeCategoryViewModel(),
+              ),
+            ),
           ),
         ),
       );

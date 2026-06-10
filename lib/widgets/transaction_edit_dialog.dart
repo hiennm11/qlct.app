@@ -6,6 +6,7 @@ import '../core/formatters.dart';
 import '../core/theme.dart';
 import '../services/transaction_suggestion_engine.dart';
 import '../viewmodels/expense_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 
 /// Dialog for editing an existing transaction
 class _TransactionEditDialog extends StatefulWidget {
@@ -70,10 +71,16 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
     return ListenableBuilder(
       listenable: expenseVM,
       builder: (context, _) {
-        final category = Category.predefined.firstWhere(
-          (c) => c.name == _selectedCategory,
-          orElse: () => Category.predefined.first,
-        );
+        final catVM = Provider.of<CategoryViewModel>(context, listen: false);
+        Category? found = catVM.categoryByName(_selectedCategory);
+        if (found == null) {
+          if (catVM.activeCategories.isNotEmpty) {
+            found = catVM.activeCategories.first;
+          } else {
+            found = Category.predefined.first;
+          }
+        }
+        final category = found;
         final engine = TransactionSuggestionEngine();
         // Filter out current transaction so suggestions come from other history.
         final List<Transaction> recent = expenseVM.allTransactions
@@ -152,9 +159,8 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
     final rawAmount = ThousandSeparatorFormatter.strip(_amountController.text);
     final parsedAmount = int.parse(rawAmount);
 
-    final category = Category.predefined.firstWhere(
-      (c) => c.name == _selectedCategory,
-    );
+    final category = Provider.of<CategoryViewModel>(context, listen: false)
+        .categoryByName(_selectedCategory)!;
 
     final updated = Transaction(
       id: widget.transaction.id,
@@ -181,27 +187,41 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Category dropdown
-              DropdownButtonFormField<String>(
-                initialValue: _selectedCategory,
-                decoration: const InputDecoration(labelText: 'Danh mục'),
-                items: Category.predefined
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c.name,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(c.emoji, style: const TextStyle(fontSize: 18)),
-                            const SizedBox(width: 8),
-                            Text(c.name),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedCategory = v!),
-                validator: (v) =>
-                    v == null ? 'Vui lòng chọn danh mục' : null,
+              Consumer<CategoryViewModel>(
+                builder: (context, catVM, _) {
+                  final cats = catVM.quickInputCategories.isNotEmpty
+                      ? catVM.quickInputCategories
+                      : Category.predefined;
+                  return DropdownButtonFormField<String>(
+                    initialValue: cats.any((c) => c.name == _selectedCategory)
+                        ? _selectedCategory
+                        : cats.first.name,
+                    decoration: const InputDecoration(labelText: 'Danh mục'),
+                    items: cats
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c.name,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(c.emoji, style: const TextStyle(fontSize: 18)),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    c.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedCategory = v!),
+                    validator: (v) =>
+                        v == null ? 'Vui lòng chọn danh mục' : null,
+                  );
+                },
               ),
               // Recurring source info label
               if (widget.transaction.sourceRecurringId != null) ...[
@@ -294,6 +314,7 @@ Future<Transaction?> showTransactionEditDialog(
   BuildContext context,
   Transaction transaction, {
   ExpenseViewModel? expenseViewModel,
+  CategoryViewModel? categoryViewModel,
 }) {
   // Resolve view model from context if not passed explicitly.
   // Use try-catch because the dialog's new route does not inherit
@@ -306,11 +327,30 @@ Future<Transaction?> showTransactionEditDialog(
       vm = null;
     }
   }
+  CategoryViewModel? catVM = categoryViewModel;
+  if (catVM == null) {
+    try {
+      catVM = Provider.of<CategoryViewModel>(context, listen: false);
+    } catch (_) {
+      catVM = null;
+    }
+  }
   return showDialog<Transaction>(
     context: context,
-    builder: (dialogContext) => _TransactionEditDialog(
-      transaction: transaction,
-      expenseViewModel: vm,
-    ),
+    builder: (dialogContext) {
+      if (catVM != null) {
+        return ChangeNotifierProvider<CategoryViewModel>.value(
+          value: catVM,
+          child: _TransactionEditDialog(
+            transaction: transaction,
+            expenseViewModel: vm,
+          ),
+        );
+      }
+      return _TransactionEditDialog(
+        transaction: transaction,
+        expenseViewModel: vm,
+      );
+    },
   );
 }

@@ -21,13 +21,21 @@ Category _$CategoryFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$Category {
+  String get id => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
+  String get normalizedName => throw _privateConstructorUsedError;
   String get emoji => throw _privateConstructorUsedError;
-  int get minAmount => throw _privateConstructorUsedError;
-  int get defaultAmount => throw _privateConstructorUsedError;
-  int get maxAmount => throw _privateConstructorUsedError;
-  List<String> get phrases => throw _privateConstructorUsedError;
-  bool get isInvestment => throw _privateConstructorUsedError;
+  CategoryKind get kind => throw _privateConstructorUsedError;
+  BudgetBehavior get budgetBehavior => throw _privateConstructorUsedError;
+  int get quickAmountMin => throw _privateConstructorUsedError;
+  int get quickAmountDefault => throw _privateConstructorUsedError;
+  int get quickAmountMax => throw _privateConstructorUsedError;
+  List<String> get voicePhrases => throw _privateConstructorUsedError;
+  int get sortOrder => throw _privateConstructorUsedError;
+  bool get isSystem => throw _privateConstructorUsedError;
+  bool get isArchived => throw _privateConstructorUsedError;
+  DateTime get createdAt => throw _privateConstructorUsedError;
+  DateTime get updatedAt => throw _privateConstructorUsedError;
 
   /// Serializes this Category to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -45,13 +53,21 @@ abstract class $CategoryCopyWith<$Res> {
       _$CategoryCopyWithImpl<$Res, Category>;
   @useResult
   $Res call({
+    String id,
     String name,
+    String normalizedName,
     String emoji,
-    int minAmount,
-    int defaultAmount,
-    int maxAmount,
-    List<String> phrases,
-    bool isInvestment,
+    CategoryKind kind,
+    BudgetBehavior budgetBehavior,
+    int quickAmountMin,
+    int quickAmountDefault,
+    int quickAmountMax,
+    List<String> voicePhrases,
+    int sortOrder,
+    bool isSystem,
+    bool isArchived,
+    DateTime createdAt,
+    DateTime updatedAt,
   });
 }
 
@@ -70,44 +86,84 @@ class _$CategoryCopyWithImpl<$Res, $Val extends Category>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? id = null,
     Object? name = null,
+    Object? normalizedName = null,
     Object? emoji = null,
-    Object? minAmount = null,
-    Object? defaultAmount = null,
-    Object? maxAmount = null,
-    Object? phrases = null,
-    Object? isInvestment = null,
+    Object? kind = null,
+    Object? budgetBehavior = null,
+    Object? quickAmountMin = null,
+    Object? quickAmountDefault = null,
+    Object? quickAmountMax = null,
+    Object? voicePhrases = null,
+    Object? sortOrder = null,
+    Object? isSystem = null,
+    Object? isArchived = null,
+    Object? createdAt = null,
+    Object? updatedAt = null,
   }) {
     return _then(
       _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as String,
             name: null == name
                 ? _value.name
                 : name // ignore: cast_nullable_to_non_nullable
+                      as String,
+            normalizedName: null == normalizedName
+                ? _value.normalizedName
+                : normalizedName // ignore: cast_nullable_to_non_nullable
                       as String,
             emoji: null == emoji
                 ? _value.emoji
                 : emoji // ignore: cast_nullable_to_non_nullable
                       as String,
-            minAmount: null == minAmount
-                ? _value.minAmount
-                : minAmount // ignore: cast_nullable_to_non_nullable
+            kind: null == kind
+                ? _value.kind
+                : kind // ignore: cast_nullable_to_non_nullable
+                      as CategoryKind,
+            budgetBehavior: null == budgetBehavior
+                ? _value.budgetBehavior
+                : budgetBehavior // ignore: cast_nullable_to_non_nullable
+                      as BudgetBehavior,
+            quickAmountMin: null == quickAmountMin
+                ? _value.quickAmountMin
+                : quickAmountMin // ignore: cast_nullable_to_non_nullable
                       as int,
-            defaultAmount: null == defaultAmount
-                ? _value.defaultAmount
-                : defaultAmount // ignore: cast_nullable_to_non_nullable
+            quickAmountDefault: null == quickAmountDefault
+                ? _value.quickAmountDefault
+                : quickAmountDefault // ignore: cast_nullable_to_non_nullable
                       as int,
-            maxAmount: null == maxAmount
-                ? _value.maxAmount
-                : maxAmount // ignore: cast_nullable_to_non_nullable
+            quickAmountMax: null == quickAmountMax
+                ? _value.quickAmountMax
+                : quickAmountMax // ignore: cast_nullable_to_non_nullable
                       as int,
-            phrases: null == phrases
-                ? _value.phrases
-                : phrases // ignore: cast_nullable_to_non_nullable
+            voicePhrases: null == voicePhrases
+                ? _value.voicePhrases
+                : voicePhrases // ignore: cast_nullable_to_non_nullable
                       as List<String>,
-            isInvestment: null == isInvestment
-                ? _value.isInvestment
-                : isInvestment // ignore: cast_nullable_to_non_nullable
+            sortOrder: null == sortOrder
+                ? _value.sortOrder
+                : sortOrder // ignore: cast_nullable_to_non_nullable
+                      as int,
+            isSystem: null == isSystem
+                ? _value.isSystem
+                : isSystem // ignore: cast_nullable_to_non_nullable
                       as bool,
+            isArchived: null == isArchived
+                ? _value.isArchived
+                : isArchived // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            createdAt: null == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime,
+            updatedAt: null == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime,
           )
           as $Val,
     );
@@ -124,13 +180,21 @@ abstract class _$$CategoryImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String id,
     String name,
+    String normalizedName,
     String emoji,
-    int minAmount,
-    int defaultAmount,
-    int maxAmount,
-    List<String> phrases,
-    bool isInvestment,
+    CategoryKind kind,
+    BudgetBehavior budgetBehavior,
+    int quickAmountMin,
+    int quickAmountDefault,
+    int quickAmountMax,
+    List<String> voicePhrases,
+    int sortOrder,
+    bool isSystem,
+    bool isArchived,
+    DateTime createdAt,
+    DateTime updatedAt,
   });
 }
 
@@ -148,44 +212,84 @@ class __$$CategoryImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? id = null,
     Object? name = null,
+    Object? normalizedName = null,
     Object? emoji = null,
-    Object? minAmount = null,
-    Object? defaultAmount = null,
-    Object? maxAmount = null,
-    Object? phrases = null,
-    Object? isInvestment = null,
+    Object? kind = null,
+    Object? budgetBehavior = null,
+    Object? quickAmountMin = null,
+    Object? quickAmountDefault = null,
+    Object? quickAmountMax = null,
+    Object? voicePhrases = null,
+    Object? sortOrder = null,
+    Object? isSystem = null,
+    Object? isArchived = null,
+    Object? createdAt = null,
+    Object? updatedAt = null,
   }) {
     return _then(
       _$CategoryImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as String,
         name: null == name
             ? _value.name
             : name // ignore: cast_nullable_to_non_nullable
+                  as String,
+        normalizedName: null == normalizedName
+            ? _value.normalizedName
+            : normalizedName // ignore: cast_nullable_to_non_nullable
                   as String,
         emoji: null == emoji
             ? _value.emoji
             : emoji // ignore: cast_nullable_to_non_nullable
                   as String,
-        minAmount: null == minAmount
-            ? _value.minAmount
-            : minAmount // ignore: cast_nullable_to_non_nullable
+        kind: null == kind
+            ? _value.kind
+            : kind // ignore: cast_nullable_to_non_nullable
+                  as CategoryKind,
+        budgetBehavior: null == budgetBehavior
+            ? _value.budgetBehavior
+            : budgetBehavior // ignore: cast_nullable_to_non_nullable
+                  as BudgetBehavior,
+        quickAmountMin: null == quickAmountMin
+            ? _value.quickAmountMin
+            : quickAmountMin // ignore: cast_nullable_to_non_nullable
                   as int,
-        defaultAmount: null == defaultAmount
-            ? _value.defaultAmount
-            : defaultAmount // ignore: cast_nullable_to_non_nullable
+        quickAmountDefault: null == quickAmountDefault
+            ? _value.quickAmountDefault
+            : quickAmountDefault // ignore: cast_nullable_to_non_nullable
                   as int,
-        maxAmount: null == maxAmount
-            ? _value.maxAmount
-            : maxAmount // ignore: cast_nullable_to_non_nullable
+        quickAmountMax: null == quickAmountMax
+            ? _value.quickAmountMax
+            : quickAmountMax // ignore: cast_nullable_to_non_nullable
                   as int,
-        phrases: null == phrases
-            ? _value._phrases
-            : phrases // ignore: cast_nullable_to_non_nullable
+        voicePhrases: null == voicePhrases
+            ? _value._voicePhrases
+            : voicePhrases // ignore: cast_nullable_to_non_nullable
                   as List<String>,
-        isInvestment: null == isInvestment
-            ? _value.isInvestment
-            : isInvestment // ignore: cast_nullable_to_non_nullable
+        sortOrder: null == sortOrder
+            ? _value.sortOrder
+            : sortOrder // ignore: cast_nullable_to_non_nullable
+                  as int,
+        isSystem: null == isSystem
+            ? _value.isSystem
+            : isSystem // ignore: cast_nullable_to_non_nullable
                   as bool,
+        isArchived: null == isArchived
+            ? _value.isArchived
+            : isArchived // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        createdAt: null == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime,
+        updatedAt: null == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime,
       ),
     );
   }
@@ -195,43 +299,68 @@ class __$$CategoryImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$CategoryImpl implements _Category {
   const _$CategoryImpl({
+    required this.id,
     required this.name,
+    required this.normalizedName,
     required this.emoji,
-    required this.minAmount,
-    required this.defaultAmount,
-    required this.maxAmount,
-    required final List<String> phrases,
-    this.isInvestment = false,
-  }) : _phrases = phrases;
+    required this.kind,
+    required this.budgetBehavior,
+    required this.quickAmountMin,
+    required this.quickAmountDefault,
+    required this.quickAmountMax,
+    required final List<String> voicePhrases,
+    required this.sortOrder,
+    this.isSystem = true,
+    this.isArchived = false,
+    required this.createdAt,
+    required this.updatedAt,
+  }) : _voicePhrases = voicePhrases;
 
   factory _$CategoryImpl.fromJson(Map<String, dynamic> json) =>
       _$$CategoryImplFromJson(json);
 
   @override
+  final String id;
+  @override
   final String name;
+  @override
+  final String normalizedName;
   @override
   final String emoji;
   @override
-  final int minAmount;
+  final CategoryKind kind;
   @override
-  final int defaultAmount;
+  final BudgetBehavior budgetBehavior;
   @override
-  final int maxAmount;
-  final List<String> _phrases;
+  final int quickAmountMin;
   @override
-  List<String> get phrases {
-    if (_phrases is EqualUnmodifiableListView) return _phrases;
+  final int quickAmountDefault;
+  @override
+  final int quickAmountMax;
+  final List<String> _voicePhrases;
+  @override
+  List<String> get voicePhrases {
+    if (_voicePhrases is EqualUnmodifiableListView) return _voicePhrases;
     // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_phrases);
+    return EqualUnmodifiableListView(_voicePhrases);
   }
 
   @override
+  final int sortOrder;
+  @override
   @JsonKey()
-  final bool isInvestment;
+  final bool isSystem;
+  @override
+  @JsonKey()
+  final bool isArchived;
+  @override
+  final DateTime createdAt;
+  @override
+  final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'Category(name: $name, emoji: $emoji, minAmount: $minAmount, defaultAmount: $defaultAmount, maxAmount: $maxAmount, phrases: $phrases, isInvestment: $isInvestment)';
+    return 'Category(id: $id, name: $name, normalizedName: $normalizedName, emoji: $emoji, kind: $kind, budgetBehavior: $budgetBehavior, quickAmountMin: $quickAmountMin, quickAmountDefault: $quickAmountDefault, quickAmountMax: $quickAmountMax, voicePhrases: $voicePhrases, sortOrder: $sortOrder, isSystem: $isSystem, isArchived: $isArchived, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -239,30 +368,55 @@ class _$CategoryImpl implements _Category {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$CategoryImpl &&
+            (identical(other.id, id) || other.id == id) &&
             (identical(other.name, name) || other.name == name) &&
+            (identical(other.normalizedName, normalizedName) ||
+                other.normalizedName == normalizedName) &&
             (identical(other.emoji, emoji) || other.emoji == emoji) &&
-            (identical(other.minAmount, minAmount) ||
-                other.minAmount == minAmount) &&
-            (identical(other.defaultAmount, defaultAmount) ||
-                other.defaultAmount == defaultAmount) &&
-            (identical(other.maxAmount, maxAmount) ||
-                other.maxAmount == maxAmount) &&
-            const DeepCollectionEquality().equals(other._phrases, _phrases) &&
-            (identical(other.isInvestment, isInvestment) ||
-                other.isInvestment == isInvestment));
+            (identical(other.kind, kind) || other.kind == kind) &&
+            (identical(other.budgetBehavior, budgetBehavior) ||
+                other.budgetBehavior == budgetBehavior) &&
+            (identical(other.quickAmountMin, quickAmountMin) ||
+                other.quickAmountMin == quickAmountMin) &&
+            (identical(other.quickAmountDefault, quickAmountDefault) ||
+                other.quickAmountDefault == quickAmountDefault) &&
+            (identical(other.quickAmountMax, quickAmountMax) ||
+                other.quickAmountMax == quickAmountMax) &&
+            const DeepCollectionEquality().equals(
+              other._voicePhrases,
+              _voicePhrases,
+            ) &&
+            (identical(other.sortOrder, sortOrder) ||
+                other.sortOrder == sortOrder) &&
+            (identical(other.isSystem, isSystem) ||
+                other.isSystem == isSystem) &&
+            (identical(other.isArchived, isArchived) ||
+                other.isArchived == isArchived) &&
+            (identical(other.createdAt, createdAt) ||
+                other.createdAt == createdAt) &&
+            (identical(other.updatedAt, updatedAt) ||
+                other.updatedAt == updatedAt));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    id,
     name,
+    normalizedName,
     emoji,
-    minAmount,
-    defaultAmount,
-    maxAmount,
-    const DeepCollectionEquality().hash(_phrases),
-    isInvestment,
+    kind,
+    budgetBehavior,
+    quickAmountMin,
+    quickAmountDefault,
+    quickAmountMax,
+    const DeepCollectionEquality().hash(_voicePhrases),
+    sortOrder,
+    isSystem,
+    isArchived,
+    createdAt,
+    updatedAt,
   );
 
   /// Create a copy of Category
@@ -281,32 +435,56 @@ class _$CategoryImpl implements _Category {
 
 abstract class _Category implements Category {
   const factory _Category({
+    required final String id,
     required final String name,
+    required final String normalizedName,
     required final String emoji,
-    required final int minAmount,
-    required final int defaultAmount,
-    required final int maxAmount,
-    required final List<String> phrases,
-    final bool isInvestment,
+    required final CategoryKind kind,
+    required final BudgetBehavior budgetBehavior,
+    required final int quickAmountMin,
+    required final int quickAmountDefault,
+    required final int quickAmountMax,
+    required final List<String> voicePhrases,
+    required final int sortOrder,
+    final bool isSystem,
+    final bool isArchived,
+    required final DateTime createdAt,
+    required final DateTime updatedAt,
   }) = _$CategoryImpl;
 
   factory _Category.fromJson(Map<String, dynamic> json) =
       _$CategoryImpl.fromJson;
 
   @override
+  String get id;
+  @override
   String get name;
+  @override
+  String get normalizedName;
   @override
   String get emoji;
   @override
-  int get minAmount;
+  CategoryKind get kind;
   @override
-  int get defaultAmount;
+  BudgetBehavior get budgetBehavior;
   @override
-  int get maxAmount;
+  int get quickAmountMin;
   @override
-  List<String> get phrases;
+  int get quickAmountDefault;
   @override
-  bool get isInvestment;
+  int get quickAmountMax;
+  @override
+  List<String> get voicePhrases;
+  @override
+  int get sortOrder;
+  @override
+  bool get isSystem;
+  @override
+  bool get isArchived;
+  @override
+  DateTime get createdAt;
+  @override
+  DateTime get updatedAt;
 
   /// Create a copy of Category
   /// with the given fields replaced by the non-null parameter values.

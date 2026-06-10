@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
-import '../models/category.dart';
+import '../viewmodels/category_viewmodel.dart';
 import '../models/transaction.dart';
 import '../core/formatters.dart';
 import '../services/transaction_suggestion_engine.dart';
@@ -67,9 +66,7 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
       return;
     }
 
-    final category = Category.predefined.firstWhere(
-      (c) => c.name == _selectedCategory,
-    );
+    final category = context.read<CategoryViewModel>().categoryByName(_selectedCategory!)!;
 
     final vm = context.read<ExpenseViewModel>();
     try {
@@ -164,7 +161,7 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
                     offset.dx + box.size.width,
                     offset.dy + box.size.height,
                   ),
-                  items: Category.predefined.map((cat) {
+                  items: context.read<CategoryViewModel>().quickInputCategories.map((cat) {
                     return PopupMenuItem<String>(
                       value: cat.name,
                       child: Row(
@@ -229,7 +226,7 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
                 const SizedBox(width: 12),
                 VoiceCoordinator(
                   onResult: _onVoiceResult,
-                  categories: Category.predefined,
+                  categories: context.watch<CategoryViewModel>().quickInputCategories,
                   child: FloatingActionButton(
                     onPressed: () {}, // actual tap handled by coordinator
                     backgroundColor: Theme.of(context).colorScheme.secondary,
@@ -248,10 +245,8 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
   /// Tapping a chip autofills the field; no auto-submit.
   Widget _buildSuggestionChips(BuildContext context) {
     final expenseVM = context.watch<ExpenseViewModel>();
-    final category = Category.predefined.firstWhere(
-      (c) => c.name == _selectedCategory,
-      orElse: () => Category.predefined.first,
-    );
+    final category = context.read<CategoryViewModel>().categoryByName(_selectedCategory!) ??
+        context.read<CategoryViewModel>().activeCategories.first;
     final engine = TransactionSuggestionEngine();
     final List<Transaction> recent = expenseVM.allTransactions;
     final amounts = engine.getSuggestedAmounts(category, recent);

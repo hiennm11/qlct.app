@@ -5,7 +5,7 @@ import 'package:qlct/core/vietnamese_text_normalizer.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 11;
+  static const _databaseVersion = 12;
 
   Database? _database;
   String? _testPathOverride;
@@ -124,6 +124,30 @@ class DatabaseHelper {
         FOREIGN KEY (year_month) REFERENCES budget_plans(year_month) ON DELETE CASCADE
       )
     ''');
+    // ADR-0027: categories table
+    await db.execute('''
+      CREATE TABLE categories (
+        id                       TEXT PRIMARY KEY,
+        name                     TEXT NOT NULL,
+        normalized_name          TEXT NOT NULL UNIQUE,
+        emoji                    TEXT NOT NULL,
+        kind                     TEXT NOT NULL,
+        budget_behavior          TEXT NOT NULL,
+        quick_amount_min         INTEGER NOT NULL,
+        quick_amount_default     INTEGER NOT NULL,
+        quick_amount_max         INTEGER NOT NULL,
+        voice_phrases_json       TEXT NOT NULL,
+        sort_order              INTEGER NOT NULL,
+        is_system INTEGER NOT NULL DEFAULT 0,
+        is_archived              INTEGER NOT NULL DEFAULT 0,
+        created_at               INTEGER NOT NULL,
+        updated_at               INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_categories_normalized_name ON categories(normalized_name)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_categories_is_archived ON categories(is_archived)');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -248,6 +272,32 @@ class DatabaseHelper {
           FOREIGN KEY (year_month) REFERENCES budget_plans(year_month) ON DELETE CASCADE
         )
       ''');
+    }
+    if (oldVersion < 12) {
+      // ADR-0027: categories table
+      await db.execute('''
+        CREATE TABLE categories (
+          id                       TEXT PRIMARY KEY,
+          name                     TEXT NOT NULL,
+          normalized_name          TEXT NOT NULL UNIQUE,
+          emoji                    TEXT NOT NULL,
+          kind                     TEXT NOT NULL,
+          budget_behavior          TEXT NOT NULL,
+          quick_amount_min         INTEGER NOT NULL,
+          quick_amount_default     INTEGER NOT NULL,
+          quick_amount_max         INTEGER NOT NULL,
+          voice_phrases_json       TEXT NOT NULL,
+          sort_order              INTEGER NOT NULL,
+          is_system                INTEGER NOT NULL DEFAULT 0,
+          is_archived              INTEGER NOT NULL DEFAULT 0,
+          created_at               INTEGER NOT NULL,
+          updated_at               INTEGER NOT NULL
+        )
+      ''');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_categories_normalized_name ON categories(normalized_name)');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_categories_is_archived ON categories(is_archived)');
     }
   }
 

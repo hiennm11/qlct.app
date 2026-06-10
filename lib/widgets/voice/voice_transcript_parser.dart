@@ -20,7 +20,7 @@ VoiceResult parseVoiceTranscript(String transcript, List<Category> categories) {
 Category? _matchCategory(String transcript, List<Category> categories) {
   final lower = transcript.toLowerCase();
   for (final cat in categories) {
-    for (final phrase in cat.phrases) {
+    for (final phrase in cat.voicePhrases) {
       if (lower.contains(phrase.toLowerCase())) {
         return cat;
       }

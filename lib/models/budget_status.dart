@@ -44,6 +44,7 @@ class TotalBudgetStatus {
   }
 }
 
+/// Epoch constant for fallback Category constructors.
 /// Budget status combining budget info with current spending
 class BudgetStatus {
   final String categoryName;
@@ -82,13 +83,22 @@ class BudgetStatus {
     // Find emoji from Category.predefined
     final category = Category.predefined.firstWhere(
       (c) => c.name == budget.categoryName,
-      orElse: () => const Category(
+      orElse: () => Category(
+        id: '',
         name: '',
+        normalizedName: '',
         emoji: '📌',
-        minAmount: 0,
-        defaultAmount: 0,
-        maxAmount: 0,
-        phrases: [],
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 0,
+        quickAmountDefault: 0,
+        quickAmountMax: 0,
+        voicePhrases: [],
+        sortOrder: 9999,
+        isSystem: false,
+        isArchived: false,
+        createdAt: DateTime(1970),
+        updatedAt: DateTime(1970),
       ),
     );
 
@@ -107,13 +117,22 @@ class BudgetStatus {
   factory BudgetStatus.noBudget(String categoryName, int spent) {
     final category = Category.predefined.firstWhere(
       (c) => c.name == categoryName,
-      orElse: () => const Category(
+      orElse: () => Category(
+        id: '',
         name: '',
+        normalizedName: '',
         emoji: '📌',
-        minAmount: 0,
-        defaultAmount: 0,
-        maxAmount: 0,
-        phrases: [],
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 0,
+        quickAmountDefault: 0,
+        quickAmountMax: 0,
+        voicePhrases: [],
+        sortOrder: 9999,
+        isSystem: false,
+        isArchived: false,
+        createdAt: DateTime(1970),
+        updatedAt: DateTime(1970),
       ),
     );
 

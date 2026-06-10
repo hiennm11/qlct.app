@@ -112,8 +112,8 @@ void main() {
       expect(backup.transactions[4].id, 'tx-4');
     });
 
-    test('currentSchemaVersion is 5 (ADR-0026)', () {
-      expect(currentSchemaVersion, 5);
+    test('currentSchemaVersion is 6 (ADR-0027 §13)', () {
+      expect(currentSchemaVersion, 6);
     });
 
     test('appId field present in model with default', () {

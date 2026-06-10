@@ -8,24 +8,54 @@ part of 'category.dart';
 
 _$CategoryImpl _$$CategoryImplFromJson(Map<String, dynamic> json) =>
     _$CategoryImpl(
+      id: json['id'] as String,
       name: json['name'] as String,
+      normalizedName: json['normalizedName'] as String,
       emoji: json['emoji'] as String,
-      minAmount: (json['minAmount'] as num).toInt(),
-      defaultAmount: (json['defaultAmount'] as num).toInt(),
-      maxAmount: (json['maxAmount'] as num).toInt(),
-      phrases: (json['phrases'] as List<dynamic>)
+      kind: $enumDecode(_$CategoryKindEnumMap, json['kind']),
+      budgetBehavior: $enumDecode(
+        _$BudgetBehaviorEnumMap,
+        json['budgetBehavior'],
+      ),
+      quickAmountMin: (json['quickAmountMin'] as num).toInt(),
+      quickAmountDefault: (json['quickAmountDefault'] as num).toInt(),
+      quickAmountMax: (json['quickAmountMax'] as num).toInt(),
+      voicePhrases: (json['voicePhrases'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
-      isInvestment: json['isInvestment'] as bool? ?? false,
+      sortOrder: (json['sortOrder'] as num).toInt(),
+      isSystem: json['isSystem'] as bool? ?? true,
+      isArchived: json['isArchived'] as bool? ?? false,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
 
 Map<String, dynamic> _$$CategoryImplToJson(_$CategoryImpl instance) =>
     <String, dynamic>{
+      'id': instance.id,
       'name': instance.name,
+      'normalizedName': instance.normalizedName,
       'emoji': instance.emoji,
-      'minAmount': instance.minAmount,
-      'defaultAmount': instance.defaultAmount,
-      'maxAmount': instance.maxAmount,
-      'phrases': instance.phrases,
-      'isInvestment': instance.isInvestment,
+      'kind': _$CategoryKindEnumMap[instance.kind]!,
+      'budgetBehavior': _$BudgetBehaviorEnumMap[instance.budgetBehavior]!,
+      'quickAmountMin': instance.quickAmountMin,
+      'quickAmountDefault': instance.quickAmountDefault,
+      'quickAmountMax': instance.quickAmountMax,
+      'voicePhrases': instance.voicePhrases,
+      'sortOrder': instance.sortOrder,
+      'isSystem': instance.isSystem,
+      'isArchived': instance.isArchived,
+      'createdAt': instance.createdAt.toIso8601String(),
+      'updatedAt': instance.updatedAt.toIso8601String(),
     };
+
+const _$CategoryKindEnumMap = {
+  CategoryKind.spending: 'spending',
+  CategoryKind.investment: 'investment',
+};
+
+const _$BudgetBehaviorEnumMap = {
+  BudgetBehavior.flexible: 'flexible',
+  BudgetBehavior.fixed: 'fixed',
+  BudgetBehavior.excluded: 'excluded',
+};

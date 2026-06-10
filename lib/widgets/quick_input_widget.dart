@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 import '../models/category.dart';
 import '../models/transaction.dart';
 import '../core/formatters.dart';
@@ -25,8 +26,11 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
   @override
   void initState() {
     super.initState();
-    for (final category in Category.predefined) {
-      _amounts[category.name] = category.defaultAmount.toDouble();
+    // Use seed categories as the initial amount preset so slider defaults
+    // exist even before CategoryViewModel has loaded. Real values are
+    // reconciled on first build.
+    for (final category in seedCategories) {
+      _amounts[category.name] = category.quickAmountDefault.toDouble();
     }
   }
 
@@ -62,14 +66,18 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
             // Expandable content
             if (_isExpanded) ...[
               const SizedBox(height: 16),
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: Category.predefined.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final category = Category.predefined[index];
-                  return _CategoryCard(
+              Builder(
+                builder: (ctx) {
+                  final cats = ctx.watch<CategoryViewModel>().quickInputCategories;
+                  if (cats.isEmpty) return const SizedBox.shrink();
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: cats.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final category = cats[index];
+                      return _CategoryCard(
                     category: category,
                     amount: _amounts[category.name]!,
                     onAmountChanged: (value) {
@@ -170,6 +178,8 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                           ),
                         );
                       }
+                    },
+                  );
                     },
                   );
                 },
@@ -319,8 +329,8 @@ class _CategoryCardState extends State<_CategoryCard> {
               ),
               child: Slider(
                 value: widget.amount,
-                min: widget.category.minAmount.toDouble(),
-                max: widget.category.maxAmount.toDouble(),
+                min: widget.category.quickAmountMin.toDouble(),
+                max: widget.category.quickAmountMax.toDouble(),
                 onChanged: (value) {
                   // Round to nearest 1000
                   final rounded = (value / 1000).round() * 1000.0;

@@ -10,6 +10,7 @@ import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
@@ -17,6 +18,7 @@ import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
 import 'package:qlct/models/budget_plan.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/services/backup_service.dart';
 import 'package:qlct/services/storage_service.dart';
 
@@ -37,6 +39,9 @@ class MockRecurringDataSource extends Mock
 class MockQuickTemplateDataSource extends Mock
     implements QuickTemplateLocalDataSource {}
 
+class MockCategoryDataSource extends Mock
+    implements CategoryLocalDataSource {}
+
 class MockStorageService extends Mock implements StorageService {}
 
 class MockDatabaseHelper extends Mock implements DatabaseHelper {}
@@ -48,6 +53,7 @@ void main() {
   late MockBudgetPlanDataSource budgetPlanRepo;
   late MockRecurringDataSource recurringRepo;
   late MockQuickTemplateDataSource quickTemplateRepo;
+  late MockCategoryDataSource categoryRepo;
   late MockStorageService storageService;
   late BackupService service;
 
@@ -58,6 +64,7 @@ void main() {
     budgetPlanRepo = MockBudgetPlanDataSource();
     recurringRepo = MockRecurringDataSource();
     quickTemplateRepo = MockQuickTemplateDataSource();
+    categoryRepo = MockCategoryDataSource();
     storageService = MockStorageService();
     // _dbHelper is unused by createBackup/validate/generateSampleData but
     // required by the constructor. Pass null-safe stub.
@@ -68,6 +75,7 @@ void main() {
       budgetPlanRepo,
       recurringRepo,
       quickTemplateRepo,
+      categoryRepo,
       storageService,
       MockDatabaseHelper(), // dummy — not exercised by these tests
     );
@@ -613,12 +621,13 @@ void main() {
           ]);
       when(() => budgetPlanRepo.getAllPlans()).thenAnswer((_) async => []);
       when(() => budgetPlanRepo.getAllItems()).thenAnswer((_) async => []);
+      when(() => categoryRepo.getAll()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
           .thenReturn(15000000);
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 5);
+      expect(backup.schemaVersion, 6);
       expect(backup.appId, 'qlct.app');
       expect(backup.transactions.length, 1);
       expect(backup.budgets.length, 1);
@@ -642,6 +651,7 @@ void main() {
       when(() => budgetPlanRepo.getAllItems()).thenAnswer((_) async => []);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
       when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
+      when(() => categoryRepo.getAll()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
           .thenReturn(null);
 
@@ -662,7 +672,7 @@ void main() {
     test('creates non-empty backup with expected structure', () async {
       final backup = await service.generateSampleData();
 
-      expect(backup.schemaVersion, 5);
+      expect(backup.schemaVersion, 6);
       expect(backup.transactions.length, 20);
       expect(backup.budgets.length, 3);
       expect(backup.recurringTransactions.length, 2);
@@ -684,8 +694,8 @@ void main() {
     });
   });
 
-  group('createBackup v5', () {
-    test('appId is qlct.app and schemaVersion is 5', () async {
+  group('createBackup v6', () {
+    test('appId is qlct.app and schemaVersion is 6', () async {
       when(() => txRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
       when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
@@ -693,13 +703,14 @@ void main() {
       when(() => budgetPlanRepo.getAllItems()).thenAnswer((_) async => []);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
       when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
+      when(() => categoryRepo.getAll()).thenAnswer((_) async => []);
       when(() => storageService.loadValue<int>('total_budget'))
           .thenReturn(null);
 
       final backup = await service.createBackup();
 
       expect(backup.appId, 'qlct.app');
-      expect(backup.schemaVersion, 5);
+      expect(backup.schemaVersion, 6);
     });
 
     test('includes non-empty budget plans and items from datasources',
@@ -709,6 +720,7 @@ void main() {
       when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
       when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
       when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
+      when(() => categoryRepo.getAll()).thenAnswer((_) async => []);
 
       final plan1 = BudgetPlan(
         yearMonth: '2026-08',
@@ -767,17 +779,17 @@ void main() {
   // Slice 1 stable JSON field order test.
   // We test the public toJsonMap() (now public, was _toJsonMap) to exercise
   // the production serialization path rather than a manually-constructed map.
-// ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7 requires: appId, schemaVersion,
-// exportedAt, appVersion, totalBudget, transactions, budgets,
+// ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7 / ADR-0027 §13 requires: appId,
+// schemaVersion, exportedAt, appVersion, totalBudget, transactions, budgets,
 // recurringTransactions, quickTemplates, budgetSnapshots, budgetPlans,
-// budgetPlanItems
-  group('export JSON order (ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7)', () {
-    test('toJsonMap preserves stable field order matching ADR-0026 contract',
+// budgetPlanItems, categories
+  group('export JSON order (ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7 / ADR-0027 §13)', () {
+    test('toJsonMap preserves stable field order matching ADR-0027 contract',
         () {
       // Create a minimal BackupData that exercises the full toJsonMap path.
       final data = BackupData(
         appId: 'qlct.app',
-        schemaVersion: 5,
+        schemaVersion: 6,
         exportedAt: '2026-06-07T10:00:00.000Z',
         appVersion: '1.0.0',
         totalBudget: 0,
@@ -788,6 +800,7 @@ void main() {
         budgetSnapshots: const [],
         budgetPlans: const [],
         budgetPlanItems: const [],
+        categories: const [],
       );
 
       // toJsonMap() is the production serialization entry point.
@@ -818,6 +831,7 @@ void main() {
           'budgetSnapshots',
           'budgetPlans',
           'budgetPlanItems',
+          'categories',
         ]),
       );
     });
@@ -835,6 +849,86 @@ void main() {
       expect(pattern.hasMatch(fileName), isTrue,
           reason:
               'filename "$fileName" should match yyyy-MM-dd-HHmmss pattern');
+    });
+  });
+
+  // ===========================================================================
+  // ADR-0027 §13: Slice 3 — category catalog in backup schema v6
+  // ===========================================================================
+
+  group('createBackup includes categories (ADR-0027 §13)', () {
+    test('createBackup gathers categories from CategoryLocalDataSource',
+        () async {
+      final catFood = Category(
+        id: 'food_out',
+        name: 'Ăn ngoài',
+        normalizedName: 'an ngoai',
+        emoji: '🍜',
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 20000,
+        quickAmountDefault: 50000,
+        quickAmountMax: 150000,
+        voicePhrases: ['ăn ngoài'],
+        sortOrder: 10,
+        isSystem: true,
+        isArchived: false,
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+      final catCoffee = Category(
+        id: 'coffee',
+        name: 'Cà phê',
+        normalizedName: 'ca phe',
+        emoji: '☕',
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 10000,
+        quickAmountDefault: 20000,
+        quickAmountMax: 100000,
+        voicePhrases: ['cà phê'],
+        sortOrder: 30,
+        isSystem: true,
+        isArchived: false,
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+
+      when(() => txRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllPlans()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllItems()).thenAnswer((_) async => []);
+      when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
+      when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
+      when(() => categoryRepo.getAll())
+          .thenAnswer((_) async => [catFood, catCoffee]);
+      when(() => storageService.loadValue<int>('total_budget'))
+          .thenReturn(null);
+
+      final backup = await service.createBackup();
+
+      expect(backup.schemaVersion, 6);
+      expect(backup.categories.length, 2);
+      expect(
+          backup.categories.map((c) => c.id).toList(), ['food_out', 'coffee']);
+    });
+
+    test('createBackup handles empty categories gracefully', () async {
+      when(() => txRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetSnapshotRepo.getAll()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllPlans()).thenAnswer((_) async => []);
+      when(() => budgetPlanRepo.getAllItems()).thenAnswer((_) async => []);
+      when(() => recurringRepo.getAll()).thenAnswer((_) async => []);
+      when(() => quickTemplateRepo.getAll()).thenAnswer((_) async => []);
+      when(() => categoryRepo.getAll()).thenAnswer((_) async => []);
+      when(() => storageService.loadValue<int>('total_budget'))
+          .thenReturn(null);
+
+      final backup = await service.createBackup();
+
+      expect(backup.categories, isEmpty);
     });
   });
 }

@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/viewmodels/recurring_viewmodel.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/recurring_list_sheet.dart';
 
 class MockRecurringLocalDataSource extends Mock
@@ -14,6 +16,10 @@ class MockRecurringLocalDataSource extends Mock
 
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
+
+class _FakeCategoryViewModel extends CategoryViewModel {
+  _FakeCategoryViewModel() : super.seeded(seedCategories);
+}
 
 void main() {
   late MockRecurringLocalDataSource mockRecurringRepo;
@@ -43,8 +49,11 @@ void main() {
   Widget buildWidget() {
     return MaterialApp(
       home: Scaffold(
-        body: ChangeNotifierProvider<RecurringTransactionViewModel>.value(
-          value: vm,
+        body: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<RecurringTransactionViewModel>.value(value: vm),
+            ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+          ],
           child: const RecurringListSheet(),
         ),
       ),

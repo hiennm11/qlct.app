@@ -71,6 +71,7 @@ void main() {
               budgetSnapshotCount: 0,
               budgetPlanCount: 0,
               budgetPlanItemCount: 0,
+              categoryCount: 0,
             ));
   });
 
@@ -283,6 +284,7 @@ void main() {
         budgetSnapshotCount: 2,
         budgetPlanCount: 0,
         budgetPlanItemCount: 0,
+        categoryCount: 11,
       ),
     );
     when(() => mockVm.prepareRestorePreview()).thenAnswer(
@@ -360,6 +362,7 @@ void main() {
         budgetSnapshotCount: 5,
         budgetPlanCount: 0,
         budgetPlanItemCount: 0,
+        categoryCount: 0,
       ),
     );
 
@@ -402,6 +405,7 @@ void main() {
         budgetSnapshotCount: 0,
         budgetPlanCount: 0,
         budgetPlanItemCount: 0,
+        categoryCount: 0,
       ),
     );
 
@@ -442,6 +446,7 @@ void main() {
         budgetSnapshotCount: 0,
         budgetPlanCount: 0,
         budgetPlanItemCount: 0,
+        categoryCount: 0,
       ),
     );
 
@@ -484,6 +489,7 @@ void main() {
         budgetSnapshotCount: 0,
         budgetPlanCount: 0,
         budgetPlanItemCount: 0,
+        categoryCount: 0,
       ),
     );
     // createBackup returns — but the VM's errorMessage is checked AFTER
@@ -578,6 +584,7 @@ void main() {
         budgetSnapshotCount: 0,
         budgetPlanCount: 0,
         budgetPlanItemCount: 0,
+        categoryCount: 0,
       ),
     );
     when(() => mockVm.pendingTransactionCount).thenReturn(0);

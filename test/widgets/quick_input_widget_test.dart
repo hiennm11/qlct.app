@@ -3,15 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/transaction.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/quick_input_widget.dart';
 
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
 class MockExportService extends Mock implements ExportService {}
+
+class _FakeCategoryViewModel extends CategoryViewModel {
+  _FakeCategoryViewModel() : super.seeded(seedCategories);
+}
 
 void _useLargeSurface(WidgetTester tester) {
   tester.view.physicalSize = const Size(2400, 3200);
@@ -60,8 +66,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ChangeNotifierProvider<ExpenseViewModel>.value(
-            value: expenseVM,
+          body: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+              ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+            ],
             child: const QuickInputWidget(),
           ),
         ),

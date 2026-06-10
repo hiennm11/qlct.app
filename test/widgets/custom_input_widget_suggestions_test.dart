@@ -7,6 +7,7 @@ import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/custom_input_widget.dart';
 import 'package:qlct/services/transaction_suggestion_engine.dart';
 
@@ -14,6 +15,12 @@ class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
 class MockExportService extends Mock implements ExportService {}
+
+/// Fake CategoryViewModel backed by seed categories.
+/// Uses the seeded constructor so data is available immediately.
+class _FakeCategoryViewModel extends CategoryViewModel {
+  _FakeCategoryViewModel() : super.seeded(seedCategories);
+}
 
 /// Sets a large test viewport so PopupMenu / showMenu (positioned via
 /// localToGlobal) renders inside the visible bounds. The category picker
@@ -71,8 +78,11 @@ void main() {
         body: SizedBox(
           width: 400,
           height: 800,
-          child: ChangeNotifierProvider<ExpenseViewModel>.value(
-            value: expenseVM,
+          child: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+              ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+            ],
             child: const SingleChildScrollView(
               child: Padding(
                 padding: EdgeInsets.all(8),
@@ -138,8 +148,11 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: ChangeNotifierProvider<ExpenseViewModel>.value(
-              value: expenseVM,
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ExpenseViewModel>.value(value: expenseVM),
+                ChangeNotifierProvider<CategoryViewModel>.value(value: _FakeCategoryViewModel()),
+              ],
               child: const CustomInputWidget(),
             ),
           ),

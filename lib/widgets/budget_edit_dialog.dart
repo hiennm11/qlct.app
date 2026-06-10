@@ -138,13 +138,22 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
                       Category.predefined
                           .firstWhere(
                             (c) => c.name == widget.categoryName,
-                            orElse: () => const Category(
+                            orElse: () => Category(
+                              id: '',
                               name: '',
+                              normalizedName: '',
                               emoji: '📌',
-                              minAmount: 0,
-                              defaultAmount: 0,
-                              maxAmount: 0,
-                              phrases: [],
+                              kind: CategoryKind.spending,
+                              budgetBehavior: BudgetBehavior.flexible,
+                              quickAmountMin: 0,
+                              quickAmountDefault: 0,
+                              quickAmountMax: 0,
+                              voicePhrases: [],
+                              sortOrder: 9999,
+                              isSystem: false,
+                              isArchived: false,
+                              createdAt: DateTime(1970),
+                              updatedAt: DateTime(1970),
                             ),
                           )
                           .emoji,

@@ -50,6 +50,11 @@ _$BackupDataImpl _$$BackupDataImplFromJson(Map<String, dynamic> json) =>
               ?.map((e) => BudgetPlanItem.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      categories:
+          (json['categories'] as List<dynamic>?)
+              ?.map((e) => Category.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$BackupDataImplToJson(_$BackupDataImpl instance) =>
@@ -66,4 +71,5 @@ Map<String, dynamic> _$$BackupDataImplToJson(_$BackupDataImpl instance) =>
       'budgetSnapshots': instance.budgetSnapshots,
       'budgetPlans': instance.budgetPlans,
       'budgetPlanItems': instance.budgetPlanItems,
+      'categories': instance.categories,
     };

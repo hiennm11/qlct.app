@@ -23,12 +23,14 @@ import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
 import 'package:qlct/data/datasources/recurring_local_datasource.dart';
 import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
+import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_transaction_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_budget_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_budget_snapshot_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_recurring_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_quick_template_datasource.dart';
 import 'package:qlct/data/datasources/sqlite_budget_plan_datasource.dart';
+import 'package:qlct/data/datasources/sqlite_category_datasource.dart';
 import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart' show Transaction;
 import 'package:sqflite/sqflite.dart' as sqflite show Transaction, Database;
@@ -36,6 +38,7 @@ import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/services/backup_service.dart';
 import 'package:qlct/services/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -56,6 +59,9 @@ class MockRecurringDataSource extends Mock
 
 class MockQuickTemplateDataSource extends Mock
     implements QuickTemplateLocalDataSource {}
+
+class MockCategoryDataSource extends Mock
+    implements CategoryLocalDataSource {}
 
 class MockStorageService extends Mock implements StorageService {}
 
@@ -93,6 +99,7 @@ void main() {
   late MockBudgetPlanDataSource mockBudgetPlanRepo;
   late MockRecurringDataSource mockRecurringRepo;
   late MockQuickTemplateDataSource mockQuickTemplateRepo;
+  late MockCategoryDataSource mockCategoryRepo;
   late MockStorageService mockStorage;
   late String dbPath;
   late Directory tempDir;
@@ -170,6 +177,7 @@ setUpAll(() {
     mockBudgetPlanRepo = MockBudgetPlanDataSource();
     mockRecurringRepo = MockRecurringDataSource();
     mockQuickTemplateRepo = MockQuickTemplateDataSource();
+    mockCategoryRepo = MockCategoryDataSource();
     mockStorage = MockStorageService();
 
     // ADR-0023 Slice 2: count() used by getCurrentCounts. Default to 0
@@ -181,6 +189,7 @@ setUpAll(() {
     when(() => mockBudgetPlanRepo.itemCount()).thenAnswer((_) async => 0);
     when(() => mockRecurringRepo.count()).thenAnswer((_) async => 0);
     when(() => mockQuickTemplateRepo.count()).thenAnswer((_) async => 0);
+    when(() => mockCategoryRepo.count()).thenAnswer((_) async => 0);
 
     backupService = BackupService(
       mockTxRepo,
@@ -189,6 +198,7 @@ setUpAll(() {
       mockBudgetPlanRepo,
       mockRecurringRepo,
       mockQuickTemplateRepo,
+      mockCategoryRepo,
       mockStorage,
       dbHelper,
     );
@@ -636,6 +646,7 @@ setUpAll(() {
         mockPlanRepo,
         mockRecurringRepo,
         mockQuickTemplateRepo,
+        mockCategoryRepo,
         mockStorage,
         throwingDbHelper,
       );
@@ -829,6 +840,7 @@ setUpAll(() {
       final realQuickTemplateRepo = SqliteQuickTemplateDataSource(dbHelper);
 
       final realBudgetPlanRepo = SqliteBudgetPlanDataSource(dbHelper);
+      final realCategoryRepo = SqliteCategoryDataSource(dbHelper);
       final realService = BackupService(
         realTxRepo,
         realBudgetRepo,
@@ -836,6 +848,7 @@ setUpAll(() {
         realBudgetPlanRepo,
         realRecurringRepo,
         realQuickTemplateRepo,
+        realCategoryRepo,
         mockStorage,
         dbHelper,
       );
@@ -1084,6 +1097,185 @@ setUpAll(() {
           rows.firstWhere((r) => r['id'] == 'existing-qt');
       expect(existing['amount'], 35000);
       expect(existing['title'], 'Cơm trưa');
+    });
+  });
+
+  // ===========================================================================
+  // ADR-0027 §13: Slice 3 — category merge (LWW by updatedAt) + v1-v5 seed
+  // defaults. Tests exercise the real SQLite path via BackupService.restore.
+  // ===========================================================================
+
+  group('category restore (ADR-0027 §13)', () {
+    test(
+        'merge applies category when backup.updatedAt > current.updatedAt',
+        () async {
+      final db = await dbHelper.database;
+      // Pre-existing category with an OLDER updatedAt so backup wins.
+      final oldUpdated =
+          DateTime(2026, 1, 1, 0, 0, 0).millisecondsSinceEpoch;
+      await db.insert('categories', {
+        'id': 'food_out',
+        'name': 'Ăn ngoài',
+        'normalized_name': 'an ngoai',
+        'emoji': '🍜',
+        'kind': 'spending',
+        'budget_behavior': 'flexible',
+        'quick_amount_min': 20000,
+        'quick_amount_default': 50000,
+        'quick_amount_max': 150000,
+        'voice_phrases_json': '["ăn ngoài"]',
+        'sort_order': 10,
+        'is_system': 1,
+        'is_archived': 0,
+        'created_at': oldUpdated,
+        'updated_at': oldUpdated,
+      });
+
+      // Backup category with a NEWER updatedAt and changed default amount.
+      final newUpdated =
+          DateTime(2026, 6, 10, 0, 0, 0).millisecondsSinceEpoch;
+      final backupFood = Category(
+        id: 'food_out',
+        name: 'Ăn ngoài',
+        normalizedName: 'an ngoai',
+        emoji: '🍜',
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 20000,
+        quickAmountDefault: 99999, // changed
+        quickAmountMax: 150000,
+        voicePhrases: ['ăn ngoài'],
+        sortOrder: 10,
+        isSystem: true,
+        isArchived: false,
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(newUpdated),
+      );
+
+      final backupData = BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 6,
+        exportedAt: DateTime.now().toUtc().toIso8601String(),
+        appVersion: '1.0.0',
+        categories: [backupFood],
+      );
+
+      when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(0);
+      when(() => mockStorage.saveValue('total_budget', any()))
+          .thenAnswer((_) async {});
+
+      final result =
+          await backupService.restore(backupData, RestoreMode.merge);
+
+      expect(result.success, isTrue);
+      expect(result.categoriesImported, 1);
+
+      final rows = await db.query('categories', where: 'id = ?',
+          whereArgs: ['food_out']);
+      expect(rows.length, 1);
+      expect(rows.first['quick_amount_default'], 99999,
+          reason: 'backup value should win because updatedAt is newer');
+    });
+
+    test('merge keeps current category when backup.updatedAt is older',
+        () async {
+      final db = await dbHelper.database;
+      // Pre-existing category with a NEWER updatedAt.
+      final newUpdated =
+          DateTime(2026, 6, 10, 0, 0, 0).millisecondsSinceEpoch;
+      await db.insert('categories', {
+        'id': 'food_out',
+        'name': 'Ăn ngoài',
+        'normalized_name': 'an ngoai',
+        'emoji': '🍜',
+        'kind': 'spending',
+        'budget_behavior': 'flexible',
+        'quick_amount_min': 20000,
+        'quick_amount_default': 50000, // current value
+        'quick_amount_max': 150000,
+        'voice_phrases_json': '["ăn ngoài"]',
+        'sort_order': 10,
+        'is_system': 1,
+        'is_archived': 0,
+        'created_at': newUpdated,
+        'updated_at': newUpdated,
+      });
+
+      // Backup category with an OLDER updatedAt and different amount.
+      final oldUpdated =
+          DateTime(2026, 1, 1, 0, 0, 0).millisecondsSinceEpoch;
+      final backupFood = Category(
+        id: 'food_out',
+        name: 'Ăn ngoài',
+        normalizedName: 'an ngoai',
+        emoji: '🍜',
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 20000,
+        quickAmountDefault: 99999, // would win if not older
+        quickAmountMax: 150000,
+        voicePhrases: ['ăn ngoài'],
+        sortOrder: 10,
+        isSystem: true,
+        isArchived: false,
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(oldUpdated),
+      );
+
+      final backupData = BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 6,
+        exportedAt: DateTime.now().toUtc().toIso8601String(),
+        appVersion: '1.0.0',
+        categories: [backupFood],
+      );
+
+      when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(0);
+      when(() => mockStorage.saveValue('total_budget', any()))
+          .thenAnswer((_) async {});
+
+      final result =
+          await backupService.restore(backupData, RestoreMode.merge);
+
+      expect(result.success, isTrue);
+      expect(result.categoriesImported, 0,
+          reason: 'no row should be updated when backup is older');
+
+      final rows = await db.query('categories', where: 'id = ?',
+          whereArgs: ['food_out']);
+      expect(rows.first['quick_amount_default'], 50000,
+          reason: 'current value must be preserved when backup is older');
+    });
+
+    test(
+        'restore v1 backup with no categories seeds defaults if table empty',
+        () async {
+      // v1 backup: no categories field at all → defaults to [].
+      // After restore, since categories table is empty, defaults are seeded.
+      final db = await dbHelper.database;
+      // Sanity: table is empty.
+      final before = await db.query('categories');
+      expect(before, isEmpty);
+
+      final backupData = BackupData(
+        schemaVersion: 1, // v1: no appId, no categories
+        exportedAt: DateTime.now().toUtc().toIso8601String(),
+        appVersion: '1.0.0',
+      );
+
+      when(() => mockStorage.saveValue('total_budget', any()))
+          .thenAnswer((_) async {});
+
+      final result =
+          await backupService.restore(backupData, RestoreMode.replace);
+
+      expect(result.success, isTrue);
+      // Defaults count comes from seedCategories (11 in ADR-0027 §1).
+      expect(result.categoriesImported, seedCategories.length);
+
+      final rows = await db.query('categories');
+      expect(rows.length, seedCategories.length,
+          reason: 'defaults should be seeded into the empty categories table');
     });
   });
 }

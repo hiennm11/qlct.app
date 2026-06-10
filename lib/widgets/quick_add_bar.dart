@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 import '../models/category.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
@@ -29,22 +30,21 @@ class _QuickAddBarState extends State<QuickAddBar> {
   bool _isGridExpanded = false;
 
   /// Returns the top N most-used categories by transaction count.
-  /// Falls back to predefined order when counts are equal.
+  /// Falls back to sortOrder when counts are equal.
   List<Category> _topCategories(ExpenseViewModel vm) {
+    final catVM = context.read<CategoryViewModel>();
+    final allCats = catVM.quickInputCategories;
+    if (allCats.isEmpty) return [];
     final counts = <String, int>{};
     for (final tx in vm.allTransactions) {
       counts[tx.category] = (counts[tx.category] ?? 0) + 1;
     }
-    // Stable sort: by count desc, then by original index
-    final indexed = [
-      for (var i = 0; i < Category.predefined.length; i++)
-        MapEntry(i, Category.predefined[i]),
-    ];
-    indexed.sort((a, b) {
-      final c = (counts[b.value.name] ?? 0).compareTo(counts[a.value.name] ?? 0);
-      return c != 0 ? c : a.key.compareTo(b.key);
+    final sorted = List<Category>.from(allCats);
+    sorted.sort((a, b) {
+      final c = (counts[b.name] ?? 0).compareTo(counts[a.name] ?? 0);
+      return c != 0 ? c : a.sortOrder.compareTo(b.sortOrder);
     });
-    return indexed.take(widget.topCategoryCount).map((e) => e.value).toList();
+    return sorted.take(widget.topCategoryCount).toList();
   }
 
   // === VOICE FLOW (delegated to VoiceCoordinator) ===
@@ -113,7 +113,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
     final vm = context.read<ExpenseViewModel>();
     try {
       await vm.addTransaction(
-        amount: cat.defaultAmount,
+        amount: cat.quickAmountDefault,
         category: cat.name,
         emoji: cat.emoji,
       );
@@ -130,7 +130,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Đã thêm: ${cat.emoji} ${cat.name} - ${CurrencyFormatter.format(cat.defaultAmount)} ₫',
+              'Đã thêm: ${cat.emoji} ${cat.name} - ${CurrencyFormatter.format(cat.quickAmountDefault)} ₫',
             ),
             duration: const Duration(seconds: 2),
           ),
@@ -168,7 +168,8 @@ class _QuickAddBarState extends State<QuickAddBar> {
   Widget build(BuildContext context) {
     final vm = context.read<ExpenseViewModel>();
     final topCats = _topCategories(vm);
-    final remaining = Category.predefined.length - topCats.length;
+    final catVM = context.watch<CategoryViewModel>();
+    final remaining = catVM.quickInputCategories.length - topCats.length;
 
     return Card(
       child: Padding(
@@ -183,7 +184,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
                   // LEFT: voice
                   VoiceCoordinator(
                     onResult: _onVoiceResult,
-                    categories: Category.predefined,
+                    categories: catVM.quickInputCategories,
                     child: const _SectionButton(
                       icon: Icons.mic,
                       label: 'Nói nhanh',

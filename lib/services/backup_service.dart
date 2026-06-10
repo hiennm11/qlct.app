@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -17,12 +17,14 @@ import '../data/datasources/budget_snapshot_local_datasource.dart';
 import '../data/datasources/budget_plan_local_datasource.dart';
 import '../data/datasources/recurring_local_datasource.dart';
 import '../data/datasources/quick_template_local_datasource.dart';
+import '../data/datasources/category_local_datasource.dart';
 import '../data/mappers/transaction_row_mapper.dart';
 import '../data/mappers/budget_row_mapper.dart';
 import '../data/mappers/budget_snapshot_row_mapper.dart';
 import '../data/mappers/budget_plan_row_mapper.dart';
 import '../data/mappers/recurring_row_mapper.dart';
 import '../data/mappers/quick_template_mapper.dart';
+import '../data/mappers/category_row_mapper.dart';
 import '../models/backup_data.dart';
 import '../models/transaction.dart';
 import '../models/budget.dart';
@@ -30,6 +32,7 @@ import '../models/budget_snapshot.dart';
 import '../models/budget_plan.dart';
 import '../models/recurring_transaction.dart';
 import '../models/quick_template.dart';
+import '../models/category.dart';
 import 'storage_service.dart';
 
 /// Thrown by [BackupService.pickBackupFile] when the selected file exceeds
@@ -70,6 +73,8 @@ class CurrentCounts {
   final int budgetSnapshotCount;
   final int budgetPlanCount;
   final int budgetPlanItemCount;
+  // ADR-0027 §13: category count for destructive previews.
+  final int categoryCount;
 
   const CurrentCounts({
     required this.transactionCount,
@@ -79,6 +84,7 @@ class CurrentCounts {
     required this.budgetSnapshotCount,
     required this.budgetPlanCount,
     required this.budgetPlanItemCount,
+    required this.categoryCount,
   });
 
   /// True when no user data exists.
@@ -89,7 +95,8 @@ class CurrentCounts {
       quickTemplateCount == 0 &&
       budgetSnapshotCount == 0 &&
       budgetPlanCount == 0 &&
-      budgetPlanItemCount == 0;
+      budgetPlanItemCount == 0 &&
+      categoryCount == 0;
 
   /// Sum of all counts.
   int get total =>
@@ -99,14 +106,15 @@ class CurrentCounts {
       quickTemplateCount +
       budgetSnapshotCount +
       budgetPlanCount +
-      budgetPlanItemCount;
+      budgetPlanItemCount +
+      categoryCount;
 
   @override
   String toString() =>
       'CurrentCounts(tx=$transactionCount, b=$budgetCount, '
       'r=$recurringCount, qt=$quickTemplateCount, '
       'bs=$budgetSnapshotCount, bp=$budgetPlanCount, '
-      'bpi=$budgetPlanItemCount)';
+      'bpi=$budgetPlanItemCount, cat=$categoryCount)';
 }
 
 /// Result of a restore operation
@@ -119,6 +127,8 @@ class RestoreResult {
   final int budgetSnapshotsImported;
   final int budgetPlansImported;
   final int budgetPlanItemsImported;
+  // ADR-0027 §13: category restore result.
+  final int categoriesImported;
   final String? error;
 
   const RestoreResult({
@@ -130,6 +140,7 @@ class RestoreResult {
     required this.budgetSnapshotsImported,
     required this.budgetPlansImported,
     required this.budgetPlanItemsImported,
+    required this.categoriesImported,
     this.error,
   });
 }
@@ -147,6 +158,7 @@ class ClearDataPartialFailure implements Exception {
 /// Service for full backup and restore operations
 /// ADR-0025: Monthly Budget Snapshots
 /// ADR-0026: Monthly Budget Planning (schema v5)
+/// ADR-0027 §13: Category catalog (schema v6)
 class BackupService {
   final TransactionLocalDataSource _transactionDataSource;
   final BudgetLocalDataSource _budgetDataSource;
@@ -154,6 +166,8 @@ class BackupService {
   final BudgetPlanLocalDataSource _budgetPlanDataSource;
   final RecurringLocalDataSource _recurringDataSource;
   final QuickTemplateLocalDataSource _quickTemplateDataSource;
+  // ADR-0027 §13: category catalog source of truth.
+  final CategoryLocalDataSource _categoryDataSource;
   final StorageService _storageService;
   final DatabaseHelper _dbHelper;
 
@@ -164,6 +178,7 @@ class BackupService {
     this._budgetPlanDataSource,
     this._recurringDataSource,
     this._quickTemplateDataSource,
+    this._categoryDataSource,
     this._storageService,
     this._dbHelper,
   );
@@ -177,6 +192,7 @@ class BackupService {
     final budgetSnapshots = await _budgetSnapshotDataSource.getAll();
     final budgetPlans = await _budgetPlanDataSource.getAllPlans();
     final budgetPlanItems = await _budgetPlanDataSource.getAllItems();
+    final categories = await _categoryDataSource.getAll();
     final totalBudget = _storageService.loadValue<int>('total_budget') ?? 0;
 
     return BackupData(
@@ -192,14 +208,15 @@ class BackupService {
       budgetSnapshots: budgetSnapshots,
       budgetPlans: budgetPlans,
       budgetPlanItems: budgetPlanItems,
+      categories: categories,
     );
   }
 
 /// Serialize BackupData to a JSON-serializable Map with nested objects.
-/// Field order is stable per ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7 to make
-/// diffs/inspect/test snapshots easier. Model.toJson() is not used here on
-/// purpose. Exposed publicly for test coverage of the production
-/// serialization path.
+/// Field order is stable per ADR-0023 §3 / ADR-0025 §7 / ADR-0026 §7 /
+/// ADR-0027 §13 to make diffs/inspect/test snapshots easier. Model.toJson()
+/// is not used here on purpose. Exposed publicly for test coverage of the
+/// production serialization path.
 Map<String, dynamic> toJsonMap(BackupData data) {
   return {
     'appId': data.appId,
@@ -219,6 +236,8 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         data.budgetPlans.map((p) => p.toJson()).toList(),
     'budgetPlanItems':
         data.budgetPlanItems.map((i) => i.toJson()).toList(),
+    'categories':
+        data.categories.map((c) => c.toJson()).toList(),
   };
 }
 
@@ -371,6 +390,11 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       return ImportResult.error(['"budgetPlanItems" không phải là mảng']);
     }
 
+    // Validate categories array (ADR-0027 §13)
+    if (map['categories'] != null && map['categories'] is! List) {
+      return ImportResult.error(['"categories" không phải là mảng']);
+    }
+
     // Try to deserialize using the Freezed model
     try {
       final backupData = BackupData.fromJson(map);
@@ -411,6 +435,15 @@ Map<String, dynamic> toJsonMap(BackupData data) {
   ///
   /// Merge mode uses INSERT OR IGNORE so existing rows (by PRIMARY KEY) are
   /// skipped without loading any IDs into Dart memory.
+  ///
+  /// ADR-0027 §13 category restore:
+  /// - Merge: last-write-wins by `updatedAt` (insert if missing, update if
+  ///   backup.updatedAt > current.updatedAt, else keep current).
+  /// - Replace: clear categories + insert backup categories. If backup has
+  ///   empty/missing categories, seed defaults via INSERT OR IGNORE so the
+  ///   app never ends up category-empty.
+  /// - Old backups v1-v5: missing `categories` field → after restore, if
+  ///   the category table is empty, seed defaults (ADR-0027 §13).
   Future<RestoreResult> restore(BackupData data, RestoreMode mode) async {
     String? totalBudgetError;
     try {
@@ -421,6 +454,8 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       final budgetSnapshots = data.budgetSnapshots;
       final budgetPlans = data.budgetPlans;
       final budgetPlanItems = data.budgetPlanItems;
+      final categories = data.categories;
+      final hasCategoriesInBackup = categories.isNotEmpty;
 
       // Hoist SharedPreferences read OUTSIDE the DB transaction to avoid
       // stalling the transaction with a sync I/O call.
@@ -432,6 +467,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
           // If the insert phase fails, this delete is also rolled back.
           // ADR-0025 §7: include budget_snapshots in replace/clear-all
           // ADR-0026: include budget_plans + budget_plan_items
+          // ADR-0027 §13: include categories
           await txn.delete('transactions');
           await txn.delete('budgets');
           await txn.delete('recurring_transactions');
@@ -439,6 +475,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
           await txn.delete('budget_snapshots');
           await txn.delete('budget_plan_items'); // ADR-0026
           await txn.delete('budget_plans'); // ADR-0026
+          await txn.delete('categories'); // ADR-0027
         }
 
         int txImported = 0;
@@ -448,6 +485,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         int bsImported = 0;
         int bpImported = 0;
         int bpiImported = 0;
+        int catImported = 0;
 
         if (mode == RestoreMode.merge) {
           // Use INSERT OR IGNORE — SQLite PRIMARY KEY constraint handles
@@ -560,6 +598,33 @@ Map<String, dynamic> toJsonMap(BackupData data) {
             await batch.commit(noResult: true);
             bpiImported = budgetPlanItems.length;
           }
+
+          // ADR-0027 §13: category merge — last-write-wins by updatedAt.
+          // We fetch current rows, then for each backup category either
+          // insert (when id missing) or update (when backup is newer) or
+          // keep current (when backup is older). Row-by-row is acceptable
+          // for the v6 schema since category count is small (~11-50).
+          if (categories.isNotEmpty) {
+            final currentRows = await txn.query('categories',
+                columns: ['id', 'updated_at']);
+            final currentById = <String, int>{
+              for (final r in currentRows) r['id'] as String: r['updated_at'] as int,
+            };
+            for (final c in categories) {
+              final backupUpdated = c.updatedAt.millisecondsSinceEpoch;
+              final currentUpdated = currentById[c.id];
+              if (currentUpdated == null) {
+                await txn.insert('categories', _categoryToMap(c),
+                    conflictAlgorithm: ConflictAlgorithm.replace);
+                catImported++;
+              } else if (backupUpdated > currentUpdated) {
+                await txn.update('categories', _categoryToMap(c),
+                    where: 'id = ?', whereArgs: [c.id]);
+                catImported++;
+              }
+              // else: current is newer, keep as-is.
+            }
+          }
         } else {
           // Replace mode: insert everything (table already cleared above).
           if (transactions.isNotEmpty) {
@@ -621,6 +686,35 @@ Map<String, dynamic> toJsonMap(BackupData data) {
             }
             bpiImported = budgetPlanItems.length;
           }
+
+          // ADR-0027 §13: replace categories with backup contents.
+          if (categories.isNotEmpty) {
+            final batch = txn.batch();
+            for (final c in categories) {
+              batch.insert('categories', _categoryToMap(c));
+            }
+            await batch.commit(noResult: true);
+            catImported = categories.length;
+          }
+        }
+
+        // ADR-0027 §13: if backup had no categories (v1-v5 OR replace-empty),
+        // and the categories table is now empty, seed defaults via INSERT OR
+        // IGNORE so the app is never left in a category-less state.
+        if (!hasCategoriesInBackup) {
+          final existing = Sqflite.firstIntValue(
+              await txn.rawQuery('SELECT COUNT(*) FROM categories')) ??
+              0;
+          if (existing == 0) {
+            final defaults = seedCategories;
+            final batch = txn.batch();
+            for (final c in defaults) {
+              batch.insert('categories', _categoryToMap(c),
+                  conflictAlgorithm: ConflictAlgorithm.ignore);
+            }
+            await batch.commit(noResult: true);
+            catImported = defaults.length;
+          }
         }
 
         return RestoreResult(
@@ -632,6 +726,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
           budgetSnapshotsImported: bsImported,
           budgetPlansImported: bpImported,
           budgetPlanItemsImported: bpiImported,
+          categoriesImported: catImported,
         );
       });
 
@@ -662,6 +757,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
           budgetSnapshotsImported: result.budgetSnapshotsImported,
           budgetPlansImported: result.budgetPlansImported,
           budgetPlanItemsImported: result.budgetPlanItemsImported,
+          categoriesImported: result.categoriesImported,
           error: totalBudgetError,
         );
       }
@@ -680,14 +776,15 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         budgetSnapshotsImported: 0,
         budgetPlansImported: 0,
         budgetPlanItemsImported: 0,
+        categoriesImported: 0,
         error: 'Lỗi khi khôi phục dữ liệu: $e',
       );
     }
   }
 
-  /// ADR-0023 §8 / ADR-0025 §7 / ADR-0026: current counts from all 7 domains
-  /// via SQL COUNT(*). Used for destructive-action preview (replace/delete-all
-  /// dialogs).
+  /// ADR-0023 §8 / ADR-0025 §7 / ADR-0026 / ADR-0027 §13: current counts
+  /// from all8 domains via SQL COUNT(*). Used for destructive-action
+  /// preview (replace/delete-all dialogs).
   Future<CurrentCounts> getCurrentCounts() async {
     final txCount = await _transactionDataSource.count();
     final bCount = await _budgetDataSource.count();
@@ -696,6 +793,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
     final bsCount = await _budgetSnapshotDataSource.count();
     final bpCount = await _budgetPlanDataSource.count();
     final bpiCount = await _budgetPlanDataSource.itemCount();
+    final catCount = await _categoryDataSource.count();
     return CurrentCounts(
       transactionCount: txCount,
       budgetCount: bCount,
@@ -704,14 +802,15 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       budgetSnapshotCount: bsCount,
       budgetPlanCount: bpCount,
       budgetPlanItemCount: bpiCount,
+      categoryCount: catCount,
     );
   }
 
-  /// ADR-0023 §7 / ADR-0025 §7 / ADR-0026: delete-all semantics — clears all
-  /// user data atomically. DB tables cleared in one transaction; totalBudget
-  /// reset after the transaction succeeds. If totalBudget reset fails, throws
-  /// [ClearDataPartialFailure] so the caller can surface the error.
-  /// No undo for this operation.
+  /// ADR-0023 §7 / ADR-0025 §7 / ADR-0026 / ADR-0027 §13: delete-all
+  /// semantics — clears all user data atomically. DB tables cleared in one
+  /// transaction; totalBudget reset after the transaction succeeds. If
+  /// totalBudget reset fails, throws [ClearDataPartialFailure] so the caller
+  /// can surface the error. No undo for this operation.
   ///
   /// Budget plan tables are deleted directly here (not via
   /// [BudgetPlanLocalDataSource.clearAll]) because the latter wraps its own
@@ -725,6 +824,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       await txn.delete('budget_snapshots'); // ADR-0025
       await txn.delete('budget_plan_items'); // ADR-0026
       await txn.delete('budget_plans'); // ADR-0026
+      await txn.delete('categories'); // ADR-0027
     });
     // Reset totalBudget only after DB transaction succeeds.
     // Failure here means DB is cleared but totalBudget may still be non-zero.
@@ -911,4 +1011,6 @@ Map<String, dynamic> toJsonMap(BackupData data) {
 
   Map<String, dynamic> _budgetPlanItemToMap(BudgetPlanItem i) =>
       budgetPlanItemToRow(i);
+
+  Map<String, dynamic> _categoryToMap(Category c) => categoryToRow(c);
 }

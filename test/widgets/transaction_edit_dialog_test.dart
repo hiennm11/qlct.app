@@ -3,15 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/transaction.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/services/export_service.dart';
 import 'package:qlct/viewmodels/expense_viewmodel.dart';
+import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/transaction_edit_dialog.dart';
 
 class MockTransactionLocalDataSource extends Mock
     implements TransactionLocalDataSource {}
 
 class MockExportService extends Mock implements ExportService {}
+
+class _FakeCategoryViewModel extends CategoryViewModel {
+  _FakeCategoryViewModel() : super.seeded(seedCategories);
+}
 
 Transaction _tx({
   String id = 'tx-1',
@@ -34,14 +40,21 @@ Transaction _tx({
 }
 
 Widget _wrap(Widget child) {
-  return MaterialApp(home: Scaffold(body: child));
+  return MaterialApp(
+    home: Scaffold(
+      body: ChangeNotifierProvider<CategoryViewModel>.value(
+        value: _FakeCategoryViewModel(),
+        child: child,
+      ),
+    ),
+  );
 }
 
 void main() {
   testWidgets('shows dialog with title "Sửa giao dịch"', (tester) async {
     await tester.pumpWidget(_wrap(Builder(
       builder: (context) => ElevatedButton(
-        onPressed: () => showTransactionEditDialog(context, _tx()),
+        onPressed: () => showTransactionEditDialog(context, categoryViewModel: _FakeCategoryViewModel(), _tx()),
         child: const Text('Edit'),
       ),
     )));
@@ -77,7 +90,7 @@ void main() {
   testWidgets('hides recurring info when sourceRecurringId is null', (tester) async {
     await tester.pumpWidget(_wrap(Builder(
       builder: (context) => ElevatedButton(
-        onPressed: () => showTransactionEditDialog(context, _tx()),
+        onPressed: () => showTransactionEditDialog(context, categoryViewModel: _FakeCategoryViewModel(), _tx()),
         child: const Text('Edit'),
       ),
     )));
@@ -96,7 +109,7 @@ void main() {
     await tester.pumpWidget(_wrap(Builder(
       builder: (context) => ElevatedButton(
         onPressed: () async {
-          result = await showTransactionEditDialog(context, _tx());
+          result = await showTransactionEditDialog(context, categoryViewModel: _FakeCategoryViewModel(), _tx());
         },
         child: const Text('Edit'),
       ),
@@ -157,7 +170,7 @@ void main() {
               value: expenseVM,
               child: Builder(
                 builder: (context) => ElevatedButton(
-                  onPressed: () => showTransactionEditDialog(context, txToEdit),
+                  onPressed: () => showTransactionEditDialog(context, categoryViewModel: _FakeCategoryViewModel(), txToEdit),
                   child: const Text('Edit'),
                 ),
               ),
