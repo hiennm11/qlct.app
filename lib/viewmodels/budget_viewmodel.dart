@@ -91,7 +91,7 @@ class BudgetViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       for (final budget in budgets) {
-        final existing = await _dataSource.getByCategory(budget.categoryName);
+        final existing = await _dataSource.getByCategoryId(budget.categoryId);
         final upserted = existing != null
             ? budget.copyWith(id: existing.id, createdAt: existing.createdAt)
             : budget;
@@ -114,7 +114,7 @@ class BudgetViewModel extends ChangeNotifier {
 
     try {
       // Check if budget already exists for this category
-      final existingBudget = await _dataSource.getByCategory(categoryName);
+      final existingBudget = await _dataSource.getByCategoryId(categoryId);
       final budget = Budget(
         id: existingBudget?.id ?? const Uuid().v4(),
         categoryName: categoryName,
@@ -135,14 +135,14 @@ class BudgetViewModel extends ChangeNotifier {
   }
 
   /// Delete budget for a category
-  Future<void> deleteBudget(String categoryName) async {
+  Future<void> deleteBudget(String categoryId) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       final budget = _budgets.firstWhere(
-        (b) => b.categoryName == categoryName,
+        (b) => b.categoryId == categoryId,
         orElse: () => throw Exception('Budget not found'),
       );
       await _dataSource.delete(budget.id);
@@ -261,13 +261,13 @@ class BudgetViewModel extends ChangeNotifier {
 
       // Build a set of non-investment categories from plan items
       final planCategories = items
-          .where((item) => !_isInvestmentCategory(item.categoryName))
+          .where((item) => !_isInvestmentCategory(item.categoryId, item.categoryName))
           .toList();
 
-      // Build a set of categories that should exist after apply
-      final shouldExistCategories = planCategories
+      // Build a set of categoryIds that should exist after apply
+      final shouldExistCategoryIds = planCategories
           .where((item) => item.plannedLimit > 0)
-          .map((item) => item.categoryName)
+          .map((item) => item.categoryId)
           .toSet();
 
       // ── Phase A: live budget writes + total_budget save ─────────────
@@ -275,7 +275,7 @@ class BudgetViewModel extends ChangeNotifier {
       for (final item in planCategories) {
         if (item.plannedLimit > 0) {
           final existing = existingBudgets
-              .where((b) => b.categoryName == item.categoryName)
+              .where((b) => b.categoryId == item.categoryId)
               .firstOrNull;
           final budget = Budget(
             id: existing?.id ?? const Uuid().v4(),
@@ -291,8 +291,8 @@ class BudgetViewModel extends ChangeNotifier {
 
       // Step 3b: delete zero-limit or missing categories
       for (final existing in existingBudgets) {
-        if (_isInvestmentCategory(existing.categoryName)) continue;
-        if (!shouldExistCategories.contains(existing.categoryName)) {
+        if (_isInvestmentCategory(existing.categoryId, existing.categoryName)) continue;
+        if (!shouldExistCategoryIds.contains(existing.categoryId)) {
           await _dataSource.delete(existing.id);
         }
       }
@@ -364,16 +364,32 @@ class BudgetViewModel extends ChangeNotifier {
     }
   }
 
-  bool _isInvestmentCategory(String categoryName) {
-    for (final c in _categories) {
-      if (c.name == categoryName) {
-        return c.kind == CategoryKind.investment;
+  bool _isInvestmentCategory(String? categoryId, String? categoryName) {
+    // Resolve by ID first
+    if (categoryId != null) {
+      for (final c in _categories) {
+        if (c.id == categoryId) {
+          return c.kind == CategoryKind.investment;
+        }
+      }
+      // Fallback: check seed defaults for test scenarios
+      for (final c in seedCategories) {
+        if (c.id == categoryId) {
+          return c.kind == CategoryKind.investment;
+        }
       }
     }
-    // Fallback: check seed defaults for test scenarios
-    for (final c in seedCategories) {
-      if (c.name == categoryName) {
-        return c.kind == CategoryKind.investment;
+    // Fall back to name matching only when caller only has name snapshot
+    if (categoryName != null) {
+      for (final c in _categories) {
+        if (c.name == categoryName) {
+          return c.kind == CategoryKind.investment;
+        }
+      }
+      for (final c in seedCategories) {
+        if (c.name == categoryName) {
+          return c.kind == CategoryKind.investment;
+        }
       }
     }
     return false;
@@ -383,7 +399,8 @@ class BudgetViewModel extends ChangeNotifier {
   int _computeSpendingTotal(Map<String, int> categoryTotals) {
     int total = 0;
     for (final entry in categoryTotals.entries) {
-      if (!_isInvestmentCategory(entry.key)) {
+      // categoryTotals is keyed by categoryName snapshot — use name-based lookup
+      if (!_isInvestmentCategory(null, entry.key)) {
         total += entry.value;
       }
     }
@@ -396,7 +413,7 @@ class BudgetViewModel extends ChangeNotifier {
     if (_stats == null) {
       // Return statuses for non-investment budgets with default stats if no stats yet
       final nonInvestmentBudgets = _budgets
-          .where((b) => !_isInvestmentCategory(b.categoryName))
+          .where((b) => !_isInvestmentCategory(b.categoryId, b.categoryName))
           .toList();
       final statuses = nonInvestmentBudgets
           .map((b) => BudgetStatus.fromBudget(
@@ -415,7 +432,7 @@ class BudgetViewModel extends ChangeNotifier {
     // Create a map of existing non-investment budgets by category name
     final budgetMap = {
       for (var b in _budgets)
-        if (!_isInvestmentCategory(b.categoryName)) b.categoryName: b
+        if (!_isInvestmentCategory(b.categoryId, b.categoryName)) b.categoryName: b
     };
 
     // For each category (excluding investment)

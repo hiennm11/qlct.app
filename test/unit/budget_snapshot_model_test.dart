@@ -135,7 +135,7 @@ void main() {
   });
 
   group('BudgetSnapshot → Budget mapper', () {
-    test('budgetSnapshotToBudget creates Budget with synthetic id', () {
+    test('budgetSnapshotToBudget creates Budget with synthetic id using categoryId', () {
       final snapshot = BudgetSnapshot(
         yearMonth: '2026-05',
         categoryName: 'Ăn ngoài',
@@ -147,8 +147,9 @@ void main() {
 
       final budget = budgetSnapshotToBudget(snapshot);
 
-      expect(budget.id, 'snapshot_2026-05_Ăn ngoài');
+      expect(budget.id, 'snapshot_2026-05_food_out');
       expect(budget.categoryName, 'Ăn ngoài');
+      expect(budget.categoryId, 'food_out');
       expect(budget.monthlyLimit, 3000000);
       expect(budget.alertThreshold, 80);
       expect(budget.createdAt, DateTime(2026, 6, 1));
@@ -166,8 +167,9 @@ void main() {
 
       final budget = budgetSnapshotToBudget(snapshot);
 
-      expect(budget.id, 'snapshot_2026-04_Subscription');
+      expect(budget.id, 'snapshot_2026-04_subscription');
       expect(budget.categoryName, 'Subscription');
+      expect(budget.categoryId, 'subscription');
       expect(budget.monthlyLimit, 500000);
       expect(budget.alertThreshold, 75);
       expect(budget.createdAt, DateTime(2026, 5, 1, 12, 0));

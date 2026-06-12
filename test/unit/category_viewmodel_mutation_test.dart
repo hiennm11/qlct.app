@@ -89,6 +89,15 @@ class _FakeBudgetDataSource implements BudgetLocalDataSource {
   }
 
   @override
+  Future<Budget?> getByCategoryId(String categoryId) async {
+    try {
+      return _budgets.firstWhere((b) => b.categoryId == categoryId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
   Future<void> bulkUpsert(List<Budget> budgets) async {
     for (final b in budgets) {
       await upsert(b);

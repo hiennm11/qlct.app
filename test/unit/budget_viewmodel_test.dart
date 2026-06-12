@@ -44,6 +44,7 @@ void main() {
     mockCategoryDS = MockCategoryLocalDataSource();
     mockStorage = MockStorageService();
     when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+    when(() => mockRepo.getByCategoryId(any())).thenAnswer((_) async => null);
     when(() => mockSnapshotRepo.getAll()).thenAnswer((_) async => []);
     when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
     when(() => mockSnapshotRepo.bulkUpsert(any())).thenAnswer((_) async => {});
@@ -147,7 +148,7 @@ void main() {
     test('creates new budget and reloads budgets', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
-      when(() => mockRepo.getByCategory('Cà phê')).thenAnswer((_) async => null);
+      when(() => mockRepo.getByCategoryId('ca_phe')).thenAnswer((_) async => null);
 
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
@@ -171,7 +172,7 @@ void main() {
       when(() => mockRepo.getAll())
           .thenAnswer((_) async => [existingBudget]);
       when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
-      when(() => mockRepo.getByCategory('Cà phê'))
+      when(() => mockRepo.getByCategoryId('ca_phe'))
           .thenAnswer((_) async => existingBudget);
 
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
@@ -184,7 +185,7 @@ void main() {
 
     test('sets errorMessage on exception', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
+      when(() => mockRepo.getByCategoryId(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenThrow(Exception('Upsert failed'));
 
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
@@ -213,7 +214,7 @@ void main() {
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
-      await viewModel.deleteBudget('Cà phê');
+      await viewModel.deleteBudget('ca_phe');
 
       verify(() => mockRepo.delete('1')).called(1);
       verify(() => mockRepo.getAll()).called(2);
@@ -227,7 +228,7 @@ void main() {
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
-      await viewModel.deleteBudget('Cà phê');
+      await viewModel.deleteBudget('ca_phe');
 
       expect(viewModel.errorMessage, isNotNull);
     });
@@ -575,7 +576,7 @@ void main() {
       ];
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
-      when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
+      when(() => mockRepo.getByCategoryId(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
@@ -589,7 +590,7 @@ void main() {
     test('handles repository error gracefully', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
-      when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
+      when(() => mockRepo.getByCategoryId(any())).thenAnswer((_) async => null);
       when(() => mockRepo.upsert(any())).thenThrow(Exception('DB error'));
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
@@ -1194,6 +1195,147 @@ void main() {
 
       // After retry, signal is set
       expect(viewModel.lastAutoAppliedPlanYearMonth, currentYMs);
+    });
+  });
+
+  group('rollover auto-apply — categoryId-based matching when names differ', () {
+    test('upsert preserves existing id when plan item categoryId matches but categoryName differs', () async {
+      // ADR-0030: rollover must match by categoryId, not categoryName.
+      // Scenario: category was renamed between snapshot creation and now.
+      // Live budget: food_out + "Ăn hàng" (current name after rename)
+      // Plan item:   food_out + "Ăn ngoài" (old snapshot name)
+      // Upsert should preserve the existing live budget id (no duplicate).
+      const currentYMs = '2026-06';
+
+      Budget? capturedUpserted;
+
+      final liveBudgets = [
+        Budget(
+          id: 'existing-live-id',
+          categoryName: 'Ăn hàng', // current name after rename
+          categoryId: 'food_out',
+          monthlyLimit: 3000000,
+          alertThreshold: 80,
+          createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 5000000,
+        source: 'previousMonth',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(
+          yearMonth: currentYMs,
+          categoryName: 'Ăn ngoài', // old snapshot name
+          categoryId: 'food_out', // same id — must match by id not name
+          plannedLimit: 5000000,
+          alertThreshold: 80,
+          suggestedLimit: 4000000,
+          baseLimit: 3000000,
+          lastMonthSpent: 2800000,
+          wasOverBudgetLastMonth: false,
+          recommendation: 'increase',
+        ),
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
+      when(() => mockRepo.upsert(any())).thenAnswer((inv) async {
+        capturedUpserted = inv.positionalArguments.first as Budget;
+      });
+      when(() => mockRepo.delete(any())).thenAnswer((_) async => {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Verify: upsert was called once (not twice — no duplicate)
+      verify(() => mockRepo.upsert(any())).called(1);
+
+      // Verify: the upserted budget has the existing live budget id (preserved)
+      expect(capturedUpserted, isNotNull);
+      expect(capturedUpserted!.id, 'existing-live-id',
+          reason: 'Existing live budget id must be preserved when categoryId matches');
+      expect(capturedUpserted!.categoryId, 'food_out');
+      // Name updated to plan item snapshot
+      expect(capturedUpserted!.categoryName, 'Ăn ngoài');
+      expect(capturedUpserted!.monthlyLimit, 5000000);
+    });
+
+    test('delete loop uses categoryId: removes budget not in plan by categoryId', () async {
+      // ADR-0030: delete loop must check categoryId not categoryName.
+      // Live budget: food_out (Ăn hàng), coffee (Cà phê)
+      // Plan item:   only food_out
+      // coffee budget must be deleted even if it has a different name.
+      const currentYMs = '2026-06';
+
+      final liveBudgets = [
+        Budget(
+          id: 'b1',
+          categoryName: 'Ăn hàng', // renamed from Ăn ngoài
+          categoryId: 'food_out',
+          monthlyLimit: 3000000,
+          alertThreshold: 80,
+          createdAt: DateTime(2026, 6, 1)),
+        Budget(
+          id: 'b2',
+          categoryName: 'Cà phê',
+          categoryId: 'coffee',
+          monthlyLimit: 1000000,
+          alertThreshold: 80,
+          createdAt: DateTime(2026, 6, 1)),
+      ];
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 5000000,
+        source: 'previousMonth',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      // Plan only has food_out, coffee is missing → should be deleted
+      final draftItems = [
+        BudgetPlanItem(
+          yearMonth: currentYMs,
+          categoryName: 'Ăn ngoài', // old name but same id
+          categoryId: 'food_out',
+          plannedLimit: 5000000,
+          alertThreshold: 80,
+          suggestedLimit: 4000000,
+          baseLimit: 3000000,
+          lastMonthSpent: 2800000,
+          wasOverBudgetLastMonth: false,
+          recommendation: 'increase',
+        ),
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async => {});
+      when(() => mockRepo.delete(any())).thenAnswer((_) async => {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async => {});
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Verify: coffee budget (b2) was deleted, not food_out
+      verify(() => mockRepo.delete('b2')).called(1);
+      verifyNever(() => mockRepo.delete('b1'));
+      // food_out was upserted
+      verify(() => mockRepo.upsert(any())).called(1);
     });
   });
 }

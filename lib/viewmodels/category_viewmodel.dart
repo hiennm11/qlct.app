@@ -225,7 +225,7 @@ class CategoryViewModel extends ChangeNotifier {
     if (!existing.isArchived) {
       final budgetDs = _budgetDataSource;
       if (budgetDs != null) {
-        final budget = await budgetDs.getByCategory(existing.name);
+        final budget = await budgetDs.getByCategoryId(existing.id);
         if (budget != null && budget.monthlyLimit > 0) {
           _errorMessage =
               'Không thể lưu trữ danh mục "${existing.name}" vì đang có ngân sách hoạt động. '

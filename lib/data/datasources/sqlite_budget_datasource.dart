@@ -64,6 +64,19 @@ class SqliteBudgetDataSource implements BudgetLocalDataSource {
   }
 
   @override
+  Future<Budget?> getByCategoryId(String categoryId) async {
+    final db = await _dbHelper.database;
+    final maps = await db.query(
+      'budgets',
+      where: 'category_id = ?',
+      whereArgs: [categoryId],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return budgetFromRow(maps.first);
+  }
+
+  @override
   Future<void> clearAll() async {
     final db = await _dbHelper.database;
     await db.delete('budgets');

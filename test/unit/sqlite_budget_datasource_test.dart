@@ -333,4 +333,52 @@ void main() {
       expect(result, isNull);
     });
   });
+
+  group('getByCategoryId', () {
+    test('returns budget for matching categoryId', () async {
+      final budget = Budget(
+        id: 'find-by-id-uuid',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
+        monthlyLimit: 3000000,
+        alertThreshold: 80,
+        createdAt: DateTime.now(),
+      );
+
+      await dataSource.upsert(budget);
+
+      final result = await dataSource.getByCategoryId('food_out');
+
+      expect(result, isNotNull);
+      expect(result!.id, 'find-by-id-uuid');
+      expect(result.categoryId, 'food_out');
+      expect(result.categoryName, 'Ăn ngoài');
+      expect(result.monthlyLimit, 3000000);
+    });
+
+    test('returns null when no budget exists for categoryId', () async {
+      final result = await dataSource.getByCategoryId('non_existent_id');
+
+      expect(result, isNull);
+    });
+
+    test('getByCategoryId matches by id not by name when id is stable', () async {
+      // Same categoryId but different name (simulates rename scenario)
+      final budget = Budget(
+        id: 'id-stable-uuid',
+        categoryName: 'Ăn hàng', categoryId: 'food_out',
+        monthlyLimit: 4000000,
+        alertThreshold: 80,
+        createdAt: DateTime.now(),
+      );
+
+      await dataSource.upsert(budget);
+
+      // Should find by id even though name differs from old snapshot
+      final result = await dataSource.getByCategoryId('food_out');
+
+      expect(result, isNotNull);
+      expect(result!.id, 'id-stable-uuid');
+      expect(result.categoryId, 'food_out');
+    });
+  });
 }
