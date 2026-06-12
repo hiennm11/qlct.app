@@ -14,6 +14,7 @@ _$BudgetSnapshotImpl _$$BudgetSnapshotImplFromJson(Map<String, dynamic> json) =>
       limitAmount: (json['limitAmount'] as num).toInt(),
       alertThreshold: (json['alertThreshold'] as num?)?.toInt() ?? 80,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      carryAmount: (json['carryAmount'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$$BudgetSnapshotImplToJson(
@@ -25,4 +26,5 @@ Map<String, dynamic> _$$BudgetSnapshotImplToJson(
   'limitAmount': instance.limitAmount,
   'alertThreshold': instance.alertThreshold,
   'createdAt': instance.createdAt.toIso8601String(),
+  'carryAmount': instance.carryAmount,
 };

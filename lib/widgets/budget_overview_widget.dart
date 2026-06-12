@@ -83,6 +83,7 @@ class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
                         child: _BudgetCard(
                           status: status,
                           onCategoryTap: widget.onCategoryTap,
+                          carryFromPreviousMonth: viewModel.carryFromPreviousMonth,
                         ),
                       )),
                   if (normalStatuses.isNotEmpty) ...[
@@ -104,6 +105,7 @@ class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
                           child: _BudgetCard(
                             status: status,
                             onCategoryTap: widget.onCategoryTap,
+                            carryFromPreviousMonth: viewModel.carryFromPreviousMonth,
                           ),
                         )),
                 ],
@@ -222,8 +224,14 @@ class _EmptyState extends StatelessWidget {
 class _BudgetCard extends StatelessWidget {
   final BudgetStatus status;
   final void Function(String categoryName)? onCategoryTap;
+  /// categoryId → carryAmount from previous month (ADR-0032 §8)
+  final Map<String, int> carryFromPreviousMonth;
 
-  const _BudgetCard({required this.status, this.onCategoryTap});
+  const _BudgetCard({
+    required this.status,
+    this.onCategoryTap,
+    required this.carryFromPreviousMonth,
+  });
 
   Color _getProgressColor() {
     switch (status.alertLevel) {
@@ -316,6 +324,19 @@ class _BudgetCard extends StatelessWidget {
                 ),
               ],
             ),
+            // ADR-0032 §8: show carry-over from previous month
+            if (carryFromPreviousMonth[status.categoryId] != null &&
+                carryFromPreviousMonth[status.categoryId]! > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Chuyển từ tháng trước: +${CurrencyFormatter.format(carryFromPreviousMonth[status.categoryId]!)}',
+                style: const TextStyle(
+                  color: AppColors.success,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -27,6 +27,7 @@ mixin _$BudgetSnapshot {
   int get limitAmount => throw _privateConstructorUsedError;
   int get alertThreshold => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
+  int get carryAmount => throw _privateConstructorUsedError;
 
   /// Serializes this BudgetSnapshot to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -52,6 +53,7 @@ abstract class $BudgetSnapshotCopyWith<$Res> {
     int limitAmount,
     int alertThreshold,
     DateTime createdAt,
+    int carryAmount,
   });
 }
 
@@ -76,6 +78,7 @@ class _$BudgetSnapshotCopyWithImpl<$Res, $Val extends BudgetSnapshot>
     Object? limitAmount = null,
     Object? alertThreshold = null,
     Object? createdAt = null,
+    Object? carryAmount = null,
   }) {
     return _then(
       _value.copyWith(
@@ -103,6 +106,10 @@ class _$BudgetSnapshotCopyWithImpl<$Res, $Val extends BudgetSnapshot>
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
                       as DateTime,
+            carryAmount: null == carryAmount
+                ? _value.carryAmount
+                : carryAmount // ignore: cast_nullable_to_non_nullable
+                      as int,
           )
           as $Val,
     );
@@ -125,6 +132,7 @@ abstract class _$$BudgetSnapshotImplCopyWith<$Res>
     int limitAmount,
     int alertThreshold,
     DateTime createdAt,
+    int carryAmount,
   });
 }
 
@@ -148,6 +156,7 @@ class __$$BudgetSnapshotImplCopyWithImpl<$Res>
     Object? limitAmount = null,
     Object? alertThreshold = null,
     Object? createdAt = null,
+    Object? carryAmount = null,
   }) {
     return _then(
       _$BudgetSnapshotImpl(
@@ -175,6 +184,10 @@ class __$$BudgetSnapshotImplCopyWithImpl<$Res>
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
                   as DateTime,
+        carryAmount: null == carryAmount
+            ? _value.carryAmount
+            : carryAmount // ignore: cast_nullable_to_non_nullable
+                  as int,
       ),
     );
   }
@@ -190,6 +203,7 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
     required this.limitAmount,
     this.alertThreshold = 80,
     required this.createdAt,
+    this.carryAmount = 0,
   });
 
   factory _$BudgetSnapshotImpl.fromJson(Map<String, dynamic> json) =>
@@ -208,10 +222,13 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
   final int alertThreshold;
   @override
   final DateTime createdAt;
+  @override
+  @JsonKey()
+  final int carryAmount;
 
   @override
   String toString() {
-    return 'BudgetSnapshot(yearMonth: $yearMonth, categoryName: $categoryName, categoryId: $categoryId, limitAmount: $limitAmount, alertThreshold: $alertThreshold, createdAt: $createdAt)';
+    return 'BudgetSnapshot(yearMonth: $yearMonth, categoryName: $categoryName, categoryId: $categoryId, limitAmount: $limitAmount, alertThreshold: $alertThreshold, createdAt: $createdAt, carryAmount: $carryAmount)';
   }
 
   @override
@@ -230,7 +247,9 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
             (identical(other.alertThreshold, alertThreshold) ||
                 other.alertThreshold == alertThreshold) &&
             (identical(other.createdAt, createdAt) ||
-                other.createdAt == createdAt));
+                other.createdAt == createdAt) &&
+            (identical(other.carryAmount, carryAmount) ||
+                other.carryAmount == carryAmount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -243,6 +262,7 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
     limitAmount,
     alertThreshold,
     createdAt,
+    carryAmount,
   );
 
   /// Create a copy of BudgetSnapshot
@@ -270,6 +290,7 @@ abstract class _BudgetSnapshot implements BudgetSnapshot {
     required final int limitAmount,
     final int alertThreshold,
     required final DateTime createdAt,
+    final int carryAmount,
   }) = _$BudgetSnapshotImpl;
 
   factory _BudgetSnapshot.fromJson(Map<String, dynamic> json) =
@@ -287,6 +308,8 @@ abstract class _BudgetSnapshot implements BudgetSnapshot {
   int get alertThreshold;
   @override
   DateTime get createdAt;
+  @override
+  int get carryAmount;
 
   /// Create a copy of BudgetSnapshot
   /// with the given fields replaced by the non-null parameter values.

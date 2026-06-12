@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qlct/models/backup_data.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
+import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
 import 'package:qlct/models/budget_plan.dart';
@@ -117,8 +118,8 @@ void main() {
       expect(backup.transactions[4].id, 'tx-4');
     });
 
-    test('currentSchemaVersion is 7 (ADR-0029)', () {
-      expect(currentSchemaVersion, 7);
+    test('currentSchemaVersion is 8 (ADR-0032)', () {
+      expect(currentSchemaVersion, 8);
     });
 
     test('appId field present in model with default', () {
@@ -328,45 +329,84 @@ void main() {
       expect(backup.budgetPlanItems, isEmpty);
     });
 
-    test('BackupData with full plan data access all fields', () {
-      final plan = BudgetPlan(
-        yearMonth: '2026-08',
-        plannedTotalBudget: 12000000,
-        source: 'live_budget',
-        status: 'draft',
-        createdAt: DateTime(2026, 6, 9),
-        updatedAt: DateTime(2026, 6, 9),
-      );
-      final planItem = BudgetPlanItem(
-        yearMonth: '2026-08',
-        categoryName: 'Cà phê',
-        categoryId: 'coffee',
-        plannedLimit: 800000,
+    test('v7 JSON with BudgetSnapshot missing carryAmount defaults to 0 (ADR-0032 compat)', () {
+      // Simulate v7 backup (before carryAmount): snapshot has no carryAmount field
+      final v7Json = {
+        'appId': 'qlct.app',
+        'schemaVersion': 7,
+        'exportedAt': '2026-06-01T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        'quickTemplates': <Map<String, dynamic>>[],
+        'budgetSnapshots': [
+          {
+            'yearMonth': '2026-05',
+            'categoryName': 'Ăn ngoài',
+            'categoryId': 'food_out',
+            'limitAmount': 1000000,
+            'alertThreshold': 80,
+            'createdAt': '2026-06-01T00:00:00.000Z',
+            // no carryAmount field — legacy v7 backup
+          }
+        ],
+        'budgetPlans': <Map<String, dynamic>>[],
+        'budgetPlanItems': <Map<String, dynamic>>[],
+        'categories': <Map<String, dynamic>>[],
+      };
+
+      final backup = BackupData.fromJson(v7Json);
+
+      expect(backup.schemaVersion, 7);
+      expect(backup.budgetSnapshots.length, 1);
+      expect(backup.budgetSnapshots.first.carryAmount, 0,
+          reason: 'carryAmount must default to 0 when missing from older backup');
+    });
+
+    test('BudgetSnapshot with carryAmount is accessible in BackupData', () {
+      // Verify BudgetSnapshot with carryAmount can be stored in BackupData
+      final snapshotWithCarry = BudgetSnapshot(
+        yearMonth: '2026-05',
+        categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
+        limitAmount: 1000000,
         alertThreshold: 80,
-        suggestedLimit: 750000,
-        baseLimit: 800000,
-        lastMonthSpent: 900000,
-        wasOverBudgetLastMonth: true,
-        recommendation: 'increase',
+        createdAt: DateTime.parse('2026-06-01T00:00:00.000Z'),
+        carryAmount: 300000,
       );
 
       final backup = BackupData(
         appId: 'qlct.app',
-        schemaVersion: 5,
-        exportedAt: '2026-06-09T10:00:00.000Z',
+        schemaVersion: 8,
+        exportedAt: '2026-06-01T10:00:00.000Z',
         appVersion: '1.0.0',
-        totalBudget: 12000000,
-        budgetPlans: [plan],
-        budgetPlanItems: [planItem],
+        budgetSnapshots: [snapshotWithCarry],
       );
 
-      expect(backup.budgetPlans.length, 1);
-      expect(backup.budgetPlans.first.yearMonth, '2026-08');
-      expect(backup.budgetPlans.first.status, 'draft');
-      expect(backup.budgetPlanItems.length, 1);
-      expect(backup.budgetPlanItems.first.categoryName, 'Cà phê');
-      expect(backup.budgetPlanItems.first.wasOverBudgetLastMonth, isTrue);
-      expect(backup.budgetPlanItems.first.recommendation, 'increase');
+      expect(backup.budgetSnapshots.length, 1);
+      expect(backup.budgetSnapshots.first.carryAmount, 300000);
+
+      // Verify v7 backup without carryAmount defaults to 0
+      final snapshotDefault = BudgetSnapshot(
+        yearMonth: '2026-04',
+        categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
+        limitAmount: 500000,
+        alertThreshold: 80,
+        createdAt: DateTime.parse('2026-05-01T00:00:00.000Z'),
+      );
+
+      final backup2 = BackupData(
+        appId: 'qlct.app',
+        schemaVersion: 8,
+        exportedAt: '2026-06-01T10:00:00.000Z',
+        appVersion: '1.0.0',
+        budgetSnapshots: [snapshotDefault],
+      );
+
+      expect(backup2.budgetSnapshots.first.carryAmount, 0);
     });
   });
 }

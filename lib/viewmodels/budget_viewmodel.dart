@@ -9,6 +9,7 @@ import '../data/datasources/budget_local_datasource.dart';
 import '../data/datasources/budget_plan_local_datasource.dart';
 import '../data/datasources/budget_snapshot_local_datasource.dart';
 import '../data/datasources/category_local_datasource.dart';
+import '../data/datasources/transaction_local_datasource.dart';
 import '../services/storage_service.dart';
 
 /// ViewModel for managing budget state and operations
@@ -21,6 +22,7 @@ class BudgetViewModel extends ChangeNotifier {
   final CategoryLocalDataSource _categoryDataSource;
   final StorageService _storageService;
   final DateTime Function() _now;
+  final TransactionLocalDataSource? _transactionDataSource;
 
   /// In-flight guard for [_loadBudgets] so the constructor's microtask and a
   /// public caller (setBudget/setAllBudgets/deleteBudget/forceReload) cannot
@@ -35,6 +37,9 @@ class BudgetViewModel extends ChangeNotifier {
   int? _totalBudget;
   String? _lastAutoAppliedPlanYearMonth;
 
+  /// categoryId → carryAmount from previous month for last applied carry.
+  Map<String, int> _carryFromPreviousMonth = {};
+
   BudgetViewModel(
     this._dataSource,
     this._snapshotDataSource,
@@ -43,7 +48,9 @@ class BudgetViewModel extends ChangeNotifier {
     this._storageService, {
     DateTime Function()? now,
     List<Category>? initialCategories,
-  }) : _now = now ?? DateTime.now {
+    TransactionLocalDataSource? transactionDataSource,
+  })  : _now = now ?? DateTime.now,
+        _transactionDataSource = transactionDataSource {
     _totalBudget = _storageService.loadValue<int>('total_budget');
     if (initialCategories != null) {
       _categories = List.unmodifiable(initialCategories);
@@ -63,6 +70,10 @@ class BudgetViewModel extends ChangeNotifier {
   /// Last auto-applied plan yearMonth, for UI snackbar signal.
   /// Set after rollover auto-apply. Null if no plan was auto-applied.
   String? get lastAutoAppliedPlanYearMonth => _lastAutoAppliedPlanYearMonth;
+
+  /// Carry amounts from previous month, keyed by categoryId.
+  /// Used by UI to display "Chuyển từ tháng trước: +X ₫".
+  Map<String, int> get carryFromPreviousMonth => Map.unmodifiable(_carryFromPreviousMonth);
 
   /// Get total budget status for display (spending-only, excludes investment)
   TotalBudgetStatus? get totalBudgetStatus {
@@ -206,10 +217,14 @@ class BudgetViewModel extends ChangeNotifier {
       // previous month snapshot to capture the new month's plan.
       await _ensurePreviousMonthSnapshot();
 
-      // Step 3-5: ADR-0026 §9: apply current-month draft plan if present
+      // Step 3: ADR-0032 §3: calculate and persist carry amounts
+      await _calculateAndPersistCarryAmount();
+
+      // Step 4-6: ADR-0026 §9: apply current-month draft plan if present
+      // ADR-0032 §5: carry is added to plannedLimit in _applyCurrentMonthDraftPlan
       final applied = await _applyCurrentMonthDraftPlan();
       if (applied) {
-        // Step 5: reload live budgets after apply
+        // Step 6: reload live budgets after apply
         _budgets = await _dataSource.getAll();
       }
     } catch (e) {
@@ -277,11 +292,13 @@ class BudgetViewModel extends ChangeNotifier {
           final existing = existingBudgets
               .where((b) => b.categoryId == item.categoryId)
               .firstOrNull;
+          // ADR-0032 §5: add previous month carry to plannedLimit for eligible categories
+          final carryAmount = _carryFromPreviousMonth[item.categoryId] ?? 0;
           final budget = Budget(
             id: existing?.id ?? const Uuid().v4(),
             categoryName: item.categoryName,
             categoryId: item.categoryId,
-            monthlyLimit: item.plannedLimit,
+            monthlyLimit: item.plannedLimit + carryAmount,
             alertThreshold: item.alertThreshold,
             createdAt: existing?.createdAt ?? _now(),
           );
@@ -309,6 +326,12 @@ class BudgetViewModel extends ChangeNotifier {
       // safely (see cross-store non-atomicity notes above).
       final appliedAt = _now();
       await _planDataSource.markApplied(currentYMs, appliedAt);
+
+      // ADR-0032 §3: mark carry as applied (for draft plan path)
+      final prev = DateTime(now.year, now.month - 1, 1);
+      final prevYearMonth =
+          '${prev.year.toString().padLeft(4, '0')}-${prev.month.toString().padLeft(2, '0')}';
+      await _storageService.saveValue('budget_carry_applied_$prevYearMonth', true);
 
       // Set signal for UI
       _lastAutoAppliedPlanYearMonth = currentYMs;
@@ -361,6 +384,128 @@ class BudgetViewModel extends ChangeNotifier {
     } catch (e) {
       // Snapshot creation is best-effort — don't fail budget load on error
       debugPrint('Error creating previous-month snapshot: $e');
+    }
+  }
+
+  /// ADR-0032 §3: Calculate carry amounts for previous month snapshots
+  /// and persist carryAmount on each eligible snapshot.
+  /// Idempotent: checks storage flag before applying carry to live budgets.
+  Future<void> _calculateAndPersistCarryAmount() async {
+    try {
+      if (_transactionDataSource == null) return;
+
+      final now = _now();
+      final prev = DateTime(now.year, now.month - 1, 1);
+      final prevYearMonth =
+          '${prev.year.toString().padLeft(4, '0')}-${prev.month.toString().padLeft(2, '0')}';
+
+      // Load previous month snapshots
+      final prevSnapshots = await _snapshotDataSource.getByYearMonth(prevYearMonth);
+      if (prevSnapshots.isEmpty) return;
+
+      // Load previous month transactions to compute spending
+      final prevStart = DateTime(prev.year, prev.month, 1);
+      final prevEnd = DateTime(prev.year, prev.month + 1, 0, 23, 59, 59);
+      final prevTransactions = await _transactionDataSource.getByDateRange(prevStart, prevEnd);
+
+      // Group spending by categoryId
+      final Map<String, int> spentByCategoryId = {};
+      for (final tx in prevTransactions) {
+        spentByCategoryId[tx.categoryId] =
+            (spentByCategoryId[tx.categoryId] ?? 0) + tx.amount;
+      }
+
+      // Build carry map and updated snapshots
+      final updatedSnapshots = <BudgetSnapshot>[];
+      final carryMap = <String, int>{};
+
+      for (final snap in prevSnapshots) {
+        final carryAmount = _computeCarryForSnapshot(snap, spentByCategoryId);
+        if (carryAmount > 0) {
+          updatedSnapshots.add(BudgetSnapshot(
+            yearMonth: snap.yearMonth,
+            categoryName: snap.categoryName,
+            categoryId: snap.categoryId,
+            limitAmount: snap.limitAmount,
+            alertThreshold: snap.alertThreshold,
+            createdAt: snap.createdAt,
+            carryAmount: carryAmount,
+          ));
+          carryMap[snap.categoryId] = carryAmount;
+        }
+      }
+
+      // Always persist updated snapshots (idempotent upsert)
+      if (updatedSnapshots.isNotEmpty) {
+        await _snapshotDataSource.bulkUpsert(updatedSnapshots);
+      }
+
+      // Store carry map for UI and apply steps
+      _carryFromPreviousMonth = Map.from(carryMap);
+
+      // Idempotency: only apply carry to live budgets once per previous month
+      final flagKey = 'budget_carry_applied_$prevYearMonth';
+      final alreadyApplied = _storageService.loadValue<bool>(flagKey);
+      if (alreadyApplied == true) return;
+
+      // Apply carry to live budgets
+      final draft = await _planDataSource.getDraft(_formatYearMonth(now));
+      if (draft != null && draft.status == 'draft') {
+        // Plan path: carry added to plannedLimit in _applyCurrentMonthDraftPlan
+      } else {
+        // No-plan path: increment existing live budgets
+        await _applyCarryToExistingLiveBudgets(carryMap);
+      }
+
+      // Mark carry applied
+      await _storageService.saveValue(flagKey, true);
+    } catch (e) {
+      debugPrint('Error calculating carry amount: $e');
+    }
+  }
+
+  /// Compute carryAmount for a single snapshot.
+  /// Returns max(0, limitAmount - spent) for eligible categories, else 0.
+  int _computeCarryForSnapshot(
+      BudgetSnapshot snap, Map<String, int> spentByCategoryId) {
+    if (!_isFlexibleSpendingCategory(snap.categoryId)) return 0;
+    final spent = spentByCategoryId[snap.categoryId] ?? 0;
+    return (snap.limitAmount - spent).clamp(0, snap.limitAmount);
+  }
+
+  /// Check if a categoryId is eligible for carry-over:
+  /// kind == spending && budgetBehavior == flexible.
+  bool _isFlexibleSpendingCategory(String? categoryId) {
+    if (categoryId == null) return false;
+    for (final c in _categories) {
+      if (c.id == categoryId) {
+        return c.kind == CategoryKind.spending &&
+            c.budgetBehavior == BudgetBehavior.flexible;
+      }
+    }
+    for (final c in seedCategories) {
+      if (c.id == categoryId) {
+        return c.kind == CategoryKind.spending &&
+            c.budgetBehavior == BudgetBehavior.flexible;
+      }
+    }
+    return false;
+  }
+
+  /// ADR-0032 §5 (no-plan path): add carryAmount to existing live budget
+  /// monthlyLimit for eligible categories. Does NOT create new budget rows.
+  Future<void> _applyCarryToExistingLiveBudgets(Map<String, int> carryMap) async {
+    if (carryMap.isEmpty) return;
+    for (final entry in carryMap.entries) {
+      final categoryId = entry.key;
+      final carryAmount = entry.value;
+      final existing = await _dataSource.getByCategoryId(categoryId);
+      if (existing != null) {
+        final updated = existing.copyWith(
+          monthlyLimit: existing.monthlyLimit + carryAmount,
+        );
+        await _dataSource.upsert(updated);
+      }
     }
   }
 
@@ -448,7 +593,7 @@ class BudgetViewModel extends ChangeNotifier {
         statuses.add(BudgetStatus.fromBudget(budget, spent, emoji: category.emoji));
       } else if (spent > 0) {
         // No budget but has spent - show with limit=0
-        statuses.add(BudgetStatus.noBudget(category.name, spent, emoji: category.emoji));
+        statuses.add(BudgetStatus.noBudget(category.id, category.name, spent, emoji: category.emoji));
       }
       // If no budget and no spent, skip entirely
     }

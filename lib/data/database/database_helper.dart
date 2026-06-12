@@ -5,7 +5,7 @@ import 'package:qlct/core/vietnamese_text_normalizer.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 13;
+  static const _databaseVersion = 14;
 
   Database? _database;
   String? _testPathOverride;
@@ -102,6 +102,7 @@ class DatabaseHelper {
         limit_amount    INTEGER NOT NULL,
         alert_threshold INTEGER NOT NULL DEFAULT 80,
         created_at      INTEGER NOT NULL,
+        carry_amount    INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (year_month, category_id)
       )
     ''');
@@ -370,7 +371,7 @@ class DatabaseHelper {
         }
         // Create/retrieve placeholder
         if (!placeholderCreated.containsKey(categoryName)) {
-          final placeholderId = 'placeholder_${norm}_${nowMs}';
+          final placeholderId = 'placeholder_${norm}_$nowMs';
           placeholderCreated[categoryName] = placeholderId;
         }
         return placeholderCreated[categoryName]!;
@@ -515,6 +516,11 @@ class DatabaseHelper {
       }
       await db.execute('DROP TABLE budget_plan_items');
       await db.execute('ALTER TABLE budget_plan_items_v2 RENAME TO budget_plan_items');
+    }
+    if (oldVersion < 14) {
+      // ADR-0032: add carry_amount to budget_snapshots
+      await db.execute(
+          'ALTER TABLE budget_snapshots ADD COLUMN carry_amount INTEGER NOT NULL DEFAULT 0');
     }
   }
 

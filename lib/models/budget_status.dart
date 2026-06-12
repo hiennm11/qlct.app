@@ -46,6 +46,7 @@ class TotalBudgetStatus {
 /// Epoch constant for fallback Category constructors.
 /// Budget status combining budget info with current spending
 class BudgetStatus {
+  final String categoryId;
   final String categoryName;
   final String emoji;
   final int spent;
@@ -55,6 +56,7 @@ class BudgetStatus {
   final AlertLevel alertLevel;
 
   const BudgetStatus({
+    required this.categoryId,
     required this.categoryName,
     required this.emoji,
     required this.spent,
@@ -83,6 +85,7 @@ class BudgetStatus {
     }
 
     return BudgetStatus(
+      categoryId: budget.categoryId,
       categoryName: budget.categoryName,
       emoji: emoji,
       spent: spent,
@@ -96,8 +99,9 @@ class BudgetStatus {
   /// Create BudgetStatus for category with spending but no budget.
   ///
   /// [emoji] must be provided by the caller per ADR-0027 §12.
-  factory BudgetStatus.noBudget(String categoryName, int spent, {required String emoji}) {
+  factory BudgetStatus.noBudget(String categoryId, String categoryName, int spent, {required String emoji}) {
     return BudgetStatus(
+      categoryId: categoryId,
       categoryName: categoryName,
       emoji: emoji,
       spent: spent,

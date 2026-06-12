@@ -11,13 +11,16 @@ Map<String, dynamic> budgetSnapshotToRow(BudgetSnapshot s) {
     'limit_amount': s.limitAmount,
     'alert_threshold': s.alertThreshold,
     'created_at': s.createdAt.millisecondsSinceEpoch,
+    'carry_amount': s.carryAmount,
   };
 }
 
 /// Convert a SQLite row map to a [BudgetSnapshot].
 /// Tolerates rows missing category_id (e.g. old test fixtures) by deriving it.
+/// Tolerates missing carry_amount (e.g. pre-v14 rows) defaulting to 0.
 BudgetSnapshot budgetSnapshotFromRow(Map<String, dynamic> row) {
   final categoryId = row['category_id'] as String?;
+  final carryAmount = row['carry_amount'] as int?;
   return BudgetSnapshot(
     yearMonth: row['year_month'] as String,
     categoryName: row['category_name'] as String,
@@ -26,6 +29,7 @@ BudgetSnapshot budgetSnapshotFromRow(Map<String, dynamic> row) {
     limitAmount: row['limit_amount'] as int,
     alertThreshold: row['alert_threshold'] as int,
     createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+    carryAmount: carryAmount ?? 0,
   );
 }
 

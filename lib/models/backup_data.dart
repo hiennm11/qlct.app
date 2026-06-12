@@ -19,7 +19,8 @@ part 'backup_data.g.dart';
 /// v5: adds budgetPlans + budgetPlanItems (ADR-0026).
 /// v6: adds categories (ADR-0027 §13).
 /// v7: adds categoryId to all financial models (ADR-0029).
-const int currentSchemaVersion = 7;
+/// v8: adds carryAmount to BudgetSnapshot (ADR-0032).
+const int currentSchemaVersion = 8;
 
 /// App identifier stamped into every v3+ backup file so a stray foreign backup
 /// file (e.g. from a different app) is rejected at validation time.

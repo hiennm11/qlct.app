@@ -17,6 +17,7 @@ class BudgetSnapshot with _$BudgetSnapshot {
     required int limitAmount,
     @Default(80) int alertThreshold,
     required DateTime createdAt,
+    @Default(0) int carryAmount,
   }) = _BudgetSnapshot;
 
   factory BudgetSnapshot.fromJson(Map<String, dynamic> json) =>

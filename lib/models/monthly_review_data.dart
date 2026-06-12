@@ -105,6 +105,9 @@ class MonthlyReviewBudgetHighlight with _$MonthlyReviewBudgetHighlight {
     required int percentUsed,
     @Default(false) bool isExceeded,
     @Default(false) bool isWarning,
+    // TODO(ADR-0032 §8): add carryAmount to show "Còn dư chuyển tháng sau"
+    // Requires: add field here + update MonthlyReviewBuilder._buildBudgetHighlights
+    // to pass snapshots with carryAmount + update MonthlyReviewViewModel to pass snapshots.
   }) = _MonthlyReviewBudgetHighlight;
 }
 
