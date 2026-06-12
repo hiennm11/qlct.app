@@ -30,6 +30,7 @@ class MonthlyReviewBuilder {
     required DateTime currentPeriodEnd,
     required DateTime previousPeriodStart,
     required DateTime previousPeriodEnd,
+    Map<String, int> carryByCategoryId = const {},
   }) {
     bool isCatInvestment(String name) {
       for (final c in categories) {
@@ -85,7 +86,7 @@ class MonthlyReviewBuilder {
     );
 
     // Budget highlights (ADR-0025 §6: skip investment categories)
-    final budgetHighlights = _buildBudgetHighlights(currentSpending, budgets, categories);
+    final budgetHighlights = _buildBudgetHighlights(currentSpending, budgets, categories, carryByCategoryId);
 
     // Biggest spending day (only from spending, exclude investment)
     final biggestSpendingDay = _buildBiggestSpendingDay(currentSpending);
@@ -321,6 +322,7 @@ class MonthlyReviewBuilder {
     List<Transaction> currentSpending,
     List<Budget> budgets,
     List<Category> categories,
+    Map<String, int> carryByCategoryId,
   ) {
     // Group spending by category
     final categoryTotals = <String, int>{};
@@ -352,6 +354,7 @@ class MonthlyReviewBuilder {
           percentUsed: percentUsed,
           isExceeded: isExceeded,
           isWarning: isWarning,
+          carryAmount: carryByCategoryId[category.id] ?? 0,
         ));
       }
     }

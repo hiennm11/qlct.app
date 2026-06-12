@@ -605,6 +605,57 @@ void main() {
             isFalse,
             reason: 'Investment category should not appear in budget highlights');
       });
+
+      test('ADR-0035: carryAmount flows into highlight when carryByCategoryId provided', () {
+        final txs = [
+          _tx(id: '1', amount: 500000, category: 'Ăn ngoài', categoryId: 'food_out'),
+        ];
+        final budgets = [
+          _budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'food_out', monthlyLimit: 300000, alertThreshold: 80),
+        ];
+
+        final result = builder.build(
+          currentMonthTxs: txs,
+          previousPeriodTxs: [],
+          budgets: budgets,
+          activeRecurringRules: [],
+          categories: seedCategories,
+          selectedMonth: _monthStart(2026, 6),
+          currentPeriodStart: _monthStart(2026, 6),
+          currentPeriodEnd: _monthEnd(2026, 6),
+          previousPeriodStart: _monthStart(2026, 5),
+          previousPeriodEnd: _monthEnd(2026, 5),
+          carryByCategoryId: {'food_out': 300000},
+        );
+
+        expect(result.budgetHighlights.length, 1);
+        expect(result.budgetHighlights[0].carryAmount, 300000);
+      });
+
+      test('ADR-0035: carryAmount defaults to 0 when no carry map provided', () {
+        final txs = [
+          _tx(id: '1', amount: 500000, category: 'Ăn ngoài', categoryId: 'food_out'),
+        ];
+        final budgets = [
+          _budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'food_out', monthlyLimit: 300000, alertThreshold: 80),
+        ];
+
+        final result = builder.build(
+          currentMonthTxs: txs,
+          previousPeriodTxs: [],
+          budgets: budgets,
+          activeRecurringRules: [],
+          categories: seedCategories,
+          selectedMonth: _monthStart(2026, 6),
+          currentPeriodStart: _monthStart(2026, 6),
+          currentPeriodEnd: _monthEnd(2026, 6),
+          previousPeriodStart: _monthStart(2026, 5),
+          previousPeriodEnd: _monthEnd(2026, 5),
+        );
+
+        expect(result.budgetHighlights.length, 1);
+        expect(result.budgetHighlights[0].carryAmount, 0);
+      });
     });
   });
 }

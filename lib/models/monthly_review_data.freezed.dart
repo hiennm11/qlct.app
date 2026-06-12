@@ -2033,6 +2033,7 @@ mixin _$MonthlyReviewBudgetHighlight {
   int get percentUsed => throw _privateConstructorUsedError;
   bool get isExceeded => throw _privateConstructorUsedError;
   bool get isWarning => throw _privateConstructorUsedError;
+  int get carryAmount => throw _privateConstructorUsedError;
 
   /// Create a copy of MonthlyReviewBudgetHighlight
   /// with the given fields replaced by the non-null parameter values.
@@ -2060,6 +2061,7 @@ abstract class $MonthlyReviewBudgetHighlightCopyWith<$Res> {
     int percentUsed,
     bool isExceeded,
     bool isWarning,
+    int carryAmount,
   });
 }
 
@@ -2088,6 +2090,7 @@ class _$MonthlyReviewBudgetHighlightCopyWithImpl<
     Object? percentUsed = null,
     Object? isExceeded = null,
     Object? isWarning = null,
+    Object? carryAmount = null,
   }) {
     return _then(
       _value.copyWith(
@@ -2119,6 +2122,10 @@ class _$MonthlyReviewBudgetHighlightCopyWithImpl<
                 ? _value.isWarning
                 : isWarning // ignore: cast_nullable_to_non_nullable
                       as bool,
+            carryAmount: null == carryAmount
+                ? _value.carryAmount
+                : carryAmount // ignore: cast_nullable_to_non_nullable
+                      as int,
           )
           as $Val,
     );
@@ -2142,6 +2149,7 @@ abstract class _$$MonthlyReviewBudgetHighlightImplCopyWith<$Res>
     int percentUsed,
     bool isExceeded,
     bool isWarning,
+    int carryAmount,
   });
 }
 
@@ -2170,6 +2178,7 @@ class __$$MonthlyReviewBudgetHighlightImplCopyWithImpl<$Res>
     Object? percentUsed = null,
     Object? isExceeded = null,
     Object? isWarning = null,
+    Object? carryAmount = null,
   }) {
     return _then(
       _$MonthlyReviewBudgetHighlightImpl(
@@ -2201,6 +2210,10 @@ class __$$MonthlyReviewBudgetHighlightImplCopyWithImpl<$Res>
             ? _value.isWarning
             : isWarning // ignore: cast_nullable_to_non_nullable
                   as bool,
+        carryAmount: null == carryAmount
+            ? _value.carryAmount
+            : carryAmount // ignore: cast_nullable_to_non_nullable
+                  as int,
       ),
     );
   }
@@ -2218,6 +2231,7 @@ class _$MonthlyReviewBudgetHighlightImpl
     required this.percentUsed,
     this.isExceeded = false,
     this.isWarning = false,
+    this.carryAmount = 0,
   });
 
   @override
@@ -2236,10 +2250,13 @@ class _$MonthlyReviewBudgetHighlightImpl
   @override
   @JsonKey()
   final bool isWarning;
+  @override
+  @JsonKey()
+  final int carryAmount;
 
   @override
   String toString() {
-    return 'MonthlyReviewBudgetHighlight(categoryName: $categoryName, emoji: $emoji, spent: $spent, limit: $limit, percentUsed: $percentUsed, isExceeded: $isExceeded, isWarning: $isWarning)';
+    return 'MonthlyReviewBudgetHighlight(categoryName: $categoryName, emoji: $emoji, spent: $spent, limit: $limit, percentUsed: $percentUsed, isExceeded: $isExceeded, isWarning: $isWarning, carryAmount: $carryAmount)';
   }
 
   @override
@@ -2257,7 +2274,9 @@ class _$MonthlyReviewBudgetHighlightImpl
             (identical(other.isExceeded, isExceeded) ||
                 other.isExceeded == isExceeded) &&
             (identical(other.isWarning, isWarning) ||
-                other.isWarning == isWarning));
+                other.isWarning == isWarning) &&
+            (identical(other.carryAmount, carryAmount) ||
+                other.carryAmount == carryAmount));
   }
 
   @override
@@ -2270,6 +2289,7 @@ class _$MonthlyReviewBudgetHighlightImpl
     percentUsed,
     isExceeded,
     isWarning,
+    carryAmount,
   );
 
   /// Create a copy of MonthlyReviewBudgetHighlight
@@ -2296,6 +2316,7 @@ abstract class _MonthlyReviewBudgetHighlight
     required final int percentUsed,
     final bool isExceeded,
     final bool isWarning,
+    final int carryAmount,
   }) = _$MonthlyReviewBudgetHighlightImpl;
 
   @override
@@ -2312,6 +2333,8 @@ abstract class _MonthlyReviewBudgetHighlight
   bool get isExceeded;
   @override
   bool get isWarning;
+  @override
+  int get carryAmount;
 
   /// Create a copy of MonthlyReviewBudgetHighlight
   /// with the given fields replaced by the non-null parameter values.

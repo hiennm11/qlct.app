@@ -170,6 +170,8 @@ class MonthlyReviewViewModel extends ChangeNotifier {
       // - past month with snapshots: snapshot → Budget
       // - past month without snapshots: fallback to live
       List<Budget> budgets;
+      // ADR-0035: carryByCategoryId for past months with snapshots
+      final Map<String, int> carryByCategoryId = {};
       if (isCurrentMonthInProgress) {
         budgets = await _budgetDataSource.getAll();
       } else {
@@ -178,6 +180,12 @@ class MonthlyReviewViewModel extends ChangeNotifier {
             await _budgetSnapshotDataSource.getByYearMonth(ym);
         if (snapshots.isNotEmpty) {
           budgets = snapshots.map((s) => budgetSnapshotToBudget(s)).toList();
+          // Build carry map for completed past months
+          for (final s in snapshots) {
+            if (s.carryAmount > 0) {
+              carryByCategoryId[s.categoryId] = s.carryAmount;
+            }
+          }
         } else {
           budgets = await _budgetDataSource.getAll();
         }
@@ -208,6 +216,7 @@ class MonthlyReviewViewModel extends ChangeNotifier {
         currentPeriodEnd: periodEnd,
         previousPeriodStart: previousPeriodStart,
         previousPeriodEnd: previousPeriodEnd,
+        carryByCategoryId: carryByCategoryId,
       );
     } catch (e, stack) {
       debugPrint('MonthlyReviewViewModel error: $e\n$stack');

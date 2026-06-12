@@ -600,15 +600,29 @@ class _CategoryHighlightsSection extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(b.emoji, style: const TextStyle(fontSize: 18)),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(b.categoryName, style: const TextStyle(fontWeight: FontWeight.w500))),
-                          Text('${b.percentUsed}%', style: TextStyle(
-                            color: b.isExceeded ? AppColors.error : AppColors.warning,
-                            fontWeight: FontWeight.w600,
-                          )),
+                          Row(
+                            children: [
+                              Text(b.emoji, style: const TextStyle(fontSize: 18)),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(b.categoryName, style: const TextStyle(fontWeight: FontWeight.w500))),
+                              Text('${b.percentUsed}%', style: TextStyle(
+                                color: b.isExceeded ? AppColors.error : AppColors.warning,
+                                fontWeight: FontWeight.w600,
+                              )),
+                            ],
+                          ),
+                          // ADR-0035: carry-out line for past months
+                          if (b.carryAmount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 26, top: 2),
+                              child: Text(
+                                'Còn dư chuyển tháng sau: ${CurrencyFormatter.format(b.carryAmount)}',
+                                style: TextStyle(fontSize: 12, color: Colors.green[700]),
+                              ),
+                            ),
                         ],
                       ),
                     ),

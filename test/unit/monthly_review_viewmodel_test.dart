@@ -303,5 +303,35 @@ void main() {
       verify(() => mockBudgetDS.getAll()).called(1);
       expect(vm.data, isNotNull);
     });
+
+    test('ADR-0035: past month snapshot carryAmount flows into budget highlight', () async {
+      final pastSnapshot = BudgetSnapshot(
+        yearMonth: '2026-05',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
+        limitAmount: 400000,
+        alertThreshold: 80,
+        carryAmount: 200000,
+        createdAt: DateTime(2026, 6, 1),
+      );
+      when(() => mockTxDS.getByDateRange(any(), any()))
+          .thenAnswer((_) async => [
+                Transaction(
+                  id: 't1', category: 'Ăn ngoài', categoryId: 'food_out',
+                  emoji: '🍜', amount: 500000, note: '',
+                  date: DateTime(2026, 5, 15),
+                ),
+              ]);
+      when(() => mockSnapshotDS.getByYearMonth('2026-05'))
+          .thenAnswer((_) async => [pastSnapshot]);
+
+      final vm = makeVm();
+      await vm.selectMonth(DateTime(2026, 5, 1));
+
+      expect(vm.data, isNotNull);
+      final highlights = vm.data!.budgetHighlights;
+      final anNgoai = highlights.where((h) => h.categoryName == 'Ăn ngoài').firstOrNull;
+      expect(anNgoai, isNotNull, reason: '500k spent vs 400k limit → exceeded');
+      expect(anNgoai!.carryAmount, 200000);
+    });
   });
 }
