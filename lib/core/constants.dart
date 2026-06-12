@@ -4,7 +4,7 @@ class AppConstants {
 
   // App info
   static const String appName = 'Quản Lý Chi Tiêu';
-  static const String appVersion = '1.2.0';
+  static const String appVersion = '1.5.0';
 
   // Storage keys
   static const String transactionsKey = 'transactions';
