@@ -278,4 +278,125 @@ void main() {
       expect(vm.categoryById('coffee')!.isArchived, false);
     });
   });
+
+  group('CategoryViewModel.renameCategory', () {
+    test('renames existing category and persists', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final ok = await vm.renameCategory('coffee', '  Trà sữa  ');
+      expect(ok, true);
+      expect(vm.categoryById('coffee')!.name, 'Trà sữa');
+      expect(vm.categoryById('coffee')!.normalizedName, 'tra sua');
+      expect(catDs.upsertCalls, 1);
+    });
+
+    test('rejects rename of `other` category', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_other()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final ok = await vm.renameCategory('other', 'Mới');
+      expect(ok, false);
+      expect(vm.errorMessage, 'Không thể đổi tên danh mục mặc định.');
+    });
+
+    test('rejects duplicate normalized name', () async {
+      final now = DateTime(2026, 6, 10, 12);
+      final cat1 = Category(
+        id: 'cat1', name: 'Cà phê', normalizedName: 'ca phe',
+        emoji: '☕', kind: CategoryKind.spending, budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 10000, quickAmountDefault: 20000, quickAmountMax: 100000,
+        voicePhrases: ['cà phê'], sortOrder: 30, isSystem: true, isArchived: false,
+        createdAt: now, updatedAt: now,
+      );
+      final cat2 = Category(
+        id: 'cat2', name: 'Trà', normalizedName: 'tra',
+        emoji: '🍵', kind: CategoryKind.spending, budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 10000, quickAmountDefault: 20000, quickAmountMax: 100000,
+        voicePhrases: ['trà'], sortOrder: 40, isSystem: true, isArchived: false,
+        createdAt: now, updatedAt: now,
+      );
+      final catDs = _FakeCategoryDataSource()..seed([cat1, cat2]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      // Try to rename cat2 to "Cà phê" (normalized: ca phe) — conflicts with cat1
+      final ok = await vm.renameCategory('cat2', 'Cà phê');
+      expect(ok, false);
+      expect(vm.errorMessage, 'Tên danh mục đã tồn tại.');
+    });
+  });
+
+  group('CategoryViewModel.createCategory', () {
+    test('creates category with defaults and returns it', () async {
+      final catDs = _FakeCategoryDataSource()
+        ..seed([_coffee(), _other()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final created = await vm.createCategory(
+        name: '  Ăn vặt  ',
+        emoji: '🍿',
+        quickAmountMin: 10000,
+        quickAmountDefault: 30000,
+        quickAmountMax: 100000,
+        voicePhrases: ['ăn vặt', 'bánh'],
+      );
+
+      expect(created, isNotNull);
+      expect(created!.name, 'Ăn vặt');
+      expect(created.normalizedName, 'an vat');
+      expect(created.emoji, '🍿');
+      expect(created.kind, CategoryKind.spending);
+      expect(created.budgetBehavior, BudgetBehavior.flexible);
+      expect(created.isSystem, false);
+      expect(created.isArchived, false);
+      expect(created.sortOrder, 40); // max non-other was coffee=30 → +10
+      expect(catDs.upsertCalls, 1);
+    });
+
+    test('rejects empty name', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee(), _other()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final created = await vm.createCategory(
+        name: '   ',
+        emoji: '🏷️',
+        quickAmountMin: 10000,
+        quickAmountDefault: 50000,
+        quickAmountMax: 200000,
+        voicePhrases: [],
+      );
+
+      expect(created, isNull);
+      expect(vm.errorMessage, isNotNull);
+    });
+
+    test('rejects duplicate normalized name', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee(), _other()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final created = await vm.createCategory(
+        name: 'Cà phê', // normalized: ca phe — duplicates coffee
+        emoji: '🏷️',
+        quickAmountMin: 10000,
+        quickAmountDefault: 50000,
+        quickAmountMax: 200000,
+        voicePhrases: [],
+      );
+
+      expect(created, isNull);
+      expect(vm.errorMessage, 'Tên danh mục đã tồn tại.');
+    });
+  });
 }

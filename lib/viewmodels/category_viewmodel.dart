@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' hide Category;
 import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:uuid/uuid.dart';
 
 /// No-op datasource used only by the test constructor.
 class _NullDataSource implements CategoryLocalDataSource {
@@ -186,6 +187,8 @@ class CategoryViewModel extends ChangeNotifier {
       return false;
     }
     final restored = existing.copyWith(
+      name: seed.name,
+      normalizedName: seed.normalizedName,
       emoji: seed.emoji,
       quickAmountMin: seed.quickAmountMin,
       quickAmountDefault: seed.quickAmountDefault,
@@ -265,5 +268,113 @@ class CategoryViewModel extends ChangeNotifier {
     // Collapse whitespace
     s = s.replaceAll(RegExp(r'\s+'), ' ');
     return s.trim();
+  }
+
+  // ===== ADR-0031 §1: Category rename =====
+
+  /// Rename a category. Blocks `other` id.
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> renameCategory(String id, String newName) async {
+    if (id == 'other') {
+      _errorMessage = 'Không thể đổi tên danh mục mặc định.';
+      notifyListeners();
+      return false;
+    }
+    final existing = categoryById(id);
+    if (existing == null) {
+      _errorMessage = 'Không tìm thấy danh mục';
+      notifyListeners();
+      return false;
+    }
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) {
+      _errorMessage = 'Tên danh mục không được trống';
+      notifyListeners();
+      return false;
+    }
+    final normalizedName = _normalize(trimmed);
+    // Duplicate check: different id, same normalizedName
+    final duplicate = categoryByName(trimmed);
+    if (duplicate != null && duplicate.id != id) {
+      _errorMessage = 'Tên danh mục đã tồn tại.';
+      notifyListeners();
+      return false;
+    }
+    final updated = existing.copyWith(
+      name: trimmed,
+      normalizedName: normalizedName,
+      updatedAt: DateTime.now(),
+    );
+    try {
+      await _dataSource.upsert(updated);
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ===== ADR-0031 §2: Custom category creation =====
+
+  /// Create a new custom category. Returns created Category or null on failure.
+  Future<Category?> createCategory({
+    required String name,
+    required String emoji,
+    required int quickAmountMin,
+    required int quickAmountDefault,
+    required int quickAmountMax,
+    required List<String> voicePhrases,
+  }) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      _errorMessage = 'Tên danh mục không được trống';
+      notifyListeners();
+      return null;
+    }
+    final normalizedName = _normalize(trimmed);
+    final duplicate = categoryByName(trimmed);
+    if (duplicate != null) {
+      _errorMessage = 'Tên danh mục đã tồn tại.';
+      notifyListeners();
+      return null;
+    }
+    // sortOrder: max active non-other sortOrder + 10, fallback 10
+    int sortOrder = 10;
+    for (final c in activeCategories) {
+      if (c.id != 'other' && c.sortOrder > sortOrder) {
+        sortOrder = c.sortOrder;
+      }
+    }
+    sortOrder += 10;
+
+    final now = DateTime.now();
+    final created = Category(
+      id: const Uuid().v4(),
+      name: trimmed,
+      normalizedName: normalizedName,
+      emoji: emoji,
+      kind: CategoryKind.spending,
+      budgetBehavior: BudgetBehavior.flexible,
+      quickAmountMin: quickAmountMin,
+      quickAmountDefault: quickAmountDefault,
+      quickAmountMax: quickAmountMax,
+      voicePhrases: voicePhrases,
+      sortOrder: sortOrder,
+      isSystem: false,
+      isArchived: false,
+      createdAt: now,
+      updatedAt: now,
+    );
+    try {
+      await _dataSource.upsert(created);
+      await reload();
+      return created;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return null;
+    }
   }
 }

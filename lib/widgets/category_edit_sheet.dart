@@ -34,6 +34,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
   late TextEditingController _maxController;
   late TextEditingController _phrasesController;
   late TextEditingController _sortController;
+  late TextEditingController _nameController;
 
   List<String> _validationErrors = [];
   bool _isSaving = false;
@@ -41,6 +42,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
   @override
   void initState() {
     super.initState();
+    _nameController = TextEditingController(text: widget.category.name);
     _emojiController = TextEditingController(text: widget.category.emoji);
     _minController = TextEditingController(
         text: ThousandSeparatorFormatter.formatValue(widget.category.quickAmountMin));
@@ -56,6 +58,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emojiController.dispose();
     _minController.dispose();
     _defaultController.dispose();
@@ -66,6 +69,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
   }
 
   void _validate() {
+    final nameTrimmed = _nameController.text.trim();
     final min = int.tryParse(ThousandSeparatorFormatter.strip(_minController.text)) ?? 0;
     final def = int.tryParse(ThousandSeparatorFormatter.strip(_defaultController.text)) ?? 0;
     final max = int.tryParse(ThousandSeparatorFormatter.strip(_maxController.text)) ?? 0;
@@ -76,6 +80,11 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
         .where((p) => p.isNotEmpty)
         .toList();
 
+    final errors = <String>[];
+    if (nameTrimmed.isEmpty) {
+      errors.add('Tên danh mục không được trống');
+    }
+
     final draft = widget.category.copyWith(
       emoji: _emojiController.text,
       quickAmountMin: min,
@@ -84,8 +93,9 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
       voicePhrases: phrases,
       sortOrder: sort,
     );
+    errors.addAll(draft.validateForEdit());
     setState(() {
-      _validationErrors = draft.validateForEdit();
+      _validationErrors = errors;
     });
   }
 
@@ -94,6 +104,25 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
     if (_validationErrors.isNotEmpty) return;
 
     setState(() => _isSaving = true);
+
+    final vm = context.read<CategoryViewModel>();
+    final trimmedName = _nameController.text.trim();
+
+    // Rename first if name changed
+    if (trimmedName != widget.category.name) {
+      final renameOk = await vm.renameCategory(widget.category.id, trimmedName);
+      if (!mounted) return;
+      if (!renameOk) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(vm.errorMessage ?? 'Lỗi khi đổi tên'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    }
 
     final min = int.tryParse(ThousandSeparatorFormatter.strip(_minController.text)) ?? 0;
     final def = int.tryParse(ThousandSeparatorFormatter.strip(_defaultController.text)) ?? 0;
@@ -120,7 +149,6 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
       updatedAt: DateTime.now(),
     );
 
-    final vm = context.read<CategoryViewModel>();
     final ok = await vm.updateCategory(updated);
 
     if (!mounted) return;
@@ -156,7 +184,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
       builder: (ctx) => AlertDialog(
         title: const Text('Khôi phục mặc định?'),
         content: Text(
-          'Sẽ khôi phục emoji, số tiền nhanh, cụm từ và thứ tự về mặc định cho "${widget.category.name}".',
+          'Sẽ khôi phục tên, emoji, số tiền nhanh, cụm từ và thứ tự về mặc định cho "${widget.category.name}".',
         ),
         actions: [
           TextButton(
@@ -233,18 +261,27 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
       builder: (context, scrollController) {
         return Column(
           children: [
-            // Header
+            // Header: editable name field
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(
-                      cat.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    child: isOther
+                        ? Text(
+                            cat.name,
+                            style: Theme.of(context).textTheme.titleLarge,
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : TextField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Tên danh mục',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            onChanged: (_) => _validate(),
+                          ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -253,6 +290,15 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
                 ],
               ),
             ),
+            // Helper text for other category
+            if (isOther)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: Text(
+                  'Không thể đổi tên danh mục mặc định',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ),
             const Divider(height: 1),
             // Form
             Expanded(

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/category.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
+import 'package:qlct/widgets/category_create_sheet.dart';
 import 'package:qlct/widgets/category_edit_sheet.dart';
 
 /// ADR-0028 §3: Full-screen category management page.
@@ -88,6 +89,11 @@ class CategoryManagementScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quản lý danh mục'),
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Tạo danh mục mới',
+        onPressed: () => CategoryCreateSheet.show(context),
+        child: const Icon(Icons.add),
       ),
       body: Consumer<CategoryViewModel>(
         builder: (context, vm, _) {
