@@ -36,6 +36,9 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
   late TextEditingController _sortController;
   late TextEditingController _nameController;
 
+  late CategoryKind _selectedKind;
+  late BudgetBehavior _selectedBudgetBehavior;
+
   List<String> _validationErrors = [];
   bool _isSaving = false;
 
@@ -54,6 +57,8 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
         text: widget.category.voicePhrases.join(', '));
     _sortController = TextEditingController(
         text: widget.category.sortOrder.toString());
+    _selectedKind = widget.category.kind;
+    _selectedBudgetBehavior = widget.category.budgetBehavior;
   }
 
   @override
@@ -124,6 +129,49 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
       }
     }
 
+    // ADR-0033 §2+§4: check if budget semantics being removed
+    if (await _budgetWillBeRemoved()) {
+      if (!mounted) return;
+      final becomingInvestment = _selectedKind == CategoryKind.investment;
+      final msg = becomingInvestment
+          ? 'Danh mục này đang có ngân sách hoạt động. Chuyển sang Đầu tư sẽ xoá ngân sách hiện tại. Tiếp tục?'
+          : 'Danh mục này đang có ngân sách hoạt động. Loại trừ sẽ xoá ngân sách hiện tại. Tiếp tục?';
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Xoá ngân sách?'),
+          content: Text(msg),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Huỷ'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Tiếp tục'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (confirmed != true) {
+        setState(() => _isSaving = false);
+        return;
+      }
+      final deleteOk = await vm.deleteLiveBudgetForCategory(widget.category.id);
+      if (!mounted) return;
+      if (!deleteOk) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(vm.errorMessage ?? 'Lỗi khi xoá ngân sách'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    }
+
     final min = int.tryParse(ThousandSeparatorFormatter.strip(_minController.text)) ?? 0;
     final def = int.tryParse(ThousandSeparatorFormatter.strip(_defaultController.text)) ?? 0;
     final max = int.tryParse(ThousandSeparatorFormatter.strip(_maxController.text)) ?? 0;
@@ -136,17 +184,16 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
 
     // Auto-assign next sort order if empty
     final sort = sortStr.isEmpty
-        ? _nextSortOrder(context)
+        ? _nextSortOrder(vm)
         : (int.tryParse(sortStr) ?? widget.category.sortOrder);
 
-    final updated = widget.category.copyWith(
+    final updated = _buildUpdatedCategory(
       emoji: _emojiController.text,
       quickAmountMin: min,
       quickAmountDefault: def,
       quickAmountMax: max,
       voicePhrases: phrases,
       sortOrder: sort,
-      updatedAt: DateTime.now(),
     );
 
     final ok = await vm.updateCategory(updated);
@@ -166,8 +213,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
     }
   }
 
-  int _nextSortOrder(BuildContext context) {
-    final vm = context.read<CategoryViewModel>();
+  int _nextSortOrder(CategoryViewModel vm) {
     final active = vm.activeCategories;
     int maxSort = 0;
     for (final c in active) {
@@ -232,19 +278,48 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
     }
   }
 
-  String _kindLabel(CategoryKind kind) {
-    return kind == CategoryKind.spending ? 'Chi tiêu' : 'Đầu tư';
+  bool get _isInvestment => _selectedKind == CategoryKind.investment;
+
+  /// True if the current save would remove budget semantics (spending→investment
+  /// or behavior→excluded) and a live budget exists.
+  Future<bool> _budgetWillBeRemoved() async {
+    final cat = widget.category;
+    final wasSpending = cat.kind == CategoryKind.spending;
+    final becomingInvestment = _selectedKind == CategoryKind.investment;
+    final becomingExcluded = _selectedBudgetBehavior == BudgetBehavior.excluded &&
+        cat.budgetBehavior != BudgetBehavior.excluded;
+
+    if ((wasSpending && becomingInvestment) || becomingExcluded) {
+      final vm = context.read<CategoryViewModel>();
+      return await vm.hasActiveBudget(cat.id);
+    }
+    return false;
   }
 
-  String _behaviorLabel(BudgetBehavior behavior) {
-    switch (behavior) {
-      case BudgetBehavior.flexible:
-        return 'Linh hoạt';
-      case BudgetBehavior.fixed:
-        return 'Cố định';
-      case BudgetBehavior.excluded:
-        return 'Không tính ngân sách';
-    }
+  /// Returns the updated category with kind/budgetBehavior applied.
+  /// For investment, budgetBehavior is forced to excluded.
+  Category _buildUpdatedCategory({
+    required String emoji,
+    required int quickAmountMin,
+    required int quickAmountDefault,
+    required int quickAmountMax,
+    required List<String> voicePhrases,
+    required int sortOrder,
+  }) {
+    final forcedBehavior = _selectedKind == CategoryKind.investment
+        ? BudgetBehavior.excluded
+        : _selectedBudgetBehavior;
+    return widget.category.copyWith(
+      kind: _selectedKind,
+      budgetBehavior: forcedBehavior,
+      emoji: emoji,
+      quickAmountMin: quickAmountMin,
+      quickAmountDefault: quickAmountDefault,
+      quickAmountMax: quickAmountMax,
+      voicePhrases: voicePhrases,
+      sortOrder: sortOrder,
+      updatedAt: DateTime.now(),
+    );
   }
 
   @override
@@ -306,29 +381,87 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
                 controller: scrollController,
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // Read-only badges
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      Chip(
-                        label: Text(_kindLabel(cat.kind)),
-                        backgroundColor: AppColors.gray100,
- visualDensity: VisualDensity.compact,
+                  // Kind dropdown
+                  DropdownButtonFormField<CategoryKind>(
+                    initialValue: _selectedKind,
+                    decoration: InputDecoration(
+                      labelText: 'Loại danh mục',
+                      border: const OutlineInputBorder(),
+                      helperText: isOther
+                          ? 'Không thể thay đổi loại danh mục mặc định'
+                          : 'Chi tiêu → xuất hiện trong ngân sách, kế hoạch, review. Đầu tư → phân bổ vốn, không tính vào chi tiêu.',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: CategoryKind.spending, child: Text('Chi tiêu')),
+                      DropdownMenuItem(value: CategoryKind.investment, child: Text('Đầu tư')),
+                    ],
+                    onChanged: isOther
+                        ? null
+                        : (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedKind = val;
+                                if (val == CategoryKind.investment) {
+                                  _selectedBudgetBehavior = BudgetBehavior.excluded;
+                                } else if (_selectedBudgetBehavior == BudgetBehavior.excluded) {
+                                  _selectedBudgetBehavior = BudgetBehavior.flexible;
+                                }
+                              });
+                            }
+                          },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // BudgetBehavior dropdown
+                  DropdownButtonFormField<BudgetBehavior>(
+                    initialValue: _isInvestment ? BudgetBehavior.excluded : _selectedBudgetBehavior,
+                    decoration: InputDecoration(
+                      labelText: 'Hành vi ngân sách',
+                      border: const OutlineInputBorder(),
+                      helperText: isOther
+                          ? 'Không thể thay đổi hành vi ngân sách mặc định'
+                          : _isInvestment
+                              ? 'Đầu tư luôn ở chế độ Loại trừ'
+                              : 'Linh hoạt → tham gia ngân sách và chuyển tiền dư tháng sau. Cố định → tham gia ngân sách nhưng không chuyển dư. Loại trừ → không xuất hiện trong ngân sách.',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: BudgetBehavior.flexible, child: Text('Linh hoạt')),
+                      DropdownMenuItem(value: BudgetBehavior.fixed, child: Text('Cố định')),
+                      DropdownMenuItem(value: BudgetBehavior.excluded, child: Text('Loại trừ')),
+                    ],
+                    onChanged: (isOther || _isInvestment)
+                        ? null
+                        : (val) {
+                            if (val != null) {
+                              setState(() => _selectedBudgetBehavior = val);
+                            }
+                          },
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Inline warning when behavior changes away from flexible
+                  if (!_isInvestment &&
+                      _selectedBudgetBehavior != BudgetBehavior.flexible &&
+                      widget.category.budgetBehavior == BudgetBehavior.flexible)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Hành vi này sẽ không được chuyển tiền dư sang tháng sau.',
+                        style: TextStyle(fontSize: 12, color: Colors.orange[700]),
                       ),
-                      Chip(
-                        label: Text(_behaviorLabel(cat.budgetBehavior)),
-                        backgroundColor: AppColors.gray100,
+                    ),
+
+                  // Archived badge
+                  if (isArchived)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Chip(
+                        label: const Text('Đã lưu trữ'),
+                        backgroundColor: AppColors.warning.withValues(alpha: 0.2),
                         visualDensity: VisualDensity.compact,
                       ),
-                      if (isArchived)
-                        Chip(
-                          label: const Text('Đã lưu trữ'),
-                          backgroundColor: AppColors.warning.withValues(alpha: 0.2),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                    ),
+                  const SizedBox(height: 12),
 
                   // Emoji
                   TextField(

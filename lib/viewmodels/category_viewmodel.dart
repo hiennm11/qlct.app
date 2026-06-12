@@ -167,9 +167,10 @@ class CategoryViewModel extends ChangeNotifier {
     }
   }
 
-  /// Reset a system category to seed defaults for safe fields only.
-  /// Safe fields: emoji, quick amounts, voicePhrases, sortOrder, isArchived=false.
-  /// Keeps: id, name, normalizedName, kind, budgetBehavior, isSystem, createdAt.
+  /// Reset a system category to seed defaults for safe fields + kind + budgetBehavior.
+  /// Restores: emoji, quick amounts, voicePhrases, sortOrder, isArchived=false,
+  ///           kind, budgetBehavior.
+  /// Keeps: id, name, normalizedName, isSystem, createdAt.
   /// Returns true on success; sets errorMessage on failure.
   Future<bool> resetSystemCategory(String categoryId) async {
     final existing = categoryById(categoryId);
@@ -195,12 +196,47 @@ class CategoryViewModel extends ChangeNotifier {
       quickAmountMax: seed.quickAmountMax,
       voicePhrases: seed.voicePhrases,
       sortOrder: seed.sortOrder,
+      kind: seed.kind,
+      budgetBehavior: seed.budgetBehavior,
       isArchived: false,
       updatedAt: DateTime.now(),
     );
     try {
       await _dataSource.upsert(restored);
       await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ===== ADR-0033: Budget helpers for kind/behavior editing =====
+
+  /// Returns true if category has a live budget with monthlyLimit > 0.
+  /// Uses optional _budgetDataSource; returns false if no datasource.
+  Future<bool> hasActiveBudget(String categoryId) async {
+    final budgetDs = _budgetDataSource;
+    if (budgetDs == null) return false;
+    final budget = await budgetDs.getByCategoryId(categoryId);
+    return budget != null && budget.monthlyLimit > 0;
+  }
+
+  /// Deletes the live budget row for categoryId if it exists.
+  /// Returns true on success; sets _errorMessage on failure.
+  Future<bool> deleteLiveBudgetForCategory(String categoryId) async {
+    try {
+      final budgetDs = _budgetDataSource;
+      if (budgetDs == null) {
+        _errorMessage = 'Không có dữ liệu ngân sách';
+        notifyListeners();
+        return false;
+      }
+      final budget = await budgetDs.getByCategoryId(categoryId);
+      if (budget != null) {
+        await budgetDs.delete(budget.id);
+      }
       return true;
     } catch (e) {
       _errorMessage = e.toString();

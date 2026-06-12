@@ -332,6 +332,135 @@ void main() {
     });
   });
 
+  group('CategoryViewModel.updateCategory kind+budgetBehavior', () {
+    test('can change kind and budgetBehavior', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final updated = _coffee().copyWith(
+        kind: CategoryKind.investment,
+        budgetBehavior: BudgetBehavior.excluded,
+      );
+      final ok = await vm.updateCategory(updated);
+      expect(ok, true);
+      expect(vm.categoryById('coffee')!.kind, CategoryKind.investment);
+      expect(vm.categoryById('coffee')!.budgetBehavior, BudgetBehavior.excluded);
+    });
+  });
+
+  group('CategoryViewModel.resetSystemCategory', () {
+    test('restores seed kind and budgetBehavior', () async {
+      final catDs = _FakeCategoryDataSource()
+        ..seed([_coffee().copyWith(
+          kind: CategoryKind.investment,
+          budgetBehavior: BudgetBehavior.excluded,
+        )]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final ok = await vm.resetSystemCategory('coffee');
+      expect(ok, true);
+      final restored = vm.categoryById('coffee')!;
+      expect(restored.kind, CategoryKind.spending);
+      expect(restored.budgetBehavior, BudgetBehavior.flexible);
+    });
+  });
+
+  group('CategoryViewModel.hasActiveBudget', () {
+    test('returns true when live budget exists', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final budgetDs = _FakeBudgetDataSource()
+        ..addBudget(Budget(
+          id: 'b1',
+          categoryName: 'Cà phê',
+          categoryId: 'coffee',
+          monthlyLimit: 200000,
+          createdAt: DateTime(2026, 6, 1),
+        ));
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      expect(await vm.hasActiveBudget('coffee'), true);
+    });
+
+    test('returns false when no budget', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      expect(await vm.hasActiveBudget('coffee'), false);
+    });
+
+    test('returns false when budget monthlyLimit is 0', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final budgetDs = _FakeBudgetDataSource()
+        ..addBudget(Budget(
+          id: 'b1',
+          categoryName: 'Cà phê',
+          categoryId: 'coffee',
+          monthlyLimit: 0,
+          createdAt: DateTime(2026, 6, 1),
+        ));
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      expect(await vm.hasActiveBudget('coffee'), false);
+    });
+
+    test('returns false when no budget datasource', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      expect(await vm.hasActiveBudget('coffee'), false);
+    });
+  });
+
+  group('CategoryViewModel.deleteLiveBudgetForCategory', () {
+    test('deletes matching budget row and returns true', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final budgetDs = _FakeBudgetDataSource()
+        ..addBudget(Budget(
+          id: 'b1',
+          categoryName: 'Cà phê',
+          categoryId: 'coffee',
+          monthlyLimit: 200000,
+          createdAt: DateTime(2026, 6, 1),
+        ));
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final ok = await vm.deleteLiveBudgetForCategory('coffee');
+      expect(ok, true);
+      final budget = await budgetDs.getByCategoryId('coffee');
+      expect(budget, isNull);
+    });
+
+    test('returns true when no budget exists (no-op)', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final ok = await vm.deleteLiveBudgetForCategory('coffee');
+      expect(ok, true);
+    });
+
+    test('returns false and sets errorMessage when no budget datasource', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      final ok = await vm.deleteLiveBudgetForCategory('coffee');
+      expect(ok, false);
+      expect(vm.errorMessage, isNotNull);
+    });
+  });
+
   group('CategoryViewModel.createCategory', () {
     test('creates category with defaults and returns it', () async {
       final catDs = _FakeCategoryDataSource()
