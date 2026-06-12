@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/core/formatters.dart';
 import 'package:qlct/core/theme.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 
 /// ADR-0031 §2: Bottom sheet for creating a new custom category.
@@ -28,6 +29,7 @@ class _CategoryCreateSheetState extends State<CategoryCreateSheet> {
   late TextEditingController _defaultController;
   late TextEditingController _maxController;
   late TextEditingController _phrasesController;
+  CategoryKind _selectedKind = CategoryKind.spending;
 
   List<String> _validationErrors = [];
   bool _isSaving = false;
@@ -130,6 +132,7 @@ class _CategoryCreateSheetState extends State<CategoryCreateSheet> {
       quickAmountDefault: def,
       quickAmountMax: max,
       voicePhrases: phrases,
+      kind: _selectedKind,
     );
 
     if (!mounted) return;
@@ -175,25 +178,6 @@ class _CategoryCreateSheetState extends State<CategoryCreateSheet> {
               ),
             ),
             const Divider(height: 1),
-            // Info: kind + behavior (read-only)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Wrap(
-                spacing: 8,
-                children: [
-                  Chip(
-                    label: const Text('Loại: Chi tiêu'),
-                    backgroundColor: AppColors.gray100,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  Chip(
-                    label: const Text('Hành vi ngân sách: Linh hoạt'),
-                    backgroundColor: AppColors.gray100,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-            ),
             // Form
             Expanded(
               child: ListView(
@@ -221,6 +205,29 @@ class _CategoryCreateSheetState extends State<CategoryCreateSheet> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 28),
                     onChanged: (_) => _validate(),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Kind dropdown (ADR-0034 §3)
+                  // ignore: deprecated_member_use
+                  DropdownButtonFormField<CategoryKind>(
+                    value: _selectedKind,
+                    decoration: InputDecoration(
+                      labelText: 'Loại danh mục',
+                      border: const OutlineInputBorder(),
+                      helperText: _selectedKind == CategoryKind.investment
+                          ? 'Đầu tư: không tham gia ngân sách, chỉ theo dõi vốn.'
+                          : 'Chi tiêu: tham gia ngân sách tháng.',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: CategoryKind.spending, child: Text('Chi tiêu')),
+                      DropdownMenuItem(value: CategoryKind.investment, child: Text('Đầu tư')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _selectedKind = val);
+                      }
+                    },
                   ),
                   const SizedBox(height: 12),
 

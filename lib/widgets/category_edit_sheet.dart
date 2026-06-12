@@ -278,6 +278,46 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
     }
   }
 
+  Future<void> _deleteCategory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xoá danh mục?'),
+        content: const Text(
+          'Xoá danh mục này? Hành động này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Huỷ'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Xoá'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+    final vm = context.read<CategoryViewModel>();
+    final ok = await vm.deleteCategory(widget.category.id);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context); // close sheet
+      Navigator.pop(context); // close management screen
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(vm.errorMessage ?? 'Lỗi khi xoá'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
   bool get _isInvestment => _selectedKind == CategoryKind.investment;
 
   /// True if the current save would remove budget semantics (spending→investment
@@ -599,6 +639,18 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
                       onPressed: _toggleArchive,
                       child: Text(isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ danh mục'),
                     ),
+
+                  // Delete (custom categories only, ADR-0034 §1)
+                  if (!cat.isSystem) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed: _deleteCategory,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                      child: const Text('Xoá danh mục'),
+                    ),
+                  ],
 
                   // Reset defaults (system categories only)
                   if (cat.isSystem) ...[

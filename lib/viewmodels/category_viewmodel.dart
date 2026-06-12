@@ -2,6 +2,11 @@ import 'package:flutter/foundation.dart' hide Category;
 import 'package:qlct/models/category.dart';
 import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
+import 'package:qlct/data/datasources/budget_snapshot_local_datasource.dart';
+import 'package:qlct/data/datasources/quick_template_local_datasource.dart';
+import 'package:qlct/data/datasources/recurring_local_datasource.dart';
+import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:uuid/uuid.dart';
 
 /// No-op datasource used only by the test constructor.
@@ -22,6 +27,8 @@ class _NullDataSource implements CategoryLocalDataSource {
   Future<int> count() async => 0;
   @override
   Future<void> seedDefaultsIfEmpty() async {}
+  @override
+  Future<void> delete(String id) async {}
 }
 
 /// App-level category state (ADR-0027 Phase 2.5A).
@@ -31,12 +38,25 @@ class _NullDataSource implements CategoryLocalDataSource {
 class CategoryViewModel extends ChangeNotifier {
   final CategoryLocalDataSource _dataSource;
   final BudgetLocalDataSource? _budgetDataSource;
+  final TransactionLocalDataSource? _transactionDs;
+  final BudgetSnapshotLocalDataSource? _budgetSnapshotDs;
+  final BudgetPlanLocalDataSource? _budgetPlanDs;
+  final RecurringLocalDataSource? _recurringDs;
+  final QuickTemplateLocalDataSource? _quickTemplateDs;
 
   List<Category> _allCategories = [];
   bool _isLoading = false;
   String? _errorMessage;
 
-  CategoryViewModel(this._dataSource, [this._budgetDataSource]) {
+  CategoryViewModel(
+    this._dataSource, [
+    this._budgetDataSource,
+    this._transactionDs,
+    this._budgetSnapshotDs,
+    this._budgetPlanDs,
+    this._recurringDs,
+    this._quickTemplateDs,
+  ]) {
     Future.microtask(() => reload());
   }
 
@@ -45,7 +65,12 @@ class CategoryViewModel extends ChangeNotifier {
   @visibleForTesting
   CategoryViewModel.seeded(List<Category> categories)
       : _dataSource = _NullDataSource(),
-        _budgetDataSource = null {
+        _budgetDataSource = null,
+        _transactionDs = null,
+        _budgetSnapshotDs = null,
+        _budgetPlanDs = null,
+        _recurringDs = null,
+        _quickTemplateDs = null {
     _allCategories = List.from(categories);
   }
 
@@ -55,9 +80,19 @@ class CategoryViewModel extends ChangeNotifier {
   @visibleForTesting
   CategoryViewModel.seededWithDeps(
     CategoryLocalDataSource catDs,
-    BudgetLocalDataSource? budgetDs,
-  )  : _dataSource = catDs,
-        _budgetDataSource = budgetDs {
+    BudgetLocalDataSource? budgetDs, {
+    TransactionLocalDataSource? transactionDs,
+    BudgetSnapshotLocalDataSource? budgetSnapshotDs,
+    BudgetPlanLocalDataSource? budgetPlanDs,
+    RecurringLocalDataSource? recurringDs,
+    QuickTemplateLocalDataSource? quickTemplateDs,
+  })  : _dataSource = catDs,
+        _budgetDataSource = budgetDs,
+        _transactionDs = transactionDs,
+        _budgetSnapshotDs = budgetSnapshotDs,
+        _budgetPlanDs = budgetPlanDs,
+        _recurringDs = recurringDs,
+        _quickTemplateDs = quickTemplateDs {
     Future.microtask(() async {
       _allCategories = await catDs.getAll();
       notifyListeners();
@@ -362,6 +397,7 @@ class CategoryViewModel extends ChangeNotifier {
     required int quickAmountDefault,
     required int quickAmountMax,
     required List<String> voicePhrases,
+    CategoryKind kind = CategoryKind.spending,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -386,13 +422,17 @@ class CategoryViewModel extends ChangeNotifier {
     sortOrder += 10;
 
     final now = DateTime.now();
+    // ADR-0034 §3: investment → excluded, spending → flexible
+    final budgetBehavior = kind == CategoryKind.investment
+        ? BudgetBehavior.excluded
+        : BudgetBehavior.flexible;
     final created = Category(
       id: const Uuid().v4(),
       name: trimmed,
       normalizedName: normalizedName,
       emoji: emoji,
-      kind: CategoryKind.spending,
-      budgetBehavior: BudgetBehavior.flexible,
+      kind: kind,
+      budgetBehavior: budgetBehavior,
       quickAmountMin: quickAmountMin,
       quickAmountDefault: quickAmountDefault,
       quickAmountMax: quickAmountMax,
@@ -411,6 +451,118 @@ class CategoryViewModel extends ChangeNotifier {
       _errorMessage = e.toString();
       notifyListeners();
       return null;
+    }
+  }
+
+  // ===== ADR-0034 §1: Hard delete unused custom categories =====
+
+  /// Returns true if the category can be safely deleted (no financial references).
+  /// Sets errorMessage on failure.
+  Future<bool> canDeleteCategory(String categoryId) async {
+    final existing = categoryById(categoryId);
+    if (existing == null) {
+      _errorMessage = 'Không tìm thấy danh mục';
+      notifyListeners();
+      return false;
+    }
+    if (categoryId == 'other' || existing.isSystem) {
+      _errorMessage = 'Không thể xoá danh mục mặc định.';
+      notifyListeners();
+      return false;
+    }
+
+    // Check budgets
+    final budgetDs = _budgetDataSource;
+    if (budgetDs != null) {
+      final budget = await budgetDs.getByCategoryId(categoryId);
+      if (budget != null) {
+        _errorMessage = 'Danh mục đang được sử dụng. Hãy lưu trữ thay vì xoá.';
+        notifyListeners();
+        return false;
+      }
+    }
+
+    // Check transactions (skip if datasource unavailable)
+    final txnDs = _transactionDs;
+    if (txnDs != null) {
+      final txns = await txnDs.getAll();
+      if (txns.any((t) => t.categoryId == categoryId)) {
+        _errorMessage = 'Danh mục đang được sử dụng. Hãy lưu trữ thay vì xoá.';
+        notifyListeners();
+        return false;
+      }
+    }
+
+    // Check budget snapshots (skip if datasource unavailable)
+    final snapDs = _budgetSnapshotDs;
+    if (snapDs != null) {
+      final snaps = await snapDs.getAll();
+      if (snaps.any((s) => s.categoryId == categoryId)) {
+        _errorMessage = 'Danh mục đang được sử dụng. Hãy lưu trữ thay vì xoá.';
+        notifyListeners();
+        return false;
+      }
+    }
+
+    // Check budget plan items (skip if datasource unavailable)
+    final planDs = _budgetPlanDs;
+    if (planDs != null) {
+      final plans = await planDs.getAllPlans();
+      for (final plan in plans) {
+        final items = await planDs.getItems(plan.yearMonth);
+        if (items.any((i) => i.categoryId == categoryId)) {
+          _errorMessage = 'Danh mục đang được sử dụng. Hãy lưu trữ thay vì xoá.';
+          notifyListeners();
+          return false;
+        }
+      }
+    }
+
+    // Check recurring transactions (skip if datasource unavailable)
+    final recDs = _recurringDs;
+    if (recDs != null) {
+      final recs = await recDs.getAll();
+      if (recs.any((r) => r.categoryId == categoryId)) {
+        _errorMessage = 'Danh mục đang được sử dụng. Hãy lưu trữ thay vì xoá.';
+        notifyListeners();
+        return false;
+      }
+    }
+
+    // Check quick templates (skip if datasource unavailable)
+    final qtDs = _quickTemplateDs;
+    if (qtDs != null) {
+      final templates = await qtDs.getAll();
+      if (templates.any((t) => t.categoryId == categoryId)) {
+        _errorMessage = 'Danh mục đang được sử dụng. Hãy lưu trữ thay vì xoá.';
+        notifyListeners();
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// Hard delete a custom category. Checks canDelete first.
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> deleteCategory(String categoryId) async {
+    final existing = await _dataSource.getById(categoryId);
+    if (existing == null || existing.isSystem || categoryId == 'other') {
+      _errorMessage = 'Không thể xoá danh mục mặc định.';
+      notifyListeners();
+      return false;
+    }
+    if (!await canDeleteCategory(categoryId)) {
+      return false;
+    }
+    try {
+      await _dataSource.delete(categoryId);
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
     }
   }
 }

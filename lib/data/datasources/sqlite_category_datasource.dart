@@ -155,4 +155,14 @@ class SqliteCategoryDataSource implements CategoryLocalDataSource {
     }
     await batch.commit(noResult: true);
   }
+
+  @override
+  Future<void> delete(String id) async {
+    final db = await _dbHelper.database;
+    await db.delete(
+      'categories',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }

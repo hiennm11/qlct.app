@@ -34,4 +34,7 @@ abstract class CategoryLocalDataSource {
 
   /// Seed default categories if table is empty. Idempotent via INSERT OR IGNORE.
   Future<void> seedDefaultsIfEmpty();
+
+  /// Hard delete a category by id. No-op if id does not exist.
+  Future<void> delete(String id);
 }

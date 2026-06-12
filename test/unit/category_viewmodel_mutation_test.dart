@@ -9,11 +9,18 @@ class _FakeCategoryDataSource implements CategoryLocalDataSource {
   final Map<String, Category> _store = {};
   Category? lastUpserted;
   int upsertCalls = 0;
+  final Set<String> _deletedIds = {};
 
   void seed(List<Category> categories) {
     for (final c in categories) {
       _store[c.id] = c;
     }
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _deletedIds.add(id);
+    _store.remove(id);
   }
 
   @override
@@ -526,6 +533,167 @@ void main() {
 
       expect(created, isNull);
       expect(vm.errorMessage, 'Tên danh mục đã tồn tại.');
+    });
+
+    test('createCategory with kind:investment sets excluded behavior', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_other()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final created = await vm.createCategory(
+        name: 'Vàng',
+        emoji: '🥇',
+        quickAmountMin: 100000,
+        quickAmountDefault: 500000,
+        quickAmountMax: 10000000,
+        voicePhrases: ['vang'],
+        kind: CategoryKind.investment,
+      );
+
+      expect(created, isNotNull);
+      expect(created!.kind, CategoryKind.investment);
+      expect(created.budgetBehavior, BudgetBehavior.excluded);
+    });
+  });
+
+  group('CategoryViewModel.canDeleteCategory', () {
+    test('returns false for system category', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      final result = await vm.canDeleteCategory('coffee');
+      expect(result, false);
+      expect(vm.errorMessage, 'Không thể xoá danh mục mặc định.');
+    });
+
+    test('returns false for other id', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_other()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      final result = await vm.canDeleteCategory('other');
+      expect(result, false);
+      expect(vm.errorMessage, 'Không thể xoá danh mục mặc định.');
+    });
+
+    test('returns true for unused custom category', () async {
+      final now = DateTime(2026, 6, 10, 12);
+      final custom = Category(
+        id: 'custom1',
+        name: 'Ăn vặt',
+        normalizedName: 'an vat',
+        emoji: '🍿',
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 10000,
+        quickAmountDefault: 30000,
+        quickAmountMax: 100000,
+        voicePhrases: [],
+        sortOrder: 50,
+        isSystem: false,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final catDs = _FakeCategoryDataSource()..seed([_other(), custom]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      final result = await vm.canDeleteCategory('custom1');
+      expect(result, true);
+      expect(vm.errorMessage, isNull);
+    });
+  });
+
+  group('CategoryViewModel.deleteCategory', () {
+    test('succeeds for unused custom category', () async {
+      final now = DateTime(2026, 6, 10, 12);
+      final custom = Category(
+        id: 'custom1',
+        name: 'Ăn vặt',
+        normalizedName: 'an vat',
+        emoji: '🍿',
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 10000,
+        quickAmountDefault: 30000,
+        quickAmountMax: 100000,
+        voicePhrases: [],
+        sortOrder: 50,
+        isSystem: false,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final catDs = _FakeCategoryDataSource()..seed([_other(), custom]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      final ok = await vm.deleteCategory('custom1');
+      expect(ok, true);
+      expect(catDs._deletedIds.contains('custom1'), true);
+    });
+
+    test('blocks system category', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      final ok = await vm.deleteCategory('coffee');
+      expect(ok, false);
+      expect(vm.errorMessage, 'Không thể xoá danh mục mặc định.');
+    });
+
+    test('blocks category with budget reference', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final budgetDs = _FakeBudgetDataSource()
+        ..addBudget(Budget(
+          id: 'b1',
+          categoryName: 'Cà phê',
+          categoryId: 'coffee',
+          monthlyLimit: 200000,
+          createdAt: DateTime(2026, 6, 1),
+        ));
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      // coffee is system so blocked anyway; test used custom
+      final now = DateTime(2026, 6, 10, 12);
+      final customUsed = Category(
+        id: 'custom-used',
+        name: 'Tiệc',
+        normalizedName: 'tiec',
+        emoji: '🎉',
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 100000,
+        quickAmountDefault: 500000,
+        quickAmountMax: 2000000,
+        voicePhrases: [],
+        sortOrder: 60,
+        isSystem: false,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+      );
+      // Replace seed with custom + budget reference
+      final catDs2 = _FakeCategoryDataSource()..seed([_other(), customUsed]);
+      final budgetDs2 = _FakeBudgetDataSource()
+        ..addBudget(Budget(
+          id: 'b2',
+          categoryName: 'Tiệc',
+          categoryId: 'custom-used',
+          monthlyLimit: 500000,
+          createdAt: DateTime(2026, 6, 1),
+        ));
+      final vm2 = CategoryViewModel.seededWithDeps(catDs2, budgetDs2);
+      await waitForLoad(vm2);
+
+      final ok = await vm2.deleteCategory('custom-used');
+      expect(ok, false);
+      expect(vm2.errorMessage, 'Danh mục đang được sử dụng. Hãy lưu trữ thay vì xoá.');
     });
   });
 }

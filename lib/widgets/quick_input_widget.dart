@@ -30,7 +30,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
     // exist even before CategoryViewModel has loaded. Real values are
     // reconciled on first build.
     for (final category in seedCategories) {
-      _amounts[category.name] = category.quickAmountDefault.toDouble();
+      _amounts[category.id] = category.quickAmountDefault.toDouble();
     }
   }
 
@@ -79,17 +79,17 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                       final category = cats[index];
                       return _CategoryCard(
                     category: category,
-                    amount: _amounts[category.name]!,
+                    amount: _amounts[category.id]!,
                     onAmountChanged: (value) {
                       setState(() {
-                        _amounts[category.name] = value;
+                        _amounts[category.id] = value;
                       });
                     },
                     onAdd: () async {
                       final vm = context.read<ExpenseViewModel>();
                       try {
                         await vm.addTransaction(
-                          amount: _amounts[category.name]!.toInt(),
+                          amount: _amounts[category.id]!.toInt(),
                           category: category.name,
                           categoryId: category.id,
                           emoji: category.emoji,
@@ -107,7 +107,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Đã thêm ${CurrencyFormatter.format(_amounts[category.name]!.toInt())} - ${category.name}',
+                                'Đã thêm ${CurrencyFormatter.format(_amounts[category.id]!.toInt())} - ${category.name}',
                               ),
                               duration: const Duration(seconds: 2),
                             ),
@@ -132,7 +132,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                       );
                       if (amount != null) {
                         setState(() {
-                          _amounts[category.name] = amount.toDouble();
+                          _amounts[category.id] = amount.toDouble();
                         });
                         try {
                           await vm.addTransaction(
