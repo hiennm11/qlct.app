@@ -10,6 +10,7 @@ class Transaction with _$Transaction {
     required String id,
     required int amount,
     required String category,
+    required String categoryId,
     required String emoji,
     required DateTime date,
     @Default('') String note,

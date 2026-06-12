@@ -233,6 +233,7 @@ void main() {
         ..addBudget(Budget(
           id: 'b1',
           categoryName: 'Cà phê',
+          categoryId: 'coffee',
           monthlyLimit: 200000,
           createdAt: DateTime(2026, 6, 1),
         ));

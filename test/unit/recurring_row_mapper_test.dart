@@ -8,6 +8,7 @@ void main() {
       final r = RecurringTransaction(
         id: 'r-1',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         amount: 50000,
         note: 'lunch',
         frequency: 'monthly',
@@ -32,6 +33,7 @@ void main() {
       final r = RecurringTransaction(
         id: 'r-2',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 8),
@@ -48,6 +50,7 @@ void main() {
       final row = {
         'id': 'r-1',
         'category_name': 'Ăn ngoài',
+        'category_id': 'food_out',
         'amount': 50000,
         'note': 'lunch',
         'frequency': 'monthly',
@@ -71,6 +74,7 @@ void main() {
       final row = {
         'id': 'r-2',
         'category_name': 'Cà phê',
+        'category_id': 'coffee',
         'amount': 20000,
         'note': '',
         'frequency': 'daily',
@@ -88,6 +92,7 @@ void main() {
       final original = RecurringTransaction(
         id: 'r-3',
         categoryName: 'Giải trí',
+        categoryId: 'entertainment',
         amount: 80000,
         note: 'cinema',
         frequency: 'weekly',

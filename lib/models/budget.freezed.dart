@@ -23,6 +23,7 @@ Budget _$BudgetFromJson(Map<String, dynamic> json) {
 mixin _$Budget {
   String get id => throw _privateConstructorUsedError;
   String get categoryName => throw _privateConstructorUsedError;
+  String get categoryId => throw _privateConstructorUsedError;
   int get monthlyLimit => throw _privateConstructorUsedError;
   int get alertThreshold => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
@@ -44,6 +45,7 @@ abstract class $BudgetCopyWith<$Res> {
   $Res call({
     String id,
     String categoryName,
+    String categoryId,
     int monthlyLimit,
     int alertThreshold,
     DateTime createdAt,
@@ -67,6 +69,7 @@ class _$BudgetCopyWithImpl<$Res, $Val extends Budget>
   $Res call({
     Object? id = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? monthlyLimit = null,
     Object? alertThreshold = null,
     Object? createdAt = null,
@@ -80,6 +83,10 @@ class _$BudgetCopyWithImpl<$Res, $Val extends Budget>
             categoryName: null == categoryName
                 ? _value.categoryName
                 : categoryName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            categoryId: null == categoryId
+                ? _value.categoryId
+                : categoryId // ignore: cast_nullable_to_non_nullable
                       as String,
             monthlyLimit: null == monthlyLimit
                 ? _value.monthlyLimit
@@ -110,6 +117,7 @@ abstract class _$$BudgetImplCopyWith<$Res> implements $BudgetCopyWith<$Res> {
   $Res call({
     String id,
     String categoryName,
+    String categoryId,
     int monthlyLimit,
     int alertThreshold,
     DateTime createdAt,
@@ -132,6 +140,7 @@ class __$$BudgetImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? monthlyLimit = null,
     Object? alertThreshold = null,
     Object? createdAt = null,
@@ -145,6 +154,10 @@ class __$$BudgetImplCopyWithImpl<$Res>
         categoryName: null == categoryName
             ? _value.categoryName
             : categoryName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        categoryId: null == categoryId
+            ? _value.categoryId
+            : categoryId // ignore: cast_nullable_to_non_nullable
                   as String,
         monthlyLimit: null == monthlyLimit
             ? _value.monthlyLimit
@@ -169,6 +182,7 @@ class _$BudgetImpl implements _Budget {
   const _$BudgetImpl({
     required this.id,
     required this.categoryName,
+    required this.categoryId,
     required this.monthlyLimit,
     this.alertThreshold = 80,
     required this.createdAt,
@@ -182,6 +196,8 @@ class _$BudgetImpl implements _Budget {
   @override
   final String categoryName;
   @override
+  final String categoryId;
+  @override
   final int monthlyLimit;
   @override
   @JsonKey()
@@ -191,7 +207,7 @@ class _$BudgetImpl implements _Budget {
 
   @override
   String toString() {
-    return 'Budget(id: $id, categoryName: $categoryName, monthlyLimit: $monthlyLimit, alertThreshold: $alertThreshold, createdAt: $createdAt)';
+    return 'Budget(id: $id, categoryName: $categoryName, categoryId: $categoryId, monthlyLimit: $monthlyLimit, alertThreshold: $alertThreshold, createdAt: $createdAt)';
   }
 
   @override
@@ -202,6 +218,8 @@ class _$BudgetImpl implements _Budget {
             (identical(other.id, id) || other.id == id) &&
             (identical(other.categoryName, categoryName) ||
                 other.categoryName == categoryName) &&
+            (identical(other.categoryId, categoryId) ||
+                other.categoryId == categoryId) &&
             (identical(other.monthlyLimit, monthlyLimit) ||
                 other.monthlyLimit == monthlyLimit) &&
             (identical(other.alertThreshold, alertThreshold) ||
@@ -216,6 +234,7 @@ class _$BudgetImpl implements _Budget {
     runtimeType,
     id,
     categoryName,
+    categoryId,
     monthlyLimit,
     alertThreshold,
     createdAt,
@@ -239,6 +258,7 @@ abstract class _Budget implements Budget {
   const factory _Budget({
     required final String id,
     required final String categoryName,
+    required final String categoryId,
     required final int monthlyLimit,
     final int alertThreshold,
     required final DateTime createdAt,
@@ -250,6 +270,8 @@ abstract class _Budget implements Budget {
   String get id;
   @override
   String get categoryName;
+  @override
+  String get categoryId;
   @override
   int get monthlyLimit;
   @override

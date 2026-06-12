@@ -24,6 +24,7 @@ void main() {
             CREATE TABLE recurring_transactions (
               id            TEXT PRIMARY KEY,
               category_name TEXT NOT NULL,
+              category_id   TEXT NOT NULL DEFAULT '',
               amount        INTEGER NOT NULL,
               note          TEXT NOT NULL DEFAULT '',
               frequency     TEXT NOT NULL,
@@ -41,6 +42,7 @@ void main() {
               CREATE TABLE recurring_transactions (
                 id            TEXT PRIMARY KEY,
                 category_name TEXT NOT NULL,
+                category_id   TEXT NOT NULL DEFAULT '',
                 amount        INTEGER NOT NULL,
                 note          TEXT NOT NULL DEFAULT '',
                 frequency     TEXT NOT NULL,
@@ -73,7 +75,7 @@ void main() {
         () async {
       final rt1 = RecurringTransaction(
         id: 'uuid-1',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         amount: 50000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 1),
@@ -81,7 +83,7 @@ void main() {
       );
       final rt2 = RecurringTransaction(
         id: 'uuid-2',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         frequency: 'weekly',
         nextRunAt: DateTime(2026, 6, 2),
@@ -104,7 +106,7 @@ void main() {
     test('creates new recurring transaction', () async {
       final rt = RecurringTransaction(
         id: 'new-uuid',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         note: 'Every morning',
         frequency: 'daily',
@@ -130,7 +132,7 @@ void main() {
     test('returns only active rules with nextRunAt <= now', () async {
       final pastDue = RecurringTransaction(
         id: 'due-1',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2026, 1, 1),
         isActive: true,
@@ -138,7 +140,7 @@ void main() {
       );
       final future = RecurringTransaction(
         id: 'due-2',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         amount: 50000,
         nextRunAt: DateTime(2027, 1, 1),
         isActive: true,
@@ -146,7 +148,7 @@ void main() {
       );
       final inactive = RecurringTransaction(
         id: 'due-3',
-        categoryName: 'Giải trí',
+        categoryName: 'Giải trí', categoryId: 'entertainment',
         amount: 30000,
         nextRunAt: DateTime(2026, 1, 1),
         isActive: false,
@@ -165,7 +167,7 @@ void main() {
     test('returns empty list when no rules due', () async {
       final future = RecurringTransaction(
         id: 'future-1',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2027, 1, 1),
         isActive: true,
@@ -183,7 +185,7 @@ void main() {
     test('updates next_run_at for existing recurring transaction', () async {
       final rt = RecurringTransaction(
         id: 'update-1',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2026, 1, 1),
         createdAt: DateTime(2026, 1, 1),
@@ -201,7 +203,7 @@ void main() {
     test('updates existing recurring transaction', () async {
       final original = RecurringTransaction(
         id: 'update-test',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         note: 'original note',
         frequency: 'daily',
@@ -231,7 +233,7 @@ void main() {
     test('should insert multiple recurring transactions', () async {
       final recurrings = List.generate(5, (i) => RecurringTransaction(
         id: 'r-bulk-$i',
-        categoryName: 'Subscription',
+        categoryName: 'Subscription', categoryId: 'subscription',
         amount: (i + 1) * 100000,
         frequency: 'monthly',
         nextRunAt: DateTime(2026, 7, i + 1),
@@ -256,14 +258,14 @@ void main() {
     test('removes recurring transaction by id', () async {
       final rt1 = RecurringTransaction(
         id: 'delete-1',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2026, 6, 1),
         createdAt: DateTime(2026, 6, 1),
       );
       final rt2 = RecurringTransaction(
         id: 'delete-2',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         amount: 50000,
         nextRunAt: DateTime(2026, 6, 1),
         createdAt: DateTime(2026, 6, 1),
@@ -281,7 +283,7 @@ void main() {
     test('does nothing when deleting non-existent id', () async {
       final rt = RecurringTransaction(
         id: 'existing',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2026, 6, 1),
         createdAt: DateTime(2026, 6, 1),
@@ -299,7 +301,7 @@ void main() {
     test('deletes all recurring transactions', () async {
       await dataSource.insert(RecurringTransaction(
         id: 'clear-r-1',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 1),
@@ -307,7 +309,7 @@ void main() {
       ));
       await dataSource.insert(RecurringTransaction(
         id: 'clear-r-2',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         amount: 50000,
         frequency: 'monthly',
         nextRunAt: DateTime(2026, 6, 1),
@@ -337,7 +339,7 @@ void main() {
     test('returns correct count after inserting recurring transactions', () async {
       await dataSource.insert(RecurringTransaction(
         id: 'count-r-1',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 1),
@@ -345,7 +347,7 @@ void main() {
       ));
       await dataSource.insert(RecurringTransaction(
         id: 'count-r-2',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         amount: 50000,
         frequency: 'monthly',
         nextRunAt: DateTime(2026, 6, 1),
@@ -353,7 +355,7 @@ void main() {
       ));
       await dataSource.insert(RecurringTransaction(
         id: 'count-r-3',
-        categoryName: 'Mua sắm',
+        categoryName: 'Mua sắm', categoryId: 'online_shopping',
         amount: 100000,
         frequency: 'weekly',
         nextRunAt: DateTime(2026, 6, 1),
@@ -367,7 +369,7 @@ void main() {
     test('returns correct count after deleting a recurring transaction', () async {
       await dataSource.insert(RecurringTransaction(
         id: 'count-del-r-1',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 1),
@@ -375,7 +377,7 @@ void main() {
       ));
       await dataSource.insert(RecurringTransaction(
         id: 'count-del-r-2',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         amount: 50000,
         frequency: 'monthly',
         nextRunAt: DateTime(2026, 6, 1),
@@ -391,7 +393,7 @@ void main() {
     test('returns 0 after clearAll', () async {
       await dataSource.insert(RecurringTransaction(
         id: 'count-clear-r-1',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 1),

@@ -34,6 +34,7 @@ _$BudgetPlanItemImpl _$$BudgetPlanItemImplFromJson(Map<String, dynamic> json) =>
     _$BudgetPlanItemImpl(
       yearMonth: json['yearMonth'] as String,
       categoryName: json['categoryName'] as String,
+      categoryId: json['categoryId'] as String,
       plannedLimit: (json['plannedLimit'] as num).toInt(),
       alertThreshold: (json['alertThreshold'] as num?)?.toInt() ?? 80,
       suggestedLimit: (json['suggestedLimit'] as num?)?.toInt() ?? 0,
@@ -48,6 +49,7 @@ Map<String, dynamic> _$$BudgetPlanItemImplToJson(
 ) => <String, dynamic>{
   'yearMonth': instance.yearMonth,
   'categoryName': instance.categoryName,
+  'categoryId': instance.categoryId,
   'plannedLimit': instance.plannedLimit,
   'alertThreshold': instance.alertThreshold,
   'suggestedLimit': instance.suggestedLimit,

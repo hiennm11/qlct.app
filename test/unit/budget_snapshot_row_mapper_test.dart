@@ -22,6 +22,7 @@ void main() {
       final snapshot = BudgetSnapshot(
         yearMonth: '2026-05',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         limitAmount: 3000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 1, 10, 0),
@@ -66,6 +67,7 @@ void main() {
       final original = BudgetSnapshot(
         yearMonth: '2026-04',
         categoryName: 'Mua online',
+        categoryId: 'online_shopping',
         limitAmount: 2000000,
         alertThreshold: 75,
         createdAt: DateTime(2026, 6, 1),

@@ -12,6 +12,7 @@ void main() {
       id: 'tx-1',
       amount: 50000,
       category: 'Cà phê',
+      categoryId: 'coffee',
       emoji: '☕',
       date: DateTime(2026, 6, 1, 8, 0),
       note: 'Test note',
@@ -20,6 +21,7 @@ void main() {
     final sampleBudget = Budget(
       id: 'b-1',
       categoryName: 'Ăn ngoài',
+      categoryId: 'food_out',
       monthlyLimit: 3000000,
       alertThreshold: 80,
       createdAt: DateTime(2026, 1, 1),
@@ -28,6 +30,7 @@ void main() {
     final sampleRecurring = RecurringTransaction(
       id: 'r-1',
       categoryName: 'Subscription',
+      categoryId: 'subscription',
       amount: 200000,
       note: 'GitHub',
       frequency: 'monthly',
@@ -41,6 +44,7 @@ void main() {
       title: 'Cơm trưa',
       amount: 35000,
       categoryName: 'Ăn ngoài',
+      categoryId: 'food_out',
       emoji: '🍜',
       createdAt: DateTime(2026, 6, 1),
       updatedAt: DateTime(2026, 6, 1),
@@ -96,6 +100,7 @@ void main() {
         id: 'tx-$i',
         amount: (i + 1) * 10000,
         category: 'Cà phê',
+        categoryId: 'coffee',
         emoji: '☕',
         date: DateTime(2026, 6, i + 1),
       ));
@@ -112,8 +117,8 @@ void main() {
       expect(backup.transactions[4].id, 'tx-4');
     });
 
-    test('currentSchemaVersion is 6 (ADR-0027 §13)', () {
-      expect(currentSchemaVersion, 6);
+    test('currentSchemaVersion is 7 (ADR-0029)', () {
+      expect(currentSchemaVersion, 7);
     });
 
     test('appId field present in model with default', () {
@@ -274,6 +279,7 @@ void main() {
           {
             'yearMonth': '2026-07',
             'categoryName': 'Ăn ngoài',
+            'categoryId': 'food_out',
             'plannedLimit': 3000000,
             'alertThreshold': 80,
             'suggestedLimit': 2500000,
@@ -334,6 +340,7 @@ void main() {
       final planItem = BudgetPlanItem(
         yearMonth: '2026-08',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         plannedLimit: 800000,
         alertThreshold: 80,
         suggestedLimit: 750000,

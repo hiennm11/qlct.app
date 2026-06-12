@@ -84,24 +84,28 @@ void main() {
       id: 'fallback',
       amount: 0,
       category: '',
+      categoryId: 'test_cat',
       emoji: '',
       date: DateTime.now(),
     ));
     registerFallbackValue(Budget(
       id: 'fallback',
       categoryName: '',
+      categoryId: 'test_cat',
       monthlyLimit: 0,
       createdAt: DateTime.now(),
     ));
     registerFallbackValue(BudgetSnapshot(
       yearMonth: '2026-01',
       categoryName: 'fallback',
+      categoryId: 'test_cat',
       limitAmount: 0,
       createdAt: DateTime.now(),
     ));
     registerFallbackValue(RecurringTransaction(
       id: 'fallback',
       categoryName: '',
+      categoryId: 'test_cat',
       amount: 0,
       frequency: 'daily',
       nextRunAt: DateTime.now(),
@@ -113,6 +117,7 @@ void main() {
       title: '',
       amount: 0,
       categoryName: '',
+      categoryId: 'test_cat',
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     ));
@@ -578,6 +583,7 @@ void main() {
               id: 'tx-1',
               amount: 50000,
               category: 'Cà phê',
+              categoryId: 'coffee',
               emoji: '☕',
               date: DateTime(2026, 6, 1),
             ),
@@ -586,6 +592,7 @@ void main() {
             Budget(
               id: 'b-1',
               categoryName: 'Ăn ngoài',
+              categoryId: 'food_out',
               monthlyLimit: 3000000,
               createdAt: DateTime(2026, 1, 1),
             ),
@@ -594,6 +601,7 @@ void main() {
             BudgetSnapshot(
               yearMonth: '2026-05',
               categoryName: 'Ăn ngoài',
+              categoryId: 'food_out',
               limitAmount: 3000000,
               createdAt: DateTime(2026, 6, 1),
             ),
@@ -602,6 +610,7 @@ void main() {
             RecurringTransaction(
               id: 'r-1',
               categoryName: 'Subscription',
+              categoryId: 'subscription',
               amount: 200000,
               frequency: 'monthly',
               nextRunAt: DateTime(2026, 7, 1),
@@ -615,6 +624,7 @@ void main() {
               title: 'Cơm trưa',
               amount: 35000,
               categoryName: 'Ăn ngoài',
+              categoryId: 'food_out',
               createdAt: DateTime(2026, 6, 1),
               updatedAt: DateTime(2026, 6, 1),
             ),
@@ -627,7 +637,7 @@ void main() {
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 6);
+      expect(backup.schemaVersion, 7);
       expect(backup.appId, 'qlct.app');
       expect(backup.transactions.length, 1);
       expect(backup.budgets.length, 1);
@@ -672,7 +682,7 @@ void main() {
     test('creates non-empty backup with expected structure', () async {
       final backup = await service.generateSampleData();
 
-      expect(backup.schemaVersion, 6);
+      expect(backup.schemaVersion, 7);
       expect(backup.transactions.length, 20);
       expect(backup.budgets.length, 3);
       expect(backup.recurringTransactions.length, 2);
@@ -710,7 +720,7 @@ void main() {
       final backup = await service.createBackup();
 
       expect(backup.appId, 'qlct.app');
-      expect(backup.schemaVersion, 6);
+      expect(backup.schemaVersion, 7);
     });
 
     test('includes non-empty budget plans and items from datasources',
@@ -741,16 +751,19 @@ void main() {
       final item1 = BudgetPlanItem(
         yearMonth: '2026-08',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         plannedLimit: 3000000,
       );
       final item2 = BudgetPlanItem(
         yearMonth: '2026-08',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         plannedLimit: 1000000,
       );
       final item3 = BudgetPlanItem(
         yearMonth: '2026-09',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         plannedLimit: 3000000,
       );
 
@@ -908,7 +921,7 @@ void main() {
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 6);
+      expect(backup.schemaVersion, 7);
       expect(backup.categories.length, 2);
       expect(
           backup.categories.map((c) => c.id).toList(), ['food_out', 'coffee']);

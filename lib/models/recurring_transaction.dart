@@ -8,6 +8,7 @@ class RecurringTransaction with _$RecurringTransaction {
   const factory RecurringTransaction({
     required String id,
     required String categoryName,
+    required String categoryId,
     required int amount,
     @Default('') String note,
     @Default('daily') String frequency,

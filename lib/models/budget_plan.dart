@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../core/vietnamese_text_normalizer.dart';
+
 part 'budget_plan.freezed.dart';
 part 'budget_plan.g.dart';
 
@@ -32,6 +34,7 @@ class BudgetPlanItem with _$BudgetPlanItem {
   const factory BudgetPlanItem({
     required String yearMonth,
     required String categoryName,
+    required String categoryId,
     required int plannedLimit,
     @Default(80) int alertThreshold,
     @Default(0) int suggestedLimit,

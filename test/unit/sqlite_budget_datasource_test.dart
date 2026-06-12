@@ -24,6 +24,7 @@ void main() {
             CREATE TABLE budgets (
               id              TEXT PRIMARY KEY,
               category_name   TEXT NOT NULL,
+              category_id     TEXT NOT NULL DEFAULT '',
               monthly_limit   INTEGER NOT NULL,
               alert_threshold INTEGER NOT NULL DEFAULT 80,
               created_at      INTEGER NOT NULL
@@ -37,6 +38,7 @@ void main() {
               CREATE TABLE budgets (
                 id              TEXT PRIMARY KEY,
                 category_name   TEXT NOT NULL,
+                category_id     TEXT NOT NULL DEFAULT '',
                 monthly_limit   INTEGER NOT NULL,
                 alert_threshold INTEGER NOT NULL DEFAULT 80,
                 created_at      INTEGER NOT NULL
@@ -64,14 +66,14 @@ void main() {
     test('returns all budgets sorted by created_at DESC', () async {
       final b1 = Budget(
         id: 'uuid-1',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 1),
       );
       final b2 = Budget(
         id: 'uuid-2',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 2),
@@ -93,7 +95,7 @@ void main() {
     test('creates new budget when category does not exist', () async {
       final budget = Budget(
         id: 'new-uuid',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -112,14 +114,14 @@ void main() {
     test('updates existing budget when same categoryName', () async {
       final b1 = Budget(
         id: 'original-uuid',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 3000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
       );
       final b2 = Budget(
         id: 'new-uuid-should-replace',
-        categoryName: 'Ăn ngoài', // Same category
+        categoryName: 'Ăn ngoài', categoryId: 'food_out', // Same category
         monthlyLimit: 6000000,
         alertThreshold: 90,
         createdAt: DateTime.now(),
@@ -140,14 +142,14 @@ void main() {
     test('removes budget by id, keeping others', () async {
       final b1 = Budget(
         id: 'delete-uuid-1',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
       );
       final b2 = Budget(
         id: 'delete-uuid-2',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -165,7 +167,7 @@ void main() {
     test('does nothing when deleting non-existent id', () async {
       final budget = Budget(
         id: 'existing',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -183,7 +185,7 @@ void main() {
     test('should insert multiple budgets', () async {
       final budgets = List.generate(3, (i) => Budget(
         id: 'b-bulk-$i',
-        categoryName: 'Category-$i',
+        categoryName: 'Category-$i', categoryId: 'test_cat',
         monthlyLimit: (i + 1) * 1000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, i + 1, 1),
@@ -206,14 +208,14 @@ void main() {
     test('deletes all budgets', () async {
       await dataSource.upsert(Budget(
         id: 'clear-b-1',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
       ));
       await dataSource.upsert(Budget(
         id: 'clear-b-2',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         monthlyLimit: 500000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -242,21 +244,21 @@ void main() {
     test('returns correct count after upserting budgets', () async {
       await dataSource.upsert(Budget(
         id: 'count-b-1',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 1, 1),
       ));
       await dataSource.upsert(Budget(
         id: 'count-b-2',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         monthlyLimit: 500000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 2, 1),
       ));
       await dataSource.upsert(Budget(
         id: 'count-b-3',
-        categoryName: 'Mua sắm',
+        categoryName: 'Mua sắm', categoryId: 'online_shopping',
         monthlyLimit: 2000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 3, 1),
@@ -269,14 +271,14 @@ void main() {
     test('returns correct count after deleting a budget', () async {
       await dataSource.upsert(Budget(
         id: 'count-del-b-1',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 1, 1),
       ));
       await dataSource.upsert(Budget(
         id: 'count-del-b-2',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         monthlyLimit: 500000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 2, 1),
@@ -291,7 +293,7 @@ void main() {
     test('returns 0 after clearAll', () async {
       await dataSource.upsert(Budget(
         id: 'count-clear-b-1',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -308,7 +310,7 @@ void main() {
     test('returns budget for matching categoryName', () async {
       final budget = Budget(
         id: 'find-uuid',
-        categoryName: 'Subscription',
+        categoryName: 'Subscription', categoryId: 'subscription',
         monthlyLimit: 200000,
         alertThreshold: 75,
         createdAt: DateTime.now(),

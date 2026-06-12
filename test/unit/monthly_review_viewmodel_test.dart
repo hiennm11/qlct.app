@@ -85,7 +85,7 @@ void main() {
     test('loadMonth calls getByDateRange for selected + previous comparable periods', () async {
       final vm = makeVm();
       final txs = [
-        Transaction(id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        Transaction(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', emoji: '🍜',
             date: DateTime.now(), note: ''),
       ];
       when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => txs);
@@ -212,7 +212,7 @@ void main() {
       when(() => mockBudgetDS.getAll()).thenAnswer((_) async => [
             Budget(
               id: 'live-1',
-              categoryName: 'Ăn ngoài',
+              categoryName: 'Ăn ngoài', categoryId: 'food_out',
               monthlyLimit: 5000000,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -222,7 +222,7 @@ void main() {
       when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => [
             BudgetSnapshot(
               yearMonth: '2026-12',
-              categoryName: 'Ăn ngoài',
+              categoryName: 'Ăn ngoài', categoryId: 'food_out',
               limitAmount: 9999999, // different from live
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -241,7 +241,7 @@ void main() {
     test('past month with snapshots uses snapshot budgets (not live)', () async {
       final pastSnapshot = BudgetSnapshot(
         yearMonth: '2026-05',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         limitAmount: 1234567, // distinct value to verify path
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 1),
@@ -254,7 +254,7 @@ void main() {
       when(() => mockBudgetDS.getAll()).thenAnswer((_) async => [
             Budget(
               id: 'live-1',
-              categoryName: 'Ăn ngoài',
+              categoryName: 'Ăn ngoài', categoryId: 'food_out',
               monthlyLimit: 9999999,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -287,7 +287,7 @@ void main() {
       when(() => mockBudgetDS.getAll()).thenAnswer((_) async => [
             Budget(
               id: 'live-1',
-              categoryName: 'Ăn ngoài',
+              categoryName: 'Ăn ngoài', categoryId: 'food_out',
               monthlyLimit: 1000000,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),

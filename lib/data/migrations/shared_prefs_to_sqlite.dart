@@ -6,6 +6,7 @@ import '../database/database_helper.dart';
 import '../mappers/transaction_row_mapper.dart';
 import '../../models/transaction.dart';
 import '../../core/constants.dart';
+import '../../core/vietnamese_text_normalizer.dart';
 
 class MigrationService {
   static const _migrationFlag = 'migrated_to_sqlite_v1';
@@ -74,10 +75,12 @@ class MigrationService {
       for (int i = 0; i < decoded.length; i++) {
         try {
           final map = decoded[i] as Map<String, dynamic>;
+          final categoryName = map['category'] as String;
           result.add(Transaction(
             id: map['id'].toString(),
             amount: (map['amount'] as num).toInt(),
-            category: map['category'] as String,
+            category: categoryName,
+            categoryId: 'migrated_${normalizeVietnameseSearchText(categoryName)}',
             emoji: (map['emoji'] ?? '') as String,
             date: DateTime.parse(map['date'] as String),
             note: (map['note'] ?? '') as String,

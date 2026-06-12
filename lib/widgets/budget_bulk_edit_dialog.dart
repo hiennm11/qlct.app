@@ -121,6 +121,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
           orElse: () => Budget(
             id: const Uuid().v4(),
             categoryName: category.name,
+            categoryId: category.id,
             monthlyLimit: limit,
             alertThreshold: 80,
             createdAt: DateTime.now(),
@@ -129,6 +130,7 @@ class _BudgetBulkEditDialogState extends State<BudgetBulkEditDialog> {
         budgets.add(Budget(
           id: existingBudget.id,
           categoryName: category.name,
+          categoryId: existingBudget.categoryId,
           monthlyLimit: limit,
           alertThreshold: 80,
           createdAt: existingBudget.createdAt,

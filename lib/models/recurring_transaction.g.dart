@@ -11,6 +11,7 @@ _$RecurringTransactionImpl _$$RecurringTransactionImplFromJson(
 ) => _$RecurringTransactionImpl(
   id: json['id'] as String,
   categoryName: json['categoryName'] as String,
+  categoryId: json['categoryId'] as String,
   amount: (json['amount'] as num).toInt(),
   note: json['note'] as String? ?? '',
   frequency: json['frequency'] as String? ?? 'daily',
@@ -24,6 +25,7 @@ Map<String, dynamic> _$$RecurringTransactionImplToJson(
 ) => <String, dynamic>{
   'id': instance.id,
   'categoryName': instance.categoryName,
+  'categoryId': instance.categoryId,
   'amount': instance.amount,
   'note': instance.note,
   'frequency': instance.frequency,

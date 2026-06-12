@@ -151,6 +151,7 @@ class MonthlyBudgetPlanBuilder {
       items.add(BudgetPlanItem(
         yearMonth: yearMonth,
         categoryName: cat.name,
+        categoryId: cat.id,
         plannedLimit: plannedLimit,
         alertThreshold: alertThreshold,
         suggestedLimit: suggested,

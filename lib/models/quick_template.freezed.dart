@@ -25,6 +25,7 @@ mixin _$QuickTemplate {
   String get title => throw _privateConstructorUsedError;
   int get amount => throw _privateConstructorUsedError;
   String get categoryName => throw _privateConstructorUsedError;
+  String get categoryId => throw _privateConstructorUsedError;
   String get note => throw _privateConstructorUsedError;
   String get emoji => throw _privateConstructorUsedError;
   bool get isPinned => throw _privateConstructorUsedError;
@@ -55,6 +56,7 @@ abstract class $QuickTemplateCopyWith<$Res> {
     String title,
     int amount,
     String categoryName,
+    String categoryId,
     String note,
     String emoji,
     bool isPinned,
@@ -84,6 +86,7 @@ class _$QuickTemplateCopyWithImpl<$Res, $Val extends QuickTemplate>
     Object? title = null,
     Object? amount = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? note = null,
     Object? emoji = null,
     Object? isPinned = null,
@@ -109,6 +112,10 @@ class _$QuickTemplateCopyWithImpl<$Res, $Val extends QuickTemplate>
             categoryName: null == categoryName
                 ? _value.categoryName
                 : categoryName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            categoryId: null == categoryId
+                ? _value.categoryId
+                : categoryId // ignore: cast_nullable_to_non_nullable
                       as String,
             note: null == note
                 ? _value.note
@@ -158,6 +165,7 @@ abstract class _$$QuickTemplateImplCopyWith<$Res>
     String title,
     int amount,
     String categoryName,
+    String categoryId,
     String note,
     String emoji,
     bool isPinned,
@@ -186,6 +194,7 @@ class __$$QuickTemplateImplCopyWithImpl<$Res>
     Object? title = null,
     Object? amount = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? note = null,
     Object? emoji = null,
     Object? isPinned = null,
@@ -211,6 +220,10 @@ class __$$QuickTemplateImplCopyWithImpl<$Res>
         categoryName: null == categoryName
             ? _value.categoryName
             : categoryName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        categoryId: null == categoryId
+            ? _value.categoryId
+            : categoryId // ignore: cast_nullable_to_non_nullable
                   as String,
         note: null == note
             ? _value.note
@@ -253,6 +266,7 @@ class _$QuickTemplateImpl implements _QuickTemplate {
     required this.title,
     required this.amount,
     required this.categoryName,
+    required this.categoryId,
     this.note = '',
     this.emoji = '',
     this.isPinned = false,
@@ -273,6 +287,8 @@ class _$QuickTemplateImpl implements _QuickTemplate {
   final int amount;
   @override
   final String categoryName;
+  @override
+  final String categoryId;
   @override
   @JsonKey()
   final String note;
@@ -295,7 +311,7 @@ class _$QuickTemplateImpl implements _QuickTemplate {
 
   @override
   String toString() {
-    return 'QuickTemplate(id: $id, title: $title, amount: $amount, categoryName: $categoryName, note: $note, emoji: $emoji, isPinned: $isPinned, usageCount: $usageCount, lastUsedAt: $lastUsedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'QuickTemplate(id: $id, title: $title, amount: $amount, categoryName: $categoryName, categoryId: $categoryId, note: $note, emoji: $emoji, isPinned: $isPinned, usageCount: $usageCount, lastUsedAt: $lastUsedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -308,6 +324,8 @@ class _$QuickTemplateImpl implements _QuickTemplate {
             (identical(other.amount, amount) || other.amount == amount) &&
             (identical(other.categoryName, categoryName) ||
                 other.categoryName == categoryName) &&
+            (identical(other.categoryId, categoryId) ||
+                other.categoryId == categoryId) &&
             (identical(other.note, note) || other.note == note) &&
             (identical(other.emoji, emoji) || other.emoji == emoji) &&
             (identical(other.isPinned, isPinned) ||
@@ -330,6 +348,7 @@ class _$QuickTemplateImpl implements _QuickTemplate {
     title,
     amount,
     categoryName,
+    categoryId,
     note,
     emoji,
     isPinned,
@@ -359,6 +378,7 @@ abstract class _QuickTemplate implements QuickTemplate {
     required final String title,
     required final int amount,
     required final String categoryName,
+    required final String categoryId,
     final String note,
     final String emoji,
     final bool isPinned,
@@ -379,6 +399,8 @@ abstract class _QuickTemplate implements QuickTemplate {
   int get amount;
   @override
   String get categoryName;
+  @override
+  String get categoryId;
   @override
   String get note;
   @override

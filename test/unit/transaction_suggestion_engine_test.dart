@@ -7,6 +7,7 @@ Transaction _tx({
   required String id,
   required int amount,
   required String category,
+  required String categoryId,
   DateTime? date,
   String note = '',
 }) {
@@ -14,6 +15,7 @@ Transaction _tx({
     id: id,
     amount: amount,
     category: category,
+    categoryId: categoryId,
     emoji: '📌',
     date: date ?? DateTime(2026, 6, 7),
     note: note,
@@ -36,43 +38,43 @@ void main() {
 
     test('ignores transactions from other categories', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn nhà'),
-        _tx(id: '2', amount: 70000, category: 'Mua online'),
+        _tx(id: '1', amount: 50000, category: 'Ăn nhà', categoryId: 'food_home'),
+        _tx(id: '2', amount: 70000, category: 'Mua online', categoryId: 'online_shopping'),
       ];
       expect(engine.getSuggestedAmounts(anNgoai, txs), isEmpty);
     });
 
     test('ignores amount <= 0', () {
       final txs = [
-        _tx(id: '1', amount: 0, category: 'Ăn ngoài'),
-        _tx(id: '2', amount: -1000, category: 'Ăn ngoài'),
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài'),
+        _tx(id: '1', amount: 0, category: 'Ăn ngoài', categoryId: 'food_out'),
+        _tx(id: '2', amount: -1000, category: 'Ăn ngoài', categoryId: 'food_out'),
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
       ];
       expect(engine.getSuggestedAmounts(anNgoai, txs), [50000]);
     });
 
     test('returns max 3 suggestions', () {
       final txs = [
-        _tx(id: '1', amount: 10000, category: 'Ăn ngoài'),
-        _tx(id: '2', amount: 20000, category: 'Ăn ngoài'),
-        _tx(id: '3', amount: 30000, category: 'Ăn ngoài'),
-        _tx(id: '4', amount: 40000, category: 'Ăn ngoài'),
-        _tx(id: '5', amount: 50000, category: 'Ăn ngoài'),
+        _tx(id: '1', amount: 10000, category: 'Ăn ngoài', categoryId: 'food_out'),
+        _tx(id: '2', amount: 20000, category: 'Ăn ngoài', categoryId: 'food_out'),
+        _tx(id: '3', amount: 30000, category: 'Ăn ngoài', categoryId: 'food_out'),
+        _tx(id: '4', amount: 40000, category: 'Ăn ngoài', categoryId: 'food_out'),
+        _tx(id: '5', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
       ];
       expect(engine.getSuggestedAmounts(anNgoai, txs).length, lessThanOrEqualTo(3));
     });
 
     test('Subscription: last used exact amount first, then top repeated', () {
       final txs = [
-        _tx(id: '1', amount: 200000, category: 'Subscription',
+        _tx(id: '1', amount: 200000, category: 'Subscription', categoryId: 'subscription',
             date: DateTime(2026, 6, 1)),
-        _tx(id: '2', amount: 200000, category: 'Subscription',
+        _tx(id: '2', amount: 200000, category: 'Subscription', categoryId: 'subscription',
             date: DateTime(2026, 6, 3)),
-        _tx(id: '3', amount: 200000, category: 'Subscription',
+        _tx(id: '3', amount: 200000, category: 'Subscription', categoryId: 'subscription',
             date: DateTime(2026, 6, 5)), // last = 200000
-        _tx(id: '4', amount: 150000, category: 'Subscription',
+        _tx(id: '4', amount: 150000, category: 'Subscription', categoryId: 'subscription',
             date: DateTime(2026, 6, 2)),
-        _tx(id: '5', amount: 100000, category: 'Subscription',
+        _tx(id: '5', amount: 100000, category: 'Subscription', categoryId: 'subscription',
             date: DateTime(2026, 6, 4)), // 1 occurrence
       ];
       final result = engine.getSuggestedAmounts(subscription, txs);
@@ -86,11 +88,11 @@ void main() {
       // Recent amounts: [50k, 60k, 70k] (newest first, but median over all)
       // All positive: median = 60k
       final txs = [
-        _tx(id: '1', amount: 70000, category: 'Ăn ngoài',
+        _tx(id: '1', amount: 70000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 5)), // newest = 70k (last used)
-        _tx(id: '2', amount: 60000, category: 'Ăn ngoài',
+        _tx(id: '2', amount: 60000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 3)),
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 1)),
       ];
       final result = engine.getSuggestedAmounts(anNgoai, txs);
@@ -102,13 +104,13 @@ void main() {
     test('Ăn ngoài: median then repeated then last used as fallback', () {
       // Use an even set so median is rounded average
       final txs = [
-        _tx(id: '1', amount: 100000, category: 'Ăn ngoài', // last used
+        _tx(id: '1', amount: 100000, category: 'Ăn ngoài', categoryId: 'food_out', // last used
             date: DateTime(2026, 6, 10)),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 5)),
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 4)),
-        _tx(id: '4', amount: 30000, category: 'Ăn ngoài',
+        _tx(id: '4', amount: 30000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 3)),
       ];
       // amounts sorted: [30k, 50k, 50k, 100k] → median = (50k+50k)/2 = 50k
@@ -121,11 +123,11 @@ void main() {
 
     test('Cà phê uses median first', () {
       final txs = [
-        _tx(id: '1', amount: 25000, category: 'Cà phê',
+        _tx(id: '1', amount: 25000, category: 'Cà phê', categoryId: 'coffee',
             date: DateTime(2026, 6, 7)), // last = 25k
-        _tx(id: '2', amount: 20000, category: 'Cà phê',
+        _tx(id: '2', amount: 20000, category: 'Cà phê', categoryId: 'coffee',
             date: DateTime(2026, 6, 5)),
-        _tx(id: '3', amount: 20000, category: 'Cà phê',
+        _tx(id: '3', amount: 20000, category: 'Cà phê', categoryId: 'coffee',
             date: DateTime(2026, 6, 3)),
       ];
       // sorted: [20k, 20k, 25k] → median = 20k
@@ -135,13 +137,13 @@ void main() {
 
     test('Other categories: last used first, then top repeated', () {
       final txs = [
-        _tx(id: '1', amount: 200000, category: 'Ăn nhà',
+        _tx(id: '1', amount: 200000, category: 'Ăn nhà', categoryId: 'food_home',
             date: DateTime(2026, 6, 1)),
-        _tx(id: '2', amount: 200000, category: 'Ăn nhà',
+        _tx(id: '2', amount: 200000, category: 'Ăn nhà', categoryId: 'food_home',
             date: DateTime(2026, 6, 5)),
-        _tx(id: '3', amount: 150000, category: 'Ăn nhà',
+        _tx(id: '3', amount: 150000, category: 'Ăn nhà', categoryId: 'food_home',
             date: DateTime(2026, 6, 7)), // last = 150k
-        _tx(id: '4', amount: 100000, category: 'Ăn nhà',
+        _tx(id: '4', amount: 100000, category: 'Ăn nhà', categoryId: 'food_home',
             date: DateTime(2026, 6, 3)),
       ];
       final result = engine.getSuggestedAmounts(mucNha, txs);
@@ -152,9 +154,9 @@ void main() {
 
     test('Khác category uses last-then-repeated', () {
       final txs = [
-        _tx(id: '1', amount: 30000, category: 'Khác',
+        _tx(id: '1', amount: 30000, category: 'Khác', categoryId: 'other',
             date: DateTime(2026, 6, 7)),
-        _tx(id: '2', amount: 30000, category: 'Khác',
+        _tx(id: '2', amount: 30000, category: 'Khác', categoryId: 'other',
             date: DateTime(2026, 6, 5)),
       ];
       final result = engine.getSuggestedAmounts(khac, txs);
@@ -164,11 +166,11 @@ void main() {
     test('amount dedup: repeated amount not added twice', () {
       // Same amount multiple times: only one suggestion
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 7)),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 5)),
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             date: DateTime(2026, 6, 3)),
       ];
       final result = engine.getSuggestedAmounts(anNgoai, txs);
@@ -177,7 +179,7 @@ void main() {
 
     test('Subscription only single tx returns that amount', () {
       final txs = [
-        _tx(id: '1', amount: 199000, category: 'Subscription',
+        _tx(id: '1', amount: 199000, category: 'Subscription', categoryId: 'subscription',
             date: DateTime(2026, 6, 7)),
       ];
       expect(engine.getSuggestedAmounts(subscription, txs), [199000]);
@@ -185,9 +187,9 @@ void main() {
 
     test('all categories return their own data only', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài'),
-        _tx(id: '2', amount: 20000, category: 'Cà phê'),
-        _tx(id: '3', amount: 200000, category: 'Subscription'),
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
+        _tx(id: '2', amount: 20000, category: 'Cà phê', categoryId: 'coffee'),
+        _tx(id: '3', amount: 200000, category: 'Subscription', categoryId: 'subscription'),
       ];
       expect(engine.getSuggestedAmounts(anNgoai, txs), [50000]);
       expect(engine.getSuggestedAmounts(caPhe, txs), [20000]);
@@ -202,15 +204,15 @@ void main() {
         // 200k appears 3x (last), 150k and 100k are singletons.
         // Singletons must NOT be added by the repeated phase.
         final txs = [
-          _tx(id: '1', amount: 200000, category: 'Subscription',
+          _tx(id: '1', amount: 200000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 1)),
-          _tx(id: '2', amount: 200000, category: 'Subscription',
+          _tx(id: '2', amount: 200000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 3)),
-          _tx(id: '3', amount: 200000, category: 'Subscription',
+          _tx(id: '3', amount: 200000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 5)), // last = 200k
-          _tx(id: '4', amount: 150000, category: 'Subscription',
+          _tx(id: '4', amount: 150000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 2)), // singleton
-          _tx(id: '5', amount: 100000, category: 'Subscription',
+          _tx(id: '5', amount: 100000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 4)), // singleton
         ];
         final result = engine.getSuggestedAmounts(subscription, txs);
@@ -221,13 +223,13 @@ void main() {
         // 200k appears 2x, 50k (singleton) is last, 100k is singleton.
         // Repeated phase must yield only 200k; 100k must NOT be added.
         final txs = [
-          _tx(id: '1', amount: 200000, category: 'Ăn nhà',
+          _tx(id: '1', amount: 200000, category: 'Ăn nhà', categoryId: 'food_home',
               date: DateTime(2026, 6, 1)),
-          _tx(id: '2', amount: 200000, category: 'Ăn nhà',
+          _tx(id: '2', amount: 200000, category: 'Ăn nhà', categoryId: 'food_home',
               date: DateTime(2026, 6, 3)),
-          _tx(id: '3', amount: 50000, category: 'Ăn nhà',
+          _tx(id: '3', amount: 50000, category: 'Ăn nhà', categoryId: 'food_home',
               date: DateTime(2026, 6, 7)), // last = 50k (singleton)
-          _tx(id: '4', amount: 100000, category: 'Ăn nhà',
+          _tx(id: '4', amount: 100000, category: 'Ăn nhà', categoryId: 'food_home',
               date: DateTime(2026, 6, 5)), // singleton (should not appear)
         ];
         final result = engine.getSuggestedAmounts(mucNha, txs);
@@ -240,13 +242,13 @@ void main() {
         // (last). Repeated phase yields 50k only; last fallback yields 100k.
         // 30k must not appear.
         final txs = [
-          _tx(id: '1', amount: 100000, category: 'Ăn ngoài',
+          _tx(id: '1', amount: 100000, category: 'Ăn ngoài', categoryId: 'food_out',
               date: DateTime(2026, 6, 10)), // last = 100k (singleton)
-          _tx(id: '2', amount: 50000, category: 'Ăn ngoài',
+          _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
               date: DateTime(2026, 6, 5)),
-          _tx(id: '3', amount: 50000, category: 'Ăn ngoài',
+          _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
               date: DateTime(2026, 6, 4)),
-          _tx(id: '4', amount: 30000, category: 'Ăn ngoài',
+          _tx(id: '4', amount: 30000, category: 'Ăn ngoài', categoryId: 'food_out',
               date: DateTime(2026, 6, 3)), // singleton (should not appear)
         ];
         final result = engine.getSuggestedAmounts(anNgoai, txs);
@@ -258,11 +260,11 @@ void main() {
       test('Subscription: only singletons → just last returned', () {
         // No amount repeats. Repeated phase is empty, so result is just last.
         final txs = [
-          _tx(id: '1', amount: 100000, category: 'Subscription',
+          _tx(id: '1', amount: 100000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 1)),
-          _tx(id: '2', amount: 200000, category: 'Subscription',
+          _tx(id: '2', amount: 200000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 5)), // last
-          _tx(id: '3', amount: 300000, category: 'Subscription',
+          _tx(id: '3', amount: 300000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 3)),
         ];
         final result = engine.getSuggestedAmounts(subscription, txs);
@@ -278,16 +280,16 @@ void main() {
 
     test('ignores empty notes', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', note: ''),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', note: '   '),
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', note: 'cơm trưa'),
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: ''),
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: '   '),
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'cơm trưa'),
       ];
       expect(engine.getSuggestedNotes(anNgoai, txs), ['cơm trưa']);
     });
 
     test('trims whitespace from notes', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             note: '  cf sáng  '),
       ];
       final result = engine.getSuggestedNotes(anNgoai, txs);
@@ -296,13 +298,13 @@ void main() {
 
     test('case-insensitive duplicate detection, most recent text version', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             note: 'Cơm Trưa',
             date: DateTime(2026, 6, 1)),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             note: 'cơm trưa',
             date: DateTime(2026, 6, 5)), // newer
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài',
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
             note: 'CƠM TRƯA',
             date: DateTime(2026, 6, 7)), // most recent
       ];
@@ -312,11 +314,11 @@ void main() {
 
     test('returns max 3 suggestions', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', note: 'a'),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', note: 'b'),
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', note: 'c'),
-        _tx(id: '4', amount: 50000, category: 'Ăn ngoài', note: 'd'),
-        _tx(id: '5', amount: 50000, category: 'Ăn ngoài', note: 'e'),
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'a'),
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'b'),
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'c'),
+        _tx(id: '4', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'd'),
+        _tx(id: '5', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'e'),
       ];
       expect(engine.getSuggestedNotes(anNgoai, txs).length, 3);
     });
@@ -325,15 +327,15 @@ void main() {
     // Priority 2 = most repeated notes as fallback (not already included).
     test('ADR-0020: most recent note first, then repeated notes', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', note: 'phở',
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'phở',
             date: DateTime(2026, 6, 1)), // oldest, single
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', note: 'cơm',
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'cơm',
             date: DateTime(2026, 6, 3)), // older, single
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', note: 'bún',
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'bún',
             date: DateTime(2026, 6, 5)), // older, count 3
-        _tx(id: '4', amount: 50000, category: 'Ăn ngoài', note: 'bún',
+        _tx(id: '4', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'bún',
             date: DateTime(2026, 6, 6)), // newer duplicate
-        _tx(id: '5', amount: 50000, category: 'Ăn ngoài', note: 'bún',
+        _tx(id: '5', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'bún',
             date: DateTime(2026, 6, 7)), // newest, same key
       ];
       final result = engine.getSuggestedNotes(anNgoai, txs);
@@ -344,13 +346,13 @@ void main() {
 
     test('recent notes override repeated notes priority', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Cà phê', note: 'cf sáng',
+        _tx(id: '1', amount: 50000, category: 'Cà phê', categoryId: 'coffee', note: 'cf sáng',
             date: DateTime(2026, 6, 1)), // oldest, count 3
-        _tx(id: '2', amount: 50000, category: 'Cà phê', note: 'cf sáng',
+        _tx(id: '2', amount: 50000, category: 'Cà phê', categoryId: 'coffee', note: 'cf sáng',
             date: DateTime(2026, 6, 3)), // older
-        _tx(id: '3', amount: 50000, category: 'Cà phê', note: 'cf sáng',
+        _tx(id: '3', amount: 50000, category: 'Cà phê', categoryId: 'coffee', note: 'cf sáng',
             date: DateTime(2026, 6, 5)), // older
-        _tx(id: '4', amount: 50000, category: 'Cà phê', note: 'Highlands chiều',
+        _tx(id: '4', amount: 50000, category: 'Cà phê', categoryId: 'coffee', note: 'Highlands chiều',
             date: DateTime(2026, 6, 7)), // newest, single
       ];
       final result = engine.getSuggestedNotes(caPhe, txs);
@@ -361,13 +363,13 @@ void main() {
 
     test('case-insensitive dedupe counts correctly across priorities', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', note: 'CƠM TRƯA',
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'CƠM TRƯA',
             date: DateTime(2026, 6, 1)),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', note: 'cơm trưa',
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'cơm trưa',
             date: DateTime(2026, 6, 3)), // same key, newer
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', note: 'bún chả',
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'bún chả',
             date: DateTime(2026, 6, 5)), // single
-        _tx(id: '4', amount: 50000, category: 'Ăn ngoài', note: 'phở',
+        _tx(id: '4', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'phở',
             date: DateTime(2026, 6, 7)), // most recent, single
       ];
       // Deduped (case-insensitive, most recent text wins):
@@ -382,8 +384,8 @@ void main() {
 
     test('ignores other category notes', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Cà phê', note: 'cf sáng'),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', note: 'cơm trưa'),
+        _tx(id: '1', amount: 50000, category: 'Cà phê', categoryId: 'coffee', note: 'cf sáng'),
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'cơm trưa'),
       ];
       final result = engine.getSuggestedNotes(anNgoai, txs);
       expect(result, ['cơm trưa']);
@@ -391,17 +393,17 @@ void main() {
 
     test('all empty notes returns empty', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', note: ''),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', note: ''),
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: ''),
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: ''),
       ];
       expect(engine.getSuggestedNotes(anNgoai, txs), isEmpty);
     });
 
     test('is deterministic for same input', () {
       final txs = [
-        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', note: 'a'),
-        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', note: 'b'),
-        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', note: 'a'),
+        _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'a'),
+        _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'b'),
+        _tx(id: '3', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', note: 'a'),
       ];
       final r1 = engine.getSuggestedNotes(anNgoai, txs);
       final r2 = engine.getSuggestedNotes(anNgoai, txs);
@@ -411,9 +413,9 @@ void main() {
 
   test('engine is pure: same inputs → same outputs', () {
     final txs = [
-      _tx(id: '1', amount: 50000, category: 'Ăn ngoài',
+      _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
           note: 'cơm', date: DateTime(2026, 6, 1)),
-      _tx(id: '2', amount: 50000, category: 'Ăn ngoài',
+      _tx(id: '2', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out',
           note: 'phở', date: DateTime(2026, 6, 5)),
     ];
     final r1 = engine.getSuggestedAmounts(anNgoai, txs);

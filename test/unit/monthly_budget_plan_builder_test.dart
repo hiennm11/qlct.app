@@ -70,14 +70,14 @@ void main() {
     // Month 3: 'Ăn ngoài' spent 3,000,000
     // Median of [2000000, 0, 3000000] = 2000000
     final month1 = [
-      _tx('Ăn ngoài', 2000000),
+      _tx('Ăn ngoài', 'food_out', 2000000),
     ];
     final month2 = [
       // 'Ăn ngoài' absent, other category present
-      _tx('Cà phê', 100000),
+      _tx('Cà phê', 'coffee', 100000),
     ];
     final month3 = [
-      _tx('Ăn ngoài', 3000000),
+      _tx('Ăn ngoài', 'food_out', 3000000),
     ];
 
     final data = builder.buildDraft(
@@ -100,8 +100,8 @@ void main() {
   test('absent category counts as zero across all supplied months', () {
     //2 months supplied: month1=1M, month2=absent(0)
     // Average = (1000000 + 0) / 2 = 500000
-    final month1 = [_tx('Ăn ngoài', 1000000)];
-    final month2 = [_tx('Cà phê', 50000)]; // 'Ăn ngoài' absent
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1000000)];
+    final month2 = [_tx('Cà phê', 'coffee', 50000)]; // 'Ăn ngoài' absent
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -125,8 +125,8 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────────
   test('2 months: average rounded to nearest int', () {
     // (1500000 + 2500000) / 2 = 2000000
-    final month1 = [_tx('Ăn ngoài', 1500000)];
-    final month2 = [_tx('Ăn ngoài', 2500000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1500000)];
+    final month2 = [_tx('Ăn ngoài', 'food_out', 2500000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -148,7 +148,7 @@ void main() {
   test('1 month: suggestion uses that month (then rounds)', () {
     // Use a value that is already a clean 100k step so the assertion
     // focuses on the "single month" semantics, not the rounding step.
-    final month1 = [_tx('Ăn ngoài', 1500000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1500000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -169,7 +169,7 @@ void main() {
 
   test('1 month: non-step value is still rounded to nearest 100k', () {
     // 1,750,000 → 1,800,000 (round up to 100k step)
-    final month1 = [_tx('Ăn ngoài', 1750000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1750000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -211,7 +211,7 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────────
   test('rounds up to nearest 50,000 for values < 1,000,000', () {
     // 123,456 → ceil to 150,000 (nearest 50k)
-    final month1 = [_tx('Ăn ngoài', 123456)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 123456)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -232,7 +232,7 @@ void main() {
 
   test('rounds up to nearest 100,000 for values >= 1,000,000', () {
     // 1,234,567 → ceil to 1,300,000 (nearest 100k)
-    final month1 = [_tx('Ăn ngoài', 1234567)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1234567)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -252,7 +252,7 @@ void main() {
   });
 
   test('exact multiple rounds stay unchanged', () {
-    final month1 = [_tx('Ăn ngoài', 500000)]; // exact 500k,50k step
+    final month1 = [_tx('Ăn ngoài', 'food_out', 500000)]; // exact 500k,50k step
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -295,10 +295,10 @@ void main() {
   test('wasOverBudgetLastMonth=true forces increase recommendation', () {
     // Previous month: spent 5M on a category with limit 3M → overspent
     final prevBudgets = [
-      _budget('Ăn ngoài', 3000000, 80),
+      _budget('Ăn ngoài', 'food_out', 3000000, 80),
     ];
     final prevTxs = [
-      _tx('Ăn ngoài', 5000000),
+      _tx('Ăn ngoài', 'food_out', 5000000),
     ];
 
     // Suggestion same as base (no change) → would be 'keep' normally
@@ -324,10 +324,10 @@ void main() {
   test('wasOverBudgetLastMonth=false does not force increase', () {
     // Spent 2M with limit 3M → not overspent
     final prevBudgets = [
-      _budget('Ăn ngoài', 3000000, 80),
+      _budget('Ăn ngoài', 'food_out', 3000000, 80),
     ];
     final prevTxs = [
-      _tx('Ăn ngoài', 2000000),
+      _tx('Ăn ngoài', 'food_out', 2000000),
     ];
 
     final data = builder.buildDraft(
@@ -351,7 +351,7 @@ void main() {
   test('previousBudgetLimit=0: wasOverBudgetLastMonth must be false', () {
     // No previous budget limit, spent something → not considered overspent
     final prevTxs = [
-      _tx('Ăn ngoài', 5000000),
+      _tx('Ăn ngoài', 'food_out', 5000000),
     ];
 
     final data = builder.buildDraft(
@@ -376,12 +376,12 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────────
   test('increase when suggested >= base * 1.15', () {
     final baseBudgets = [
-      _budget('Ăn ngoài', 1000000, 80),
+      _budget('Ăn ngoài', 'food_out', 1000000, 80),
     ];
     // 3 months:1.2M, 1.2M, 1.2M → median 1.2M → exceeds 1.15M threshold
-    final month1 = [_tx('Ăn ngoài', 1200000)];
-    final month2 = [_tx('Ăn ngoài', 1200000)];
-    final month3 = [_tx('Ăn ngoài', 1200000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1200000)];
+    final month2 = [_tx('Ăn ngoài', 'food_out', 1200000)];
+    final month3 = [_tx('Ăn ngoài', 'food_out', 1200000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -403,12 +403,12 @@ void main() {
 
   test('decrease when suggested <= base * 0.85', () {
     final baseBudgets = [
-      _budget('Ăn ngoài', 1000000, 80),
+      _budget('Ăn ngoài', 'food_out', 1000000, 80),
     ];
     // 3 months: 800k, 800k, 800k → median 800k → below 0.85M threshold
-    final month1 = [_tx('Ăn ngoài', 800000)];
-    final month2 = [_tx('Ăn ngoài', 800000)];
-    final month3 = [_tx('Ăn ngoài', 800000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 800000)];
+    final month2 = [_tx('Ăn ngoài', 'food_out', 800000)];
+    final month3 = [_tx('Ăn ngoài', 'food_out', 800000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -450,7 +450,7 @@ void main() {
 
   test('increase when baseLimit=0 and suggested>0', () {
     // No base budget, but 1 month spending exists
-    final month1 = [_tx('Ăn ngoài', 500000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 500000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -473,12 +473,12 @@ void main() {
 
   test('keep when abs(delta) < 15%', () {
     final baseBudgets = [
-      _budget('Ăn ngoài', 1000000, 80),
+      _budget('Ăn ngoài', 'food_out', 1000000, 80),
     ];
     //3 months: 1M, 1M, 1M → median 1M → same as base → keep
-    final month1 = [_tx('Ăn ngoài', 1000000)];
-    final month2 = [_tx('Ăn ngoài', 1000000)];
-    final month3 = [_tx('Ăn ngoài', 1000000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1000000)];
+    final month2 = [_tx('Ăn ngoài', 'food_out', 1000000)];
+    final month3 = [_tx('Ăn ngoài', 'food_out', 1000000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -501,13 +501,13 @@ void main() {
   // 7. plannedLimit rule: empty vs copy source
   // ─────────────────────────────────────────────────────────────────────────
   test('empty source: plannedLimit = suggestedLimit', () {
-    final month1 = [_tx('Ăn ngoài', 2100000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 2100000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'empty',
       categories: seedCategories,
-      baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
+      baseBudgets: [_budget('Ăn ngoài', 'food_out', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: null,
       recentCompletedMonthTransactions: [month1],
@@ -521,13 +521,13 @@ void main() {
   });
 
   test('copy source: plannedLimit = suggested > 0 ? suggested : baseLimit', () {
-    final month1 = [_tx('Ăn ngoài', 2100000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 2100000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'currentBudget',
       categories: seedCategories,
-      baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
+      baseBudgets: [_budget('Ăn ngoài', 'food_out', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: null,
       recentCompletedMonthTransactions: [month1],
@@ -546,7 +546,7 @@ void main() {
       targetMonth: DateTime(2026, 7, 1),
       source: 'currentBudget',
       categories: seedCategories,
-      baseBudgets: [_budget('Ăn ngoài', 3000000, 80)],
+      baseBudgets: [_budget('Ăn ngoài', 'food_out', 3000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: null,
       recentCompletedMonthTransactions: [],
@@ -568,7 +568,7 @@ void main() {
       targetMonth: DateTime(2026, 7, 1),
       source: 'currentBudget',
       categories: seedCategories,
-      baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
+      baseBudgets: [_budget('Ăn ngoài', 'food_out', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: 5000000,
       recentCompletedMonthTransactions: [],
@@ -581,13 +581,13 @@ void main() {
   });
 
   test('currentBudget source: falls back to sum planned when liveTotalBudget=null', () {
-    final month1 = [_tx('Ăn ngoài', 1000000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1000000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'currentBudget',
       categories: seedCategories,
-      baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
+      baseBudgets: [_budget('Ăn ngoài', 'food_out', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: null,
       recentCompletedMonthTransactions: [month1],
@@ -600,13 +600,13 @@ void main() {
   });
 
   test('previousMonth source: plannedTotalBudget = max(liveTotalBudget, sum planned)', () {
-    final month1 = [_tx('Ăn ngoài', 1000000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1000000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'previousMonth',
       categories: seedCategories,
-      baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
+      baseBudgets: [_budget('Ăn ngoài', 'food_out', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: 8000000,
       recentCompletedMonthTransactions: [month1],
@@ -619,13 +619,13 @@ void main() {
  });
 
   test('previousMonth source: uses sum planned when liveTotalBudget is lower', () {
-    final month1 = [_tx('Ăn ngoài', 1000000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1000000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
       source: 'previousMonth',
       categories: seedCategories,
-      baseBudgets: [_budget('Ăn ngoài', 1000000, 80)],
+      baseBudgets: [_budget('Ăn ngoài', 'food_out', 1000000, 80)],
       previousMonthBudgets: [],
       liveTotalBudget: 500000,
       recentCompletedMonthTransactions: [month1],
@@ -638,7 +638,7 @@ void main() {
  });
 
   test('empty source: plannedTotalBudget = sum planned', () {
-    final month1 = [_tx('Ăn ngoài', 1000000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1000000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -768,10 +768,10 @@ void main() {
 
   test('increaseItems/decreaseItems/keepItems sorted same as items', () {
     final baseBudgets = [
-      _budget('Ăn ngoài', 1000000, 80),
-      _budget('Cà phê', 1000000, 80),
+      _budget('Ăn ngoài', 'food_out', 1000000, 80),
+      _budget('Cà phê', 'coffee', 1000000, 80),
     ];
-    final month1 = [_tx('Ăn ngoài', 1500000), _tx('Cà phê', 500000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1500000), _tx('Cà phê', 'coffee', 500000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -812,7 +812,7 @@ void main() {
   // allocatedAmount & activeCategoryCount
   // ─────────────────────────────────────────────────────────────────────────
   test('allocatedAmount sums plannedLimit > 0', () {
-    final month1 = [_tx('Ăn ngoài', 1000000), _tx('Cà phê', 500000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1000000), _tx('Cà phê', 'coffee', 500000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -832,7 +832,7 @@ void main() {
   });
 
   test('activeCategoryCount counts plannedLimit > 0', () {
-    final month1 = [_tx('Ăn ngoài', 1000000), _tx('Cà phê', 500000)];
+    final month1 = [_tx('Ăn ngoài', 'food_out', 1000000), _tx('Cà phê', 'coffee', 500000)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -855,7 +855,7 @@ void main() {
   // alertThreshold from base budget, fallback to previous, default 80
   // ─────────────────────────────────────────────────────────────────────────
   test('alertThreshold from base budget', () {
-    final baseBudgets = [_budget('Ăn ngoài', 1000000, 75)];
+    final baseBudgets = [_budget('Ăn ngoài', 'food_out', 1000000, 75)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -874,7 +874,7 @@ void main() {
   });
 
   test('alertThreshold falls back to previous month budget', () {
-    final prevBudgets = [_budget('Ăn ngoài', 1000000, 70)];
+    final prevBudgets = [_budget('Ăn ngoài', 'food_out', 1000000, 70)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -912,8 +912,8 @@ void main() {
   });
 
   test('base budget alertThreshold takes precedence over previous', () {
-    final baseBudgets = [_budget('Ăn ngoài', 1000000, 60)];
-    final prevBudgets = [_budget('Ăn ngoài', 1000000, 90)];
+    final baseBudgets = [_budget('Ăn ngoài', 'food_out', 1000000, 60)];
+    final prevBudgets = [_budget('Ăn ngoài', 'food_out', 1000000, 90)];
 
     final data = builder.buildDraft(
       targetMonth: DateTime(2026, 7, 1),
@@ -937,9 +937,9 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────────
   test('lastMonthSpent aggregates multiple transactions in same category', () {
     final prevTxs = [
-      _tx('Ăn ngoài', 500000),
-      _tx('Ăn ngoài', 300000),
-      _tx('Ăn ngoài', 200000),
+      _tx('Ăn ngoài', 'food_out', 500000),
+      _tx('Ăn ngoài', 'food_out', 300000),
+      _tx('Ăn ngoài', 'food_out', 200000),
     ];
 
     final data = builder.buildDraft(
@@ -961,8 +961,8 @@ void main() {
 
   test('lastMonthSpent excludes investment transactions', () {
     final prevTxs = [
-      _tx('Ăn ngoài', 500000),
-      _tx('Đầu tư', 10000000),
+      _tx('Ăn ngoài', 'food_out', 500000),
+      _tx('Đầu tư', 'investment', 10000000),
     ];
 
     final data = builder.buildDraft(
@@ -1061,20 +1061,22 @@ void main() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-Transaction _tx(String category, int amount) {
+Transaction _tx(String category, String categoryId, int amount) {
   return Transaction(
     id: '${category}_${amount}_${DateTime.now().microsecondsSinceEpoch}',
     amount: amount,
     category: category,
+    categoryId: categoryId,
     emoji: '📌',
     date: DateTime(2026, 5, 15),
   );
 }
 
-Budget _budget(String categoryName, int monthlyLimit, int alertThreshold) {
+Budget _budget(String categoryName, String categoryId, int monthlyLimit, int alertThreshold) {
   return Budget(
     id: 'b_${categoryName}_1',
     categoryName: categoryName,
+    categoryId: categoryId,
     monthlyLimit: monthlyLimit,
     alertThreshold: alertThreshold,
     createdAt: DateTime(2026, 1, 1),

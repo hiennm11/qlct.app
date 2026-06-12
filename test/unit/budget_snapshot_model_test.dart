@@ -8,6 +8,7 @@ void main() {
       final snapshot = BudgetSnapshot(
         yearMonth: '2026-05',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         limitAmount: 3000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 1, 10, 30),
@@ -27,6 +28,7 @@ void main() {
       final json = {
         'yearMonth': '2026-04',
         'categoryName': 'Cà phê',
+        'categoryId': 'coffee',
         'limitAmount': 1000000,
         'alertThreshold': 75,
         'createdAt': '2026-06-01T10:30:00.000',
@@ -44,6 +46,7 @@ void main() {
       final json = {
         'yearMonth': '2026-05',
         'categoryName': 'Mua online',
+        'categoryId': 'online_shopping',
         'limitAmount': 2000000,
         'createdAt': '2026-06-01T00:00:00.000',
       };
@@ -56,6 +59,7 @@ void main() {
       final snapshot = BudgetSnapshot(
         yearMonth: '2026-05',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         limitAmount: 3000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 1),
@@ -75,9 +79,10 @@ void main() {
       final snapshot = BudgetSnapshot(
         yearMonth: '2026-05',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         limitAmount: 3000000,
         alertThreshold: 80,
-        createdAt: DateTime(2026, 6, 1, 10, 0),
+        createdAt: DateTime(2026, 6, 1),
       );
 
       final row = budgetSnapshotToRow(snapshot);
@@ -112,6 +117,7 @@ void main() {
       final original = BudgetSnapshot(
         yearMonth: '2026-04',
         categoryName: 'Mua online',
+        categoryId: 'online_shopping',
         limitAmount: 2000000,
         alertThreshold: 75,
         createdAt: DateTime(2026, 6, 1),
@@ -133,6 +139,7 @@ void main() {
       final snapshot = BudgetSnapshot(
         yearMonth: '2026-05',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         limitAmount: 3000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 1),
@@ -151,6 +158,7 @@ void main() {
       final snapshot = BudgetSnapshot(
         yearMonth: '2026-04',
         categoryName: 'Subscription',
+        categoryId: 'subscription',
         limitAmount: 500000,
         alertThreshold: 75,
         createdAt: DateTime(2026, 5, 1, 12, 0),

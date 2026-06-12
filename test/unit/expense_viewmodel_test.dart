@@ -26,6 +26,7 @@ void main() {
       id: '0',
       amount: 0,
       category: '',
+      categoryId: 'test_cat',
       emoji: '',
       date: DateTime.now(),
       note: '',
@@ -39,6 +40,7 @@ void main() {
       id: id,
       amount: amount,
       category: sampleCategory.name,
+      categoryId: sampleCategory.id,
       emoji: sampleCategory.emoji,
       date: date ?? DateTime.now(),
       note: '',
@@ -103,6 +105,7 @@ void main() {
       await viewModel.addTransaction(
         amount: 50000,
         category: 'Ăn ngoài',
+        categoryId: sampleCategory.id,
         emoji: '🍜',
         note: 'ăn trưa',
       );
@@ -124,7 +127,7 @@ void main() {
 
       // Add a transaction with matching note
       final added = Transaction(
-        id: '3', amount: 99999, category: 'Ăn ngoài', emoji: '🍜',
+        id: '3', amount: 99999, category: 'Ăn ngoài', categoryId: sampleCategory.id, emoji: '🍜',
         date: DateTime.now(), note: 'test note',
       );
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, added]);
@@ -133,6 +136,7 @@ void main() {
       await viewModel.addTransaction(
         amount: 99999,
         category: 'Ăn ngoài',
+        categoryId: sampleCategory.id,
         emoji: '🍜',
         note: 'test note',
       );
@@ -259,6 +263,7 @@ void main() {
         id: '1',
         amount: 30000,
         category: 'Ăn ngoài',
+        categoryId: sampleCategory.id,
         emoji: '🍜',
         date: today,
         note: '',
@@ -267,6 +272,7 @@ void main() {
         id: '2',
         amount: 20000,
         category: 'Cà phê',
+        categoryId: 'ca phe',
         emoji: '☕',
         date: DateTime(2020, 1, 1), // old date
         note: '',
@@ -285,11 +291,11 @@ void main() {
     test('calculates monthExpense including all transactions this month', () async {
       final now = DateTime.now();
       final t1 = Transaction(
-        id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: sampleCategory.id, emoji: '🍜',
         date: DateTime(now.year, now.month, 1), note: '',
       );
       final t2 = Transaction(
-        id: '2', amount: 30000, category: 'Cà phê', emoji: '☕',
+        id: '2', amount: 30000, category: 'Cà phê', categoryId: 'ca phe', emoji: '☕',
         date: DateTime(now.year, now.month, 15), note: '',
       );
 
@@ -306,11 +312,11 @@ void main() {
     test('categoryTotals groups amounts correctly', () async {
       final now = DateTime.now();
       final t1 = Transaction(
-        id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: sampleCategory.id, emoji: '🍜',
         date: DateTime(now.year, now.month, 5), note: '',
       );
       final t2 = Transaction(
-        id: '2', amount: 30000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '2', amount: 30000, category: 'Ăn ngoài', categoryId: sampleCategory.id, emoji: '🍜',
         date: DateTime(now.year, now.month, 10), note: '',
       );
 
@@ -434,11 +440,11 @@ void main() {
     test('stats unaffected by search (always based on allTransactions)', () async {
       final now = DateTime.now();
       final t1 = Transaction(
-        id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: sampleCategory.id, emoji: '🍜',
         date: DateTime(now.year, now.month, 5), note: '',
       );
       final t2 = Transaction(
-        id: '2', amount: 30000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '2', amount: 30000, category: 'Ăn ngoài', categoryId: sampleCategory.id, emoji: '🍜',
         date: DateTime(now.year, now.month, 10), note: '',
       );
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1, t2]);
@@ -574,7 +580,7 @@ void main() {
     test('stats getter caches result on first access', () async {
       final now = DateTime.now();
       final t1 = Transaction(
-        id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: sampleCategory.id, emoji: '🍜',
         date: DateTime(now.year, now.month, 5), note: '',
       );
       when(() => mockRepo.getAll()).thenAnswer((_) async => [t1]);
@@ -674,6 +680,7 @@ void main() {
       await viewModel.addTransaction(
         amount: 20000,
         category: 'Ăn ngoài',
+        categoryId: sampleCategory.id,
         emoji: '🍜',
       );
 
@@ -862,6 +869,7 @@ void main() {
       await viewModel.addTransaction(
         amount: 99999,
         category: 'Ăn ngoài',
+        categoryId: sampleCategory.id,
         emoji: '🍜',
       );
 

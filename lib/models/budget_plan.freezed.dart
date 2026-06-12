@@ -321,6 +321,7 @@ BudgetPlanItem _$BudgetPlanItemFromJson(Map<String, dynamic> json) {
 mixin _$BudgetPlanItem {
   String get yearMonth => throw _privateConstructorUsedError;
   String get categoryName => throw _privateConstructorUsedError;
+  String get categoryId => throw _privateConstructorUsedError;
   int get plannedLimit => throw _privateConstructorUsedError;
   int get alertThreshold => throw _privateConstructorUsedError;
   int get suggestedLimit => throw _privateConstructorUsedError;
@@ -349,6 +350,7 @@ abstract class $BudgetPlanItemCopyWith<$Res> {
   $Res call({
     String yearMonth,
     String categoryName,
+    String categoryId,
     int plannedLimit,
     int alertThreshold,
     int suggestedLimit,
@@ -376,6 +378,7 @@ class _$BudgetPlanItemCopyWithImpl<$Res, $Val extends BudgetPlanItem>
   $Res call({
     Object? yearMonth = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? plannedLimit = null,
     Object? alertThreshold = null,
     Object? suggestedLimit = null,
@@ -393,6 +396,10 @@ class _$BudgetPlanItemCopyWithImpl<$Res, $Val extends BudgetPlanItem>
             categoryName: null == categoryName
                 ? _value.categoryName
                 : categoryName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            categoryId: null == categoryId
+                ? _value.categoryId
+                : categoryId // ignore: cast_nullable_to_non_nullable
                       as String,
             plannedLimit: null == plannedLimit
                 ? _value.plannedLimit
@@ -440,6 +447,7 @@ abstract class _$$BudgetPlanItemImplCopyWith<$Res>
   $Res call({
     String yearMonth,
     String categoryName,
+    String categoryId,
     int plannedLimit,
     int alertThreshold,
     int suggestedLimit,
@@ -466,6 +474,7 @@ class __$$BudgetPlanItemImplCopyWithImpl<$Res>
   $Res call({
     Object? yearMonth = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? plannedLimit = null,
     Object? alertThreshold = null,
     Object? suggestedLimit = null,
@@ -483,6 +492,10 @@ class __$$BudgetPlanItemImplCopyWithImpl<$Res>
         categoryName: null == categoryName
             ? _value.categoryName
             : categoryName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        categoryId: null == categoryId
+            ? _value.categoryId
+            : categoryId // ignore: cast_nullable_to_non_nullable
                   as String,
         plannedLimit: null == plannedLimit
             ? _value.plannedLimit
@@ -523,6 +536,7 @@ class _$BudgetPlanItemImpl implements _BudgetPlanItem {
   const _$BudgetPlanItemImpl({
     required this.yearMonth,
     required this.categoryName,
+    required this.categoryId,
     required this.plannedLimit,
     this.alertThreshold = 80,
     this.suggestedLimit = 0,
@@ -539,6 +553,8 @@ class _$BudgetPlanItemImpl implements _BudgetPlanItem {
   final String yearMonth;
   @override
   final String categoryName;
+  @override
+  final String categoryId;
   @override
   final int plannedLimit;
   @override
@@ -562,7 +578,7 @@ class _$BudgetPlanItemImpl implements _BudgetPlanItem {
 
   @override
   String toString() {
-    return 'BudgetPlanItem(yearMonth: $yearMonth, categoryName: $categoryName, plannedLimit: $plannedLimit, alertThreshold: $alertThreshold, suggestedLimit: $suggestedLimit, baseLimit: $baseLimit, lastMonthSpent: $lastMonthSpent, wasOverBudgetLastMonth: $wasOverBudgetLastMonth, recommendation: $recommendation)';
+    return 'BudgetPlanItem(yearMonth: $yearMonth, categoryName: $categoryName, categoryId: $categoryId, plannedLimit: $plannedLimit, alertThreshold: $alertThreshold, suggestedLimit: $suggestedLimit, baseLimit: $baseLimit, lastMonthSpent: $lastMonthSpent, wasOverBudgetLastMonth: $wasOverBudgetLastMonth, recommendation: $recommendation)';
   }
 
   @override
@@ -574,6 +590,8 @@ class _$BudgetPlanItemImpl implements _BudgetPlanItem {
                 other.yearMonth == yearMonth) &&
             (identical(other.categoryName, categoryName) ||
                 other.categoryName == categoryName) &&
+            (identical(other.categoryId, categoryId) ||
+                other.categoryId == categoryId) &&
             (identical(other.plannedLimit, plannedLimit) ||
                 other.plannedLimit == plannedLimit) &&
             (identical(other.alertThreshold, alertThreshold) ||
@@ -596,6 +614,7 @@ class _$BudgetPlanItemImpl implements _BudgetPlanItem {
     runtimeType,
     yearMonth,
     categoryName,
+    categoryId,
     plannedLimit,
     alertThreshold,
     suggestedLimit,
@@ -626,6 +645,7 @@ abstract class _BudgetPlanItem implements BudgetPlanItem {
   const factory _BudgetPlanItem({
     required final String yearMonth,
     required final String categoryName,
+    required final String categoryId,
     required final int plannedLimit,
     final int alertThreshold,
     final int suggestedLimit,
@@ -642,6 +662,8 @@ abstract class _BudgetPlanItem implements BudgetPlanItem {
   String get yearMonth;
   @override
   String get categoryName;
+  @override
+  String get categoryId;
   @override
   int get plannedLimit;
   @override

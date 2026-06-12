@@ -23,6 +23,7 @@ RecurringTransaction _$RecurringTransactionFromJson(Map<String, dynamic> json) {
 mixin _$RecurringTransaction {
   String get id => throw _privateConstructorUsedError;
   String get categoryName => throw _privateConstructorUsedError;
+  String get categoryId => throw _privateConstructorUsedError;
   int get amount => throw _privateConstructorUsedError;
   String get note => throw _privateConstructorUsedError;
   String get frequency => throw _privateConstructorUsedError;
@@ -50,6 +51,7 @@ abstract class $RecurringTransactionCopyWith<$Res> {
   $Res call({
     String id,
     String categoryName,
+    String categoryId,
     int amount,
     String note,
     String frequency,
@@ -79,6 +81,7 @@ class _$RecurringTransactionCopyWithImpl<
   $Res call({
     Object? id = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? amount = null,
     Object? note = null,
     Object? frequency = null,
@@ -95,6 +98,10 @@ class _$RecurringTransactionCopyWithImpl<
             categoryName: null == categoryName
                 ? _value.categoryName
                 : categoryName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            categoryId: null == categoryId
+                ? _value.categoryId
+                : categoryId // ignore: cast_nullable_to_non_nullable
                       as String,
             amount: null == amount
                 ? _value.amount
@@ -138,6 +145,7 @@ abstract class _$$RecurringTransactionImplCopyWith<$Res>
   $Res call({
     String id,
     String categoryName,
+    String categoryId,
     int amount,
     String note,
     String frequency,
@@ -163,6 +171,7 @@ class __$$RecurringTransactionImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? amount = null,
     Object? note = null,
     Object? frequency = null,
@@ -179,6 +188,10 @@ class __$$RecurringTransactionImplCopyWithImpl<$Res>
         categoryName: null == categoryName
             ? _value.categoryName
             : categoryName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        categoryId: null == categoryId
+            ? _value.categoryId
+            : categoryId // ignore: cast_nullable_to_non_nullable
                   as String,
         amount: null == amount
             ? _value.amount
@@ -215,6 +228,7 @@ class _$RecurringTransactionImpl implements _RecurringTransaction {
   const _$RecurringTransactionImpl({
     required this.id,
     required this.categoryName,
+    required this.categoryId,
     required this.amount,
     this.note = '',
     this.frequency = 'daily',
@@ -230,6 +244,8 @@ class _$RecurringTransactionImpl implements _RecurringTransaction {
   final String id;
   @override
   final String categoryName;
+  @override
+  final String categoryId;
   @override
   final int amount;
   @override
@@ -248,7 +264,7 @@ class _$RecurringTransactionImpl implements _RecurringTransaction {
 
   @override
   String toString() {
-    return 'RecurringTransaction(id: $id, categoryName: $categoryName, amount: $amount, note: $note, frequency: $frequency, nextRunAt: $nextRunAt, isActive: $isActive, createdAt: $createdAt)';
+    return 'RecurringTransaction(id: $id, categoryName: $categoryName, categoryId: $categoryId, amount: $amount, note: $note, frequency: $frequency, nextRunAt: $nextRunAt, isActive: $isActive, createdAt: $createdAt)';
   }
 
   @override
@@ -259,6 +275,8 @@ class _$RecurringTransactionImpl implements _RecurringTransaction {
             (identical(other.id, id) || other.id == id) &&
             (identical(other.categoryName, categoryName) ||
                 other.categoryName == categoryName) &&
+            (identical(other.categoryId, categoryId) ||
+                other.categoryId == categoryId) &&
             (identical(other.amount, amount) || other.amount == amount) &&
             (identical(other.note, note) || other.note == note) &&
             (identical(other.frequency, frequency) ||
@@ -277,6 +295,7 @@ class _$RecurringTransactionImpl implements _RecurringTransaction {
     runtimeType,
     id,
     categoryName,
+    categoryId,
     amount,
     note,
     frequency,
@@ -307,6 +326,7 @@ abstract class _RecurringTransaction implements RecurringTransaction {
   const factory _RecurringTransaction({
     required final String id,
     required final String categoryName,
+    required final String categoryId,
     required final int amount,
     final String note,
     final String frequency,
@@ -322,6 +342,8 @@ abstract class _RecurringTransaction implements RecurringTransaction {
   String get id;
   @override
   String get categoryName;
+  @override
+  String get categoryId;
   @override
   int get amount;
   @override

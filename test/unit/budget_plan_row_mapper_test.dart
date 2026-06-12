@@ -139,6 +139,7 @@ void main() {
       final item = BudgetPlanItem(
         yearMonth: '2026-07',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         plannedLimit: 3000000,
         alertThreshold: 80,
         suggestedLimit: 3500000,
@@ -165,6 +166,7 @@ void main() {
       final item = BudgetPlanItem(
         yearMonth: '2026-07',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         plannedLimit: 1000000,
         wasOverBudgetLastMonth: false,
         recommendation: 'keep',
@@ -225,6 +227,7 @@ void main() {
       final original = BudgetPlanItem(
         yearMonth: '2026-08',
         categoryName: 'Subscription',
+        categoryId: 'subscription',
         plannedLimit: 500000,
         alertThreshold: 75,
         suggestedLimit: 600000,

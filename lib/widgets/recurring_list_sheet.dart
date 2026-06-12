@@ -195,6 +195,7 @@ class RecurringListSheet extends StatelessWidget {
     final vm = context.read<RecurringTransactionViewModel>();
     await vm.addRecurring(
       categoryName: result.categoryName,
+      categoryId: result.categoryId,
       amount: result.amount,
       note: result.note,
       frequency: result.frequency,
@@ -210,6 +211,7 @@ class RecurringListSheet extends StatelessWidget {
     if (result.id != null) {
       final updated = rule.copyWith(
         categoryName: result.categoryName,
+        categoryId: result.categoryId,
         amount: result.amount,
         note: result.note,
         frequency: result.frequency,

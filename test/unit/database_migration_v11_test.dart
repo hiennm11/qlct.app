@@ -336,6 +336,7 @@ void main() {
         BudgetPlanItem(
           yearMonth: '2026-07',
           categoryName: 'Ăn ngoài',
+          categoryId: 'an_ngoai',
           plannedLimit: 3000000,
           alertThreshold: 80,
           suggestedLimit: 3500000,
@@ -347,6 +348,7 @@ void main() {
         BudgetPlanItem(
           yearMonth: '2026-07',
           categoryName: 'Cà phê',
+          categoryId: 'ca_phe',
           plannedLimit: 1000000,
           alertThreshold: 80,
           suggestedLimit: 1200000,
@@ -425,6 +427,7 @@ void main() {
         BudgetPlanItem(
           yearMonth: '2026-07',
           categoryName: 'Ăn ngoài',
+          categoryId: 'an_ngoai',
           plannedLimit: 3000000,
           recommendation: 'keep',
         ),
@@ -496,6 +499,7 @@ void main() {
         BudgetPlanItem(
           yearMonth: '2026-07',
           categoryName: 'Ăn ngoài',
+          categoryId: 'an_ngoai',
           plannedLimit: 3000000,
           recommendation: 'keep',
         ),
@@ -507,12 +511,14 @@ void main() {
         BudgetPlanItem(
           yearMonth: '2026-07',
           categoryName: 'Cà phê',
+          categoryId: 'ca_phe',
           plannedLimit: 1000000,
           recommendation: 'keep',
         ),
         BudgetPlanItem(
           yearMonth: '2026-07',
           categoryName: 'Mua online',
+          categoryId: 'mua_online',
           plannedLimit: 2000000,
           recommendation: 'keep',
         ),

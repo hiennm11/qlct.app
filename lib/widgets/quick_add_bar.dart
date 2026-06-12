@@ -72,6 +72,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
       await vm.addTransaction(
         amount: amount,
         category: category.name,
+        categoryId: category.id,
         note: result.transcript,
         emoji: category.emoji,
       );
@@ -115,6 +116,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
       await vm.addTransaction(
         amount: cat.quickAmountDefault,
         category: cat.name,
+        categoryId: cat.id,
         emoji: cat.emoji,
       );
       if (!context.mounted) return;

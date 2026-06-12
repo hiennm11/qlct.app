@@ -11,6 +11,7 @@ class QuickTemplate with _$QuickTemplate {
     required String title,
     required int amount,
     required String categoryName,
+    required String categoryId,
     @Default('') String note,
     @Default('') String emoji,
     @Default(false) bool isPinned,

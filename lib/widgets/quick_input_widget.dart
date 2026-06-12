@@ -91,6 +91,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                         await vm.addTransaction(
                           amount: _amounts[category.name]!.toInt(),
                           category: category.name,
+                          categoryId: category.id,
                           emoji: category.emoji,
                         );
                         if (!context.mounted) return;
@@ -137,6 +138,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                           await vm.addTransaction(
                             amount: amount,
                             category: category.name,
+                            categoryId: category.id,
                             emoji: category.emoji,
                             note: transcript,
                           );

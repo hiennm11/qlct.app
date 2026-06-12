@@ -8,6 +8,7 @@ void main() {
       final b = Budget(
         id: 'b-1',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         monthlyLimit: 500000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 1),
@@ -46,6 +47,7 @@ void main() {
       final original = Budget(
         id: 'b-2',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         monthlyLimit: 200000,
         alertThreshold: 90,
         createdAt: DateTime(2026, 5, 15),

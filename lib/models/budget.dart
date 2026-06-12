@@ -9,6 +9,7 @@ class Budget with _$Budget {
   const factory Budget({
     required String id,
     required String categoryName,
+    required String categoryId,
     required int monthlyLimit,
     @Default(80) int alertThreshold,
     required DateTime createdAt,

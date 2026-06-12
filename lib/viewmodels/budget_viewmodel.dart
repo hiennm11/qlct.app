@@ -107,7 +107,7 @@ class BudgetViewModel extends ChangeNotifier {
   }
 
   /// Set or update budget for a category
-  Future<void> setBudget(String categoryName, int monthlyLimit, int alertThreshold) async {
+  Future<void> setBudget(String categoryName, String categoryId, int monthlyLimit, int alertThreshold) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -118,6 +118,7 @@ class BudgetViewModel extends ChangeNotifier {
       final budget = Budget(
         id: existingBudget?.id ?? const Uuid().v4(),
         categoryName: categoryName,
+        categoryId: categoryId,
         monthlyLimit: monthlyLimit,
         alertThreshold: alertThreshold,
         createdAt: existingBudget?.createdAt ?? _now(),
@@ -279,6 +280,7 @@ class BudgetViewModel extends ChangeNotifier {
           final budget = Budget(
             id: existing?.id ?? const Uuid().v4(),
             categoryName: item.categoryName,
+            categoryId: item.categoryId,
             monthlyLimit: item.plannedLimit,
             alertThreshold: item.alertThreshold,
             createdAt: existing?.createdAt ?? _now(),
@@ -348,6 +350,7 @@ class BudgetViewModel extends ChangeNotifier {
           .map((b) => BudgetSnapshot(
                 yearMonth: prevYearMonth,
                 categoryName: b.categoryName,
+                categoryId: b.categoryId,
                 limitAmount: b.monthlyLimit,
                 alertThreshold: b.alertThreshold,
                 createdAt: _now(),

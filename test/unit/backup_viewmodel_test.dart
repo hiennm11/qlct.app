@@ -115,21 +115,21 @@ void main() {
                 budgetSnapshots: [
                   BudgetSnapshot(
                     yearMonth: '2026-05',
-                    categoryName: 'Ăn ngoài',
+                    categoryName: 'Ăn ngoài', categoryId: 'food_out',
                     limitAmount: 3000000,
                     alertThreshold: 80,
                     createdAt: DateTime.now(),
                   ),
                   BudgetSnapshot(
                     yearMonth: '2026-05',
-                    categoryName: 'Cà phê',
+                    categoryName: 'Cà phê', categoryId: 'coffee',
                     limitAmount: 1000000,
                     alertThreshold: 80,
                     createdAt: DateTime.now(),
                   ),
                   BudgetSnapshot(
                     yearMonth: '2026-04',
-                    categoryName: 'Ăn ngoài',
+                    categoryName: 'Ăn ngoài', categoryId: 'food_out',
                     limitAmount: 3000000,
                     alertThreshold: 80,
                     createdAt: DateTime.now(),

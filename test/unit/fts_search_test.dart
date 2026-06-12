@@ -26,6 +26,7 @@ void main() {
               id                       TEXT PRIMARY KEY,
               amount                   INTEGER NOT NULL,
               category                 TEXT NOT NULL,
+              category_id              TEXT NOT NULL DEFAULT '',
               emoji                    TEXT NOT NULL DEFAULT '',
               date                     TEXT NOT NULL,
               note                     TEXT NOT NULL DEFAULT '',
@@ -73,7 +74,7 @@ void main() {
       final t1 = Transaction(
         id: 'search-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: 'ăn trưa nhà hàng',
@@ -81,7 +82,7 @@ void main() {
       final t2 = Transaction(
         id: 'search-2',
         amount: 30000,
-        category: 'Cà phê',
+        category: 'Cà phê', categoryId: 'coffee',
         emoji: '☕',
         date: DateTime(2026, 6, 4),
         note: 'cà phê sáng',
@@ -99,7 +100,7 @@ void main() {
       final t1 = Transaction(
         id: 'cat-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: '',
@@ -107,7 +108,7 @@ void main() {
       final t2 = Transaction(
         id: 'cat-2',
         amount: 30000,
-        category: 'Cà phê',
+        category: 'Cà phê', categoryId: 'coffee',
         emoji: '☕',
         date: DateTime(2026, 6, 4),
         note: '',
@@ -125,7 +126,7 @@ void main() {
       final t1 = Transaction(
         id: 'amt-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: '',
@@ -142,7 +143,7 @@ void main() {
       final t1 = Transaction(
         id: 'multi-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: 'trưa',
@@ -150,7 +151,7 @@ void main() {
       final t2 = Transaction(
         id: 'multi-2',
         amount: 30000,
-        category: 'Cà phê',
+        category: 'Cà phê', categoryId: 'coffee',
         emoji: '☕',
         date: DateTime(2026, 6, 4),
         note: 'trưa',
@@ -167,7 +168,7 @@ void main() {
       final t = Transaction(
         id: 'no-match',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: 'ăn trưa',
@@ -183,7 +184,7 @@ void main() {
       final t = Transaction(
         id: 'partial-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: 'café sáng',
@@ -200,7 +201,7 @@ void main() {
       final t = Transaction(
         id: 'case-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: 'Cà phê sữa',
@@ -221,7 +222,7 @@ void main() {
       final t1 = Transaction(
         id: 'combo-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: 'café',
@@ -229,7 +230,7 @@ void main() {
       final t2 = Transaction(
         id: 'combo-2',
         amount: 30000,
-        category: 'Cà phê',
+        category: 'Cà phê', categoryId: 'coffee',
         emoji: '☕',
         date: DateTime(2026, 6, 4),
         note: '',
@@ -252,7 +253,7 @@ void main() {
       final t1 = Transaction(
         id: 'order-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: 'test search',
@@ -260,7 +261,7 @@ void main() {
       final t2 = Transaction(
         id: 'order-2',
         amount: 30000,
-        category: 'Cà phê',
+        category: 'Cà phê', categoryId: 'coffee',
         emoji: '☕',
         date: DateTime(2026, 6, 4),
         note: 'test search',
@@ -283,7 +284,7 @@ void main() {
       final t1 = Transaction(
         id: 'del-multi-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: '',
@@ -291,7 +292,7 @@ void main() {
       final t2 = Transaction(
         id: 'del-multi-2',
         amount: 30000,
-        category: 'Cà phê',
+        category: 'Cà phê', categoryId: 'coffee',
         emoji: '☕',
         date: DateTime(2026, 6, 4),
         note: '',
@@ -299,7 +300,7 @@ void main() {
       final t3 = Transaction(
         id: 'del-multi-3',
         amount: 40000,
-        category: 'Di chuyển',
+        category: 'Di chuyển', categoryId: 'test_cat',
         emoji: '🚗',
         date: DateTime(2026, 6, 5),
         note: '',
@@ -325,7 +326,7 @@ void main() {
       final t = Transaction(
         id: 'exist-1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 3),
         note: '',
@@ -346,7 +347,7 @@ void main() {
       final t = Transaction(
         id: 'add-test',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍕',
         date: DateTime(2026, 6, 3),
         note: 'test',
@@ -361,7 +362,7 @@ void main() {
       final t = Transaction(
         id: 'update-test',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍕',
         date: DateTime(2026, 6, 3),
         note: 'original',
@@ -370,7 +371,7 @@ void main() {
       await dataSource.update(Transaction(
         id: 'update-test',
         amount: 60000,
-        category: 'Cà phê',
+        category: 'Cà phê', categoryId: 'coffee',
         emoji: '☕',
         date: DateTime(2026, 6, 3),
         note: 'updated',
@@ -385,7 +386,7 @@ void main() {
       final t = Transaction(
         id: 'delete-test',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍕',
         date: DateTime(2026, 6, 3),
         note: 'test',

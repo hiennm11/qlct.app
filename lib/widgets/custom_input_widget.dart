@@ -73,6 +73,7 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
       await vm.addTransaction(
         amount: amount,
         category: category.name,
+        categoryId: category.id,
         emoji: category.emoji,
         note: _noteController.text,
       );

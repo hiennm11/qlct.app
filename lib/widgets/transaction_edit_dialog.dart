@@ -159,13 +159,14 @@ class _TransactionEditDialogState extends State<_TransactionEditDialog> {
     final rawAmount = ThousandSeparatorFormatter.strip(_amountController.text);
     final parsedAmount = int.parse(rawAmount);
 
-    final category = Provider.of<CategoryViewModel>(context, listen: false)
-        .categoryByName(_selectedCategory)!;
+    final catVM = Provider.of<CategoryViewModel>(context, listen: false);
+    final category = catVM.categoryByName(_selectedCategory)!;
 
     final updated = Transaction(
       id: widget.transaction.id,
       amount: parsedAmount,
       category: _selectedCategory,
+      categoryId: category.id,
       emoji: category.emoji,
       note: _noteController.text.trim(),
       date: _selectedDate,

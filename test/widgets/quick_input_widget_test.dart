@@ -44,6 +44,7 @@ void main() {
       id: '0',
       amount: 0,
       category: '',
+      categoryId: 'test_cat',
       emoji: '',
       date: DateTime.now(),
       note: '',
@@ -112,7 +113,7 @@ void main() {
       Transaction(
         id: 'h1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 5),
         note: '',
@@ -131,7 +132,7 @@ void main() {
       Transaction(
         id: 'h1',
         amount: 50000,
-        category: 'Ăn ngoài',
+        category: 'Ăn ngoài', categoryId: 'food_out',
         emoji: '🍜',
         date: DateTime(2026, 6, 5),
         note: '',

@@ -69,20 +69,19 @@ class QuickTemplatesStrip extends StatelessWidget {
         ? catVM.activeCategories
         : seedCategories;
     final isKnownCategory = knownCats.any((c) => c.name == t.categoryName);
-    final category = isKnownCategory ? t.categoryName : 'Khác';
-    final emoji = isKnownCategory
-        ? (knownCats
-              .firstWhere(
-                (c) => c.name == category,
-                orElse: () => knownCats.last,
-              )
-              .emoji)
-        : (t.emoji.isNotEmpty ? t.emoji : '📌');
+    final categoryName = isKnownCategory ? t.categoryName : 'Khác';
+    final cat = knownCats.firstWhere(
+      (c) => c.name == categoryName,
+      orElse: () => knownCats.last,
+    );
+    final emoji = isKnownCategory ? cat.emoji : (t.emoji.isNotEmpty ? t.emoji : '📌');
+    final categoryId = isKnownCategory ? t.categoryId : cat.id;
 
     final expenseVM = context.read<ExpenseViewModel>();
     await expenseVM.addTransaction(
       amount: t.amount,
-      category: category,
+      category: categoryName,
+      categoryId: categoryId,
       emoji: emoji,
       note: t.note,
     );
@@ -383,6 +382,7 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
   late TextEditingController _noteController;
   final GlobalKey _categoryKey = GlobalKey();
   String _selectedCategory = 'Ăn ngoài';
+  String _selectedCategoryId = 'food_out';
   String _selectedEmoji = '🍜';
   bool _isPinned = false;
   bool _isSaving = false;
@@ -400,6 +400,7 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
     _noteController = TextEditingController(text: t?.note ?? '');
     if (t != null) {
       _selectedCategory = t.categoryName;
+      _selectedCategoryId = t.categoryId;
       _selectedEmoji = t.emoji.isNotEmpty ? t.emoji : '📌';
       _isPinned = t.isPinned;
     }
@@ -437,6 +438,7 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
               title: title,
               amount: amount,
               categoryName: _selectedCategory,
+              categoryId: _selectedCategoryId,
               note: note,
               emoji: _selectedEmoji,
               isPinned: _isPinned,
@@ -446,6 +448,7 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
             title: title,
             amount: amount,
             categoryName: _selectedCategory,
+            categoryId: _selectedCategoryId,
             note: note,
             emoji: _selectedEmoji,
             isPinned: _isPinned,
@@ -591,7 +594,11 @@ class _QuickTemplateEditSheetState extends State<QuickTemplateEditSheet> {
       }).toList(),
     ).then((selected) {
       if (selected != null && mounted) {
-        setState(() => _selectedCategory = selected);
+        final cat = cats.firstWhere((c) => c.name == selected, orElse: () => cats.first);
+        setState(() {
+          _selectedCategory = selected;
+          _selectedCategoryId = cat.id;
+        });
       }
     });
   }

@@ -58,6 +58,7 @@ void main() {
     registerFallbackValue(Budget(
       id: '0',
       categoryName: '',
+      categoryId: 'test_cat',
       monthlyLimit: 0,
       alertThreshold: 80,
       createdAt: DateTime.now(),
@@ -107,6 +108,7 @@ void main() {
         Budget(
           id: '1',
           categoryName: 'Ăn ngoài',
+          categoryId: 'an_ngoai',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -150,7 +152,7 @@ void main() {
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
-      await viewModel.setBudget('Cà phê', 500000, 80);
+      await viewModel.setBudget('Cà phê', 'ca_phe', 500000, 80);
 
       verify(() => mockRepo.upsert(any())).called(1);
       verify(() => mockRepo.getAll()).called(2); // initial + after upsert
@@ -160,6 +162,7 @@ void main() {
       final existingBudget = Budget(
         id: 'existing-id',
         categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
         monthlyLimit: 300000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -174,7 +177,7 @@ void main() {
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
-      await viewModel.setBudget('Cà phê', 500000, 75);
+      await viewModel.setBudget('Cà phê', 'ca_phe', 500000, 75);
 
       verify(() => mockRepo.upsert(any())).called(1);
     });
@@ -187,7 +190,7 @@ void main() {
       viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
       await Future.delayed(Duration.zero);
 
-      await viewModel.setBudget('Cà phê', 500000, 80);
+      await viewModel.setBudget('Cà phê', 'ca_phe', 500000, 80);
 
       expect(viewModel.errorMessage, isNotNull);
     });
@@ -198,6 +201,7 @@ void main() {
       final budget = Budget(
         id: '1',
         categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
         monthlyLimit: 500000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -253,6 +257,7 @@ void main() {
       final budget = Budget(
         id: '1',
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -279,6 +284,7 @@ void main() {
       final budget = Budget(
         id: '1',
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -304,6 +310,7 @@ void main() {
       final budget = Budget(
         id: '1',
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -366,6 +373,7 @@ void main() {
       final budget1 = Budget(
         id: '1',
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -373,6 +381,7 @@ void main() {
       final budget2 = Budget(
         id: '2',
         categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -400,6 +409,7 @@ void main() {
       final invBudget = Budget(
         id: 'inv-1',
         categoryName: 'Đầu tư',
+        categoryId: 'dau_tu',
         monthlyLimit: 10000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -407,6 +417,7 @@ void main() {
       final foodBudget = Budget(
         id: 'food-1',
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -558,9 +569,9 @@ void main() {
 
     test('with 3 budgets upserts all and reloads', () async {
       final budgets = [
-        Budget(id: '', categoryName: 'Ăn ngoài', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime.now()),
-        Budget(id: '', categoryName: 'Cà phê', monthlyLimit: 500000, alertThreshold: 80, createdAt: DateTime.now()),
-        Budget(id: '', categoryName: 'Mua online', monthlyLimit: 2000000, alertThreshold: 80, createdAt: DateTime.now()),
+        Budget(id: '', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime.now()),
+        Budget(id: '', categoryName: 'Cà phê', categoryId: 'ca_phe', monthlyLimit: 500000, alertThreshold: 80, createdAt: DateTime.now()),
+        Budget(id: '', categoryName: 'Mua online', categoryId: 'mua_online', monthlyLimit: 2000000, alertThreshold: 80, createdAt: DateTime.now()),
       ];
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
       when(() => mockRepo.getAll()).thenAnswer((_) async => []);
@@ -584,7 +595,7 @@ void main() {
       await Future.delayed(Duration.zero);
 
       await viewModel.setAllBudgets([
-        Budget(id: '', categoryName: 'Ăn ngoài', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime.now()),
+        Budget(id: '', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime.now()),
       ]);
 
       expect(viewModel.errorMessage, isNotNull);
@@ -599,12 +610,14 @@ void main() {
             Budget(
                 id: 'b1',
                 categoryName: 'Ăn ngoài',
+                categoryId: 'an_ngoai',
                 monthlyLimit: 3000000,
                 alertThreshold: 80,
                 createdAt: DateTime(2026, 1, 1)),
             Budget(
                 id: 'b2',
                 categoryName: 'Cà phê',
+                categoryId: 'ca_phe',
                 monthlyLimit: 1000000,
                 alertThreshold: 80,
                 createdAt: DateTime(2026, 1, 1)),
@@ -626,12 +639,14 @@ void main() {
             Budget(
                 id: 'b1',
                 categoryName: 'Ăn ngoài',
+                categoryId: 'food_out',
                 monthlyLimit: 3000000,
                 alertThreshold: 80,
                 createdAt: DateTime(2026, 1, 1)),
             Budget(
                 id: 'b2',
                 categoryName: 'Cà phê',
+                categoryId: 'coffee',
                 monthlyLimit: 1000000,
                 alertThreshold: 75,
                 createdAt: DateTime(2026, 1, 1)),
@@ -688,6 +703,7 @@ void main() {
       final existingSnap = BudgetSnapshot(
         yearMonth: _testPrevMonthYMs,
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         limitAmount: 9999999, // different from current live
         alertThreshold: 80,
         createdAt: DateTime(2026, 1, 1),
@@ -697,6 +713,7 @@ void main() {
             Budget(
                 id: 'b1',
                 categoryName: 'Ăn ngoài',
+                categoryId: 'food_out',
                 monthlyLimit: 3000000,
                 alertThreshold: 80,
                 createdAt: DateTime(2026, 1, 1)),
@@ -722,6 +739,7 @@ void main() {
             Budget(
               id: 'b1',
               categoryName: 'Ăn ngoài',
+              categoryId: 'an_ngoai',
               monthlyLimit: 3000000,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -729,6 +747,7 @@ void main() {
             Budget(
               id: 'inv1',
               categoryName: 'Đầu tư',
+              categoryId: 'dau_tu',
               monthlyLimit: 10000000,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -755,6 +774,7 @@ void main() {
             Budget(
               id: 'b1',
               categoryName: 'Ăn ngoài',
+              categoryId: 'an_ngoai',
               monthlyLimit: 3000000,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -762,6 +782,7 @@ void main() {
             Budget(
               id: 'inv1',
               categoryName: 'Đầu tư',
+              categoryId: 'dau_tu',
               monthlyLimit: 10000000,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -806,8 +827,8 @@ void main() {
 
       // Mutable list that getAll returns — starts with live budgets, receives upserted budgets
       final appliedBudgets = <Budget>[
-        Budget(id: 'orig1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
-        Budget(id: 'orig2', categoryName: 'Cà phê', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'orig1', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'orig2', categoryName: 'Cà phê', categoryId: 'ca_phe', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
       ];
 
       final draftPlan = BudgetPlan(
@@ -819,8 +840,8 @@ void main() {
         updatedAt: DateTime(2026, 5, 1),
       );
       final draftItems = [
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 3500000, alertThreshold: 80, suggestedLimit: 3000000, baseLimit: 3000000, lastMonthSpent: 2800000, wasOverBudgetLastMonth: false, recommendation: 'increase'),
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Cà phê', plannedLimit: 500000, alertThreshold: 80, suggestedLimit: 500000, baseLimit: 1000000, lastMonthSpent: 800000, wasOverBudgetLastMonth: false, recommendation: 'decrease'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', plannedLimit: 3500000, alertThreshold: 80, suggestedLimit: 3000000, baseLimit: 3000000, lastMonthSpent: 2800000, wasOverBudgetLastMonth: false, recommendation: 'increase'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Cà phê', categoryId: 'ca_phe', plannedLimit: 500000, alertThreshold: 80, suggestedLimit: 500000, baseLimit: 1000000, lastMonthSpent: 800000, wasOverBudgetLastMonth: false, recommendation: 'decrease'),
       ];
 
       // No previous month snapshot exists
@@ -864,7 +885,7 @@ void main() {
       const currentYMs = '2026-06';
 
       final liveBudgets = [
-        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
       ];
 
       // Plan is already applied
@@ -897,7 +918,7 @@ void main() {
       const currentYMs = '2026-06';
 
       final liveBudgets = [
-        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
       ];
 
       final draftPlan = BudgetPlan(
@@ -909,7 +930,7 @@ void main() {
         updatedAt: DateTime(2026, 5, 1),
       );
       final draftItems = [
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
       ];
 
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
@@ -936,9 +957,9 @@ void main() {
 
       // Live budgets: 3 categories
       final liveBudgets = [
-        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
-        Budget(id: 'b2', categoryName: 'Cà phê', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
-        Budget(id: 'b3', categoryName: 'Mua online', monthlyLimit: 2000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b2', categoryName: 'Cà phê', categoryId: 'ca_phe', monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b3', categoryName: 'Mua online', categoryId: 'online_shopping', monthlyLimit: 2000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
       ];
 
       // Draft plan: only 2 categories (Ăn ngoài=5M, Cà phê=0→delete, Mua online missing→delete)
@@ -951,8 +972,8 @@ void main() {
         updatedAt: DateTime(2026, 5, 1),
       );
       final draftItems = [
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Cà phê', plannedLimit: 0, alertThreshold: 80, suggestedLimit: 800000, baseLimit: 1000000, lastMonthSpent: 1200000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Cà phê', categoryId: 'ca_phe', plannedLimit: 0, alertThreshold: 80, suggestedLimit: 800000, baseLimit: 1000000, lastMonthSpent: 1200000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
         // Mua online is missing from plan → delete
       ];
 
@@ -981,7 +1002,7 @@ void main() {
       const currentYMs = '2026-06';
 
       final liveBudgets = [
-        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
       ];
 
       final draftPlan = BudgetPlan(
@@ -993,7 +1014,7 @@ void main() {
         updatedAt: DateTime(2026, 5, 1),
       );
       final draftItems = [
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 8000000, alertThreshold: 80, suggestedLimit: 7000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', plannedLimit: 8000000, alertThreshold: 80, suggestedLimit: 7000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
       ];
 
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
@@ -1016,8 +1037,8 @@ void main() {
       const currentYMs = '2026-06';
 
       final liveBudgets = [
-        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
-        Budget(id: 'inv1', categoryName: 'Đầu tư', monthlyLimit: 10000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'inv1', categoryName: 'Đầu tư', categoryId: 'dau_tu', monthlyLimit: 10000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
       ];
 
       final draftPlan = BudgetPlan(
@@ -1029,7 +1050,7 @@ void main() {
         updatedAt: DateTime(2026, 5, 1),
       );
       final draftItems = [
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
         // Đầu tư not in plan (investment excluded)
       ];
 
@@ -1056,7 +1077,7 @@ void main() {
       const currentYMs = '2026-06';
 
       final liveBudgets = [
-        Budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
       ];
 
       final draftPlan = BudgetPlan(
@@ -1068,7 +1089,7 @@ void main() {
         updatedAt: DateTime(2026, 5, 1),
       );
       final draftItems = [
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
       ];
 
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
@@ -1109,7 +1130,7 @@ void main() {
 
       // Live budgets before rollover
       final liveBudgets = <Budget>[
-        Budget(id: 'orig1', categoryName: 'Ăn ngoài', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 7, 1)),
+        Budget(id: 'orig1', categoryName: 'Ăn ngoài', categoryId: 'food_out', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 7, 1)),
       ];
 
       final draftPlan = BudgetPlan(
@@ -1121,7 +1142,7 @@ void main() {
         updatedAt: DateTime(2026, 6, 1),
       );
       final draftItems = [
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 0, lastMonthSpent: 0, wasOverBudgetLastMonth: false, recommendation: 'keep'),
       ];
 
       // Track which budgets have been upserted (simulates live DB state)

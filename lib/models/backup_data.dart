@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/budget_snapshot.dart';
@@ -17,9 +18,10 @@ part 'backup_data.g.dart';
 /// v4: adds budgetSnapshots (ADR-0025).
 /// v5: adds budgetPlans + budgetPlanItems (ADR-0026).
 /// v6: adds categories (ADR-0027 §13).
-const int currentSchemaVersion = 6;
+/// v7: adds categoryId to all financial models (ADR-0029).
+const int currentSchemaVersion = 7;
 
-/// App identifier stamped into every v3+ backup so a stray foreign backup
+/// App identifier stamped into every v3+ backup file so a stray foreign backup
 /// file (e.g. from a different app) is rejected at validation time.
 const String backupAppId = 'qlct.app';
 

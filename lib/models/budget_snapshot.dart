@@ -13,6 +13,7 @@ class BudgetSnapshot with _$BudgetSnapshot {
   const factory BudgetSnapshot({
     required String yearMonth,
     required String categoryName,
+    required String categoryId,
     required int limitAmount,
     @Default(80) int alertThreshold,
     required DateTime createdAt,

@@ -7,6 +7,7 @@ void main() {
       final rt = RecurringTransaction(
         id: 'test-id',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2026, 6, 4),
         createdAt: DateTime(2026, 6, 4),
@@ -22,6 +23,7 @@ void main() {
       final rt = RecurringTransaction(
         id: 'test-id',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2026, 6, 4),
         createdAt: DateTime(2026, 6, 4),
@@ -33,6 +35,7 @@ void main() {
       final rt = RecurringTransaction(
         id: 'test-id',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2026, 6, 4),
         createdAt: DateTime(2026, 6, 4),
@@ -44,6 +47,7 @@ void main() {
       final rt = RecurringTransaction(
         id: 'test-id',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         nextRunAt: DateTime(2026, 6, 4),
         createdAt: DateTime(2026, 6, 4),
@@ -57,6 +61,7 @@ void main() {
       final json = {
         'id': 'json-test-id',
         'categoryName': 'Ăn ngoài',
+        'categoryId': 'food_out',
         'amount': 50000,
         'note': 'test note',
         'frequency': 'weekly',
@@ -79,6 +84,7 @@ void main() {
       final rt = RecurringTransaction(
         id: 'tojson-id',
         categoryName: 'Giải trí',
+        categoryId: 'entertainment',
         amount: 30000,
         note: 'gaming',
         frequency: 'monthly',
@@ -101,12 +107,13 @@ void main() {
       final original = RecurringTransaction(
         id: 'roundtrip-id',
         categoryName: 'Subscription',
+        categoryId: 'subscription',
         amount: 200000,
         note: 'Netflix',
         frequency: 'monthly',
         nextRunAt: DateTime(2026, 6, 1),
         isActive: false,
-        createdAt: DateTime(2026, 5, 1),
+        createdAt: DateTime(2025, 5, 1),
       );
       final json = original.toJson();
       final restored = RecurringTransaction.fromJson(json);
@@ -140,11 +147,11 @@ void main() {
       final original = RecurringTransaction(
         id: 'copy-test-id',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         note: '',
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 1),
-        isActive: true,
         createdAt: DateTime(2026, 6, 1),
       );
       final updated = original.copyWith(
@@ -166,6 +173,7 @@ void main() {
       final original = RecurringTransaction(
         id: 'preserve-id',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         amount: 50000,
         note: 'original note',
         frequency: 'weekly',
@@ -186,6 +194,7 @@ void main() {
       final rt = RecurringTransaction(
         id: 'freq-test',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 10000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),
@@ -198,6 +207,7 @@ void main() {
       final rt = RecurringTransaction(
         id: 'freq-test',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 10000,
         frequency: 'weekly',
         nextRunAt: DateTime(2026, 6, 4),
@@ -210,6 +220,7 @@ void main() {
       final rt = RecurringTransaction(
         id: 'freq-test',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 10000,
         frequency: 'monthly',
         nextRunAt: DateTime(2026, 6, 4),

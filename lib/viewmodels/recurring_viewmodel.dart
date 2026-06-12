@@ -95,6 +95,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
             id: const Uuid().v4(),
             amount: rule.amount,
             category: rule.categoryName,
+            categoryId: rule.categoryId,
             emoji: category.emoji,
             date: now,
             note: rule.note,
@@ -154,6 +155,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
   /// Add a new recurring rule
   Future<void> addRecurring({
     required String categoryName,
+    required String categoryId,
     required int amount,
     String note = '',
     required String frequency,
@@ -166,6 +168,7 @@ class RecurringTransactionViewModel extends ChangeNotifier {
       final rule = RecurringTransaction(
         id: const Uuid().v4(),
         categoryName: categoryName,
+        categoryId: categoryId,
         amount: amount,
         note: note,
         frequency: frequency,

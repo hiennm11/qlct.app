@@ -25,6 +25,7 @@ void main() {
   final ruleDaily = RecurringTransaction(
     id: 'rec-1',
     categoryName: 'Ăn ngoài',
+    categoryId: 'an_ngoai',
     amount: 50000,
     note: 'trưa',
     frequency: 'daily',
@@ -36,6 +37,7 @@ void main() {
   final ruleWeekly = RecurringTransaction(
     id: 'rec-2',
     categoryName: 'Cà phê',
+    categoryId: 'ca_phe',
     amount: 30000,
     note: 'sáng',
     frequency: 'weekly',
@@ -47,6 +49,7 @@ void main() {
   final ruleMonthly = RecurringTransaction(
     id: 'rec-3',
     categoryName: 'Ăn ngoài',
+    categoryId: 'an_ngoai',
     amount: 1500000,
     note: 'rent',
     frequency: 'monthly',
@@ -58,6 +61,7 @@ void main() {
   final ruleInactive = RecurringTransaction(
     id: 'rec-4',
     categoryName: 'Ăn ngoài',
+    categoryId: 'an_ngoai',
     amount: 50000,
     frequency: 'daily',
     nextRunAt: DateTime(2026, 6, 4),
@@ -69,6 +73,7 @@ void main() {
     registerFallbackValue(RecurringTransaction(
       id: '0',
       categoryName: '',
+      categoryId: 'test_cat',
       amount: 0,
       nextRunAt: DateTime(2026, 6, 4),
       createdAt: DateTime(2026, 6, 1),
@@ -77,6 +82,7 @@ void main() {
       id: '0',
       amount: 0,
       category: '',
+      categoryId: 'test_cat',
       emoji: '',
       date: DateTime(2026, 6, 4),
     ));
@@ -152,6 +158,7 @@ void main() {
 
       await viewModel.addRecurring(
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         amount: 50000,
         frequency: 'daily',
         startDate: DateTime(2026, 6, 4),
@@ -175,6 +182,7 @@ void main() {
 
       await viewModel.addRecurring(
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         amount: 50000,
         frequency: 'daily',
         startDate: DateTime(2026, 6, 4),
@@ -576,6 +584,7 @@ void main() {
       final ruleA = RecurringTransaction(
         id: 'rec-A',
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         amount: 10000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),
@@ -585,6 +594,7 @@ void main() {
       final ruleB = RecurringTransaction(
         id: 'rec-B',
         categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),
@@ -622,6 +632,7 @@ void main() {
       final ruleFailing = RecurringTransaction(
         id: 'rec-fail',
         categoryName: 'Ăn ngoài',
+        categoryId: 'an_ngoai',
         amount: 10000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),
@@ -690,6 +701,7 @@ void main() {
       final ruleB = RecurringTransaction(
         id: 'rec-B',
         categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
         amount: 30000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),
@@ -741,6 +753,7 @@ void main() {
       final ruleB = RecurringTransaction(
         id: 'rec-B',
         categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
         amount: 30000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),

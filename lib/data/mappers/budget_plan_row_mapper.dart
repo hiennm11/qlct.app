@@ -1,3 +1,4 @@
+import '../../core/vietnamese_text_normalizer.dart';
 import '../../models/budget_plan.dart';
 
 /// Convert a [BudgetPlan] to a SQLite row map.
@@ -34,6 +35,7 @@ Map<String, dynamic> budgetPlanItemToRow(BudgetPlanItem item) {
   return {
     'year_month': item.yearMonth,
     'category_name': item.categoryName,
+    'category_id': item.categoryId,
     'planned_limit': item.plannedLimit,
     'alert_threshold': item.alertThreshold,
     'suggested_limit': item.suggestedLimit,
@@ -45,10 +47,14 @@ Map<String, dynamic> budgetPlanItemToRow(BudgetPlanItem item) {
 }
 
 /// Convert a SQLite row map to a [BudgetPlanItem].
+/// Tolerates rows missing category_id (e.g. old test fixtures) by deriving it.
 BudgetPlanItem budgetPlanItemFromRow(Map<String, dynamic> row) {
+  final categoryId = row['category_id'] as String?;
   return BudgetPlanItem(
     yearMonth: row['year_month'] as String,
     categoryName: row['category_name'] as String,
+    categoryId: categoryId ??
+        'migrated_${normalizeVietnameseSearchText(row['category_name'] as String)}',
     plannedLimit: row['planned_limit'] as int,
     alertThreshold: row['alert_threshold'] as int,
     suggestedLimit: row['suggested_limit'] as int,

@@ -42,12 +42,21 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
   final _formKey = GlobalKey<FormState>();
   final _limitController = TextEditingController();
   late String? _selectedCategory;
+  late String? _selectedCategoryId;
   late int _threshold;
 
   @override
   void initState() {
     super.initState();
     _selectedCategory = widget.categoryName;
+    // Look up categoryId from name if editing existing budget
+    if (widget.categoryName != null) {
+      final catVM = Provider.of<CategoryViewModel>(context, listen: false);
+      final cat = catVM.categoryByName(widget.categoryName!);
+      _selectedCategoryId = cat?.id;
+    } else {
+      _selectedCategoryId = null;
+    }
     _threshold = widget.currentThreshold ?? 80;
     if (widget.currentLimit != null && widget.currentLimit! > 0) {
       // Format with thousand separators (e.g. 10000000 → 10.000.000)
@@ -84,8 +93,21 @@ class _BudgetEditDialogState extends State<_BudgetEditDialog> {
       return;
     }
 
+    // Look up categoryId for the selected category name
+    final catVM = Provider.of<CategoryViewModel>(context, listen: false);
+    final selectedCat = catVM.categoryByName(_selectedCategory!);
+    if (selectedCat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy danh mục'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
     await context.read<BudgetViewModel>().setBudget(
           _selectedCategory!,
+          selectedCat.id,
           limit,
           _threshold,
         );

@@ -28,6 +28,7 @@ void main() {
               id                       TEXT PRIMARY KEY,
               amount                   INTEGER NOT NULL,
               category                 TEXT NOT NULL,
+              category_id              TEXT NOT NULL DEFAULT '',
               emoji                    TEXT NOT NULL DEFAULT '',
               date                     TEXT NOT NULL,
               note                     TEXT NOT NULL DEFAULT '',
@@ -54,7 +55,7 @@ void main() {
 
   group('normalized search via shadow column', () {
     test('search ca phe matches Cà phê category', () async {
-      final t = _makeTx(id: 's-1', category: 'Cà phê', amount: 30000);
+      final t = _makeTx(id: 's-1', category: 'Cà phê', categoryId: 'coffee', amount: 30000);
       await dataSource.add(t);
 
       final result = await dataSource.search('ca phe');
@@ -64,7 +65,7 @@ void main() {
     });
 
     test('search cà phê also matches Cà phê category', () async {
-      final t = _makeTx(id: 's-2', category: 'Cà phê', amount: 30000);
+      final t = _makeTx(id: 's-2', category: 'Cà phê', categoryId: 'coffee', amount: 30000);
       await dataSource.add(t);
 
       final result = await dataSource.search('cà phê');
@@ -74,7 +75,7 @@ void main() {
     });
 
     test('search an ngoai matches Ăn ngoài category', () async {
-      final t = _makeTx(id: 's-3', category: 'Ăn ngoài', amount: 50000);
+      final t = _makeTx(id: 's-3', category: 'Ăn ngoài', categoryId: 'food_out', amount: 50000);
       await dataSource.add(t);
 
       final result = await dataSource.search('an ngoai');
@@ -84,7 +85,7 @@ void main() {
     });
 
     test('search dau tu matches Đầu tư category', () async {
-      final t = _makeTx(id: 's-4', category: 'Đầu tư', amount: 1000000);
+      final t = _makeTx(id: 's-4', category: 'Đầu tư', categoryId: 'investment', amount: 1000000);
       await dataSource.add(t);
 
       final result = await dataSource.search('dau tu');
@@ -94,7 +95,7 @@ void main() {
     });
 
     test('search note without accents matches accented note', () async {
-      final t = _makeTx(id: 's-5', category: 'Khác', amount: 10000, note: 'Cà phê sáng');
+      final t = _makeTx(id: 's-5', category: 'Khác', categoryId: 'other', amount: 10000, note: 'Cà phê sáng');
       await dataSource.add(t);
 
       final result = await dataSource.search('ca phe sang');
@@ -104,7 +105,7 @@ void main() {
     });
 
     test('search amount text matches amount', () async {
-      final t = _makeTx(id: 's-6', category: 'Mua sắm', amount: 150000);
+      final t = _makeTx(id: 's-6', category: 'Mua sắm', categoryId: 'online_shopping', amount: 150000);
       await dataSource.add(t);
 
       final result = await dataSource.search('150000');
@@ -114,9 +115,9 @@ void main() {
     });
 
     test('search across multiple transactions', () async {
-      final t1 = _makeTx(id: 'm-1', category: 'Cà phê', amount: 30000);
-      final t2 = _makeTx(id: 'm-2', category: 'Ăn ngoài', amount: 50000);
-      final t3 = _makeTx(id: 'm-3', category: 'Mua sắm', amount: 200000);
+      final t1 = _makeTx(id: 'm-1', category: 'Cà phê', categoryId: 'coffee', amount: 30000);
+      final t2 = _makeTx(id: 'm-2', category: 'Ăn ngoài', categoryId: 'food_out', amount: 50000);
+      final t3 = _makeTx(id: 'm-3', category: 'Mua sắm', categoryId: 'online_shopping', amount: 200000);
       await dataSource.bulkInsert([t1, t2, t3]);
 
       final result = await dataSource.search('ngoai');
@@ -126,7 +127,7 @@ void main() {
     });
 
     test('update note/category/amount updates searchable normalized text', () async {
-      final original = _makeTx(id: 'u-1', category: 'Cà phê', amount: 30000, note: 'original');
+      final original = _makeTx(id: 'u-1', category: 'Cà phê', categoryId: 'coffee', amount: 30000, note: 'original');
       await dataSource.add(original);
 
       // Search with old values — should find
@@ -136,7 +137,7 @@ void main() {
       final updated = Transaction(
         id: 'u-1',
         amount: 500000,
-        category: 'Đầu tư',
+        category: 'Đầu tư', categoryId: 'investment',
         emoji: '📈',
         date: DateTime(2026, 6, 7),
         note: 'dau tu chung khoan',
@@ -155,8 +156,8 @@ void main() {
     });
 
     test('bulkInsert populates normalized shadow text', () async {
-      final t1 = _makeTx(id: 'b-1', category: 'Cà phê', amount: 30000);
-      final t2 = _makeTx(id: 'b-2', category: 'Ăn ngoài', amount: 50000);
+      final t1 = _makeTx(id: 'b-1', category: 'Cà phê', categoryId: 'coffee', amount: 30000);
+      final t2 = _makeTx(id: 'b-2', category: 'Ăn ngoài', categoryId: 'food_out', amount: 50000);
       await dataSource.bulkInsert([t1, t2]);
 
       final caPhe = await dataSource.search('ca phe');
@@ -168,7 +169,7 @@ void main() {
     });
 
     test('empty query returns empty list', () async {
-      final t = _makeTx(id: 'e-1', category: 'Cà phê', amount: 30000);
+      final t = _makeTx(id: 'e-1', category: 'Cà phê', categoryId: 'coffee', amount: 30000);
       await dataSource.add(t);
 
       expect(await dataSource.search(''), isEmpty);
@@ -176,16 +177,16 @@ void main() {
     });
 
     test('no match returns empty list', () async {
-      final t = _makeTx(id: 'n-1', category: 'Cà phê', amount: 30000);
+      final t = _makeTx(id: 'n-1', category: 'Cà phê', categoryId: 'coffee', amount: 30000);
       await dataSource.add(t);
 
       expect(await dataSource.search('khong co'), isEmpty);
     });
 
     test('search results ordered by created_at DESC', () async {
-      await dataSource.add(_makeTx(id: 'o-1', category: 'Cà phê', amount: 30000));
+      await dataSource.add(_makeTx(id: 'o-1', category: 'Cà phê', categoryId: 'coffee', amount: 30000));
       await Future.delayed(const Duration(milliseconds: 10));
-      await dataSource.add(_makeTx(id: 'o-2', category: 'Cà phê', amount: 40000));
+      await dataSource.add(_makeTx(id: 'o-2', category: 'Cà phê', categoryId: 'coffee', amount: 40000));
 
       final result = await dataSource.search('ca phe');
 
@@ -195,7 +196,7 @@ void main() {
     });
 
     test('uppercase query lowercased and matched', () async {
-      final t = _makeTx(id: 'uc-1', category: 'Cà phê', amount: 30000);
+      final t = _makeTx(id: 'uc-1', category: 'Cà phê', categoryId: 'coffee', amount: 30000);
       await dataSource.add(t);
 
       final result = await dataSource.search('CA PHE');
@@ -209,6 +210,7 @@ void main() {
 Transaction _makeTx({
   required String id,
   required String category,
+  required String categoryId,
   required int amount,
   String note = '',
 }) {
@@ -216,6 +218,7 @@ Transaction _makeTx({
     id: id,
     amount: amount,
     category: category,
+    categoryId: categoryId,
     emoji: '🍜',
     date: DateTime(2026, 6, 7),
     note: note,

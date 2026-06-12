@@ -10,6 +10,7 @@ void main() {
         title: 'Cơm trưa',
         amount: 35000,
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         createdAt: created,
         updatedAt: created,
       );
@@ -35,6 +36,7 @@ void main() {
         title: 'Cà phê sáng',
         amount: 25000,
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         note: 'highland',
         emoji: '☕',
         isPinned: true,
@@ -88,6 +90,7 @@ void main() {
         title: 'Old',
         amount: 1000,
         categoryName: 'Khác',
+        categoryId: 'other',
         createdAt: created,
         updatedAt: created,
       );

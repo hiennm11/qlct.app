@@ -8,7 +8,7 @@ void main() {
       test('spent=2000000, limit=5000000, threshold=80 returns normal', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -26,7 +26,7 @@ void main() {
       test('spent=4500000, limit=5000000, threshold=80 returns warning', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -42,7 +42,7 @@ void main() {
       test('spent exactly at threshold (80%) returns warning', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 1000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -59,7 +59,7 @@ void main() {
       test('spent=6000000, limit=5000000 returns exceeded', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -75,7 +75,7 @@ void main() {
       test('spent exactly at limit (100%) returns exceeded', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 1000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -92,7 +92,7 @@ void main() {
       test('zero spent returns normal', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -108,7 +108,7 @@ void main() {
       test('zero limit clamps percentUsed to 0', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 0,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -123,7 +123,7 @@ void main() {
       test('over limit clamps remaining to 0', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -139,7 +139,7 @@ void main() {
       test('sets categoryName from budget', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Cà phê',
+          categoryName: 'Cà phê', categoryId: 'coffee',
           monthlyLimit: 500000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -153,7 +153,7 @@ void main() {
       test('sets emoji from caller-provided value', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Cà phê',
+          categoryName: 'Cà phê', categoryId: 'coffee',
           monthlyLimit: 500000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -167,7 +167,7 @@ void main() {
       test('sets emoji via seed fallback when category unknown', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Unknown Category',
+          categoryName: 'Unknown Category', categoryId: 'test_cat',
           monthlyLimit: 500000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -181,7 +181,7 @@ void main() {
       test('sets spent from parameter', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),
@@ -195,7 +195,7 @@ void main() {
       test('sets limit from budget', () {
         final budget = Budget(
           id: '1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 3000000,
           alertThreshold: 80,
           createdAt: DateTime.now(),

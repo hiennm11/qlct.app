@@ -8,6 +8,7 @@ void main() {
       final budget = Budget(
         id: '550e8400-e29b-41d4-a716-446655440000',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: now,
@@ -24,6 +25,7 @@ void main() {
       final budget = Budget(
         id: 'test-id-1',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         monthlyLimit: 1000000,
         createdAt: DateTime.now(),
       );
@@ -37,6 +39,7 @@ void main() {
       final json = {
         'id': '550e8400-e29b-41d4-a716-446655440000',
         'categoryName': 'Ăn ngoài',
+        'categoryId': 'food_out',
         'monthlyLimit': 5000000,
         'alertThreshold': 80,
         'createdAt': '2026-06-01T00:00:00.000',
@@ -55,6 +58,7 @@ void main() {
       final budget = Budget(
         id: 'test-id',
         categoryName: 'Mua online',
+        categoryId: 'online_shopping',
         monthlyLimit: 2000000,
         alertThreshold: 75,
         createdAt: DateTime(2026, 6, 15, 10, 30),
@@ -73,6 +77,7 @@ void main() {
       final original = Budget(
         id: 'roundtrip-id',
         categoryName: 'Subscription',
+        categoryId: 'subscription',
         monthlyLimit: 300000,
         alertThreshold: 90,
         createdAt: DateTime(2026, 3, 20),
@@ -92,6 +97,7 @@ void main() {
       final json = {
         'id': 'json-default-test',
         'categoryName': 'Giải trí',
+        'categoryId': 'entertainment',
         'monthlyLimit': 500000,
         'createdAt': '2026-05-01T00:00:00.000',
       };
@@ -107,12 +113,14 @@ void main() {
       final b1 = Budget(
         id: 'uuid-1',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         monthlyLimit: 1000000,
         createdAt: DateTime.now(),
       );
       final b2 = Budget(
         id: 'uuid-2',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         monthlyLimit: 500000,
         createdAt: DateTime.now(),
       );
@@ -126,6 +134,7 @@ void main() {
       final original = Budget(
         id: 'copy-test-id',
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime(2026, 6, 1),
@@ -152,6 +161,7 @@ void main() {
       final original = Budget(
         id: 'preserve-id',
         categoryName: 'Mua online',
+        categoryId: 'online_shopping',
         monthlyLimit: 2000000,
         alertThreshold: 70,
         createdAt: DateTime(2026, 6, 1),

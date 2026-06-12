@@ -24,6 +24,7 @@ mixin _$Transaction {
   String get id => throw _privateConstructorUsedError;
   int get amount => throw _privateConstructorUsedError;
   String get category => throw _privateConstructorUsedError;
+  String get categoryId => throw _privateConstructorUsedError;
   String get emoji => throw _privateConstructorUsedError;
   DateTime get date => throw _privateConstructorUsedError;
   String get note => throw _privateConstructorUsedError;
@@ -50,6 +51,7 @@ abstract class $TransactionCopyWith<$Res> {
     String id,
     int amount,
     String category,
+    String categoryId,
     String emoji,
     DateTime date,
     String note,
@@ -75,6 +77,7 @@ class _$TransactionCopyWithImpl<$Res, $Val extends Transaction>
     Object? id = null,
     Object? amount = null,
     Object? category = null,
+    Object? categoryId = null,
     Object? emoji = null,
     Object? date = null,
     Object? note = null,
@@ -93,6 +96,10 @@ class _$TransactionCopyWithImpl<$Res, $Val extends Transaction>
             category: null == category
                 ? _value.category
                 : category // ignore: cast_nullable_to_non_nullable
+                      as String,
+            categoryId: null == categoryId
+                ? _value.categoryId
+                : categoryId // ignore: cast_nullable_to_non_nullable
                       as String,
             emoji: null == emoji
                 ? _value.emoji
@@ -129,6 +136,7 @@ abstract class _$$TransactionImplCopyWith<$Res>
     String id,
     int amount,
     String category,
+    String categoryId,
     String emoji,
     DateTime date,
     String note,
@@ -153,6 +161,7 @@ class __$$TransactionImplCopyWithImpl<$Res>
     Object? id = null,
     Object? amount = null,
     Object? category = null,
+    Object? categoryId = null,
     Object? emoji = null,
     Object? date = null,
     Object? note = null,
@@ -171,6 +180,10 @@ class __$$TransactionImplCopyWithImpl<$Res>
         category: null == category
             ? _value.category
             : category // ignore: cast_nullable_to_non_nullable
+                  as String,
+        categoryId: null == categoryId
+            ? _value.categoryId
+            : categoryId // ignore: cast_nullable_to_non_nullable
                   as String,
         emoji: null == emoji
             ? _value.emoji
@@ -200,6 +213,7 @@ class _$TransactionImpl implements _Transaction {
     required this.id,
     required this.amount,
     required this.category,
+    required this.categoryId,
     required this.emoji,
     required this.date,
     this.note = '',
@@ -216,6 +230,8 @@ class _$TransactionImpl implements _Transaction {
   @override
   final String category;
   @override
+  final String categoryId;
+  @override
   final String emoji;
   @override
   final DateTime date;
@@ -228,7 +244,7 @@ class _$TransactionImpl implements _Transaction {
 
   @override
   String toString() {
-    return 'Transaction(id: $id, amount: $amount, category: $category, emoji: $emoji, date: $date, note: $note, sourceRecurringId: $sourceRecurringId)';
+    return 'Transaction(id: $id, amount: $amount, category: $category, categoryId: $categoryId, emoji: $emoji, date: $date, note: $note, sourceRecurringId: $sourceRecurringId)';
   }
 
   @override
@@ -240,6 +256,8 @@ class _$TransactionImpl implements _Transaction {
             (identical(other.amount, amount) || other.amount == amount) &&
             (identical(other.category, category) ||
                 other.category == category) &&
+            (identical(other.categoryId, categoryId) ||
+                other.categoryId == categoryId) &&
             (identical(other.emoji, emoji) || other.emoji == emoji) &&
             (identical(other.date, date) || other.date == date) &&
             (identical(other.note, note) || other.note == note) &&
@@ -254,6 +272,7 @@ class _$TransactionImpl implements _Transaction {
     id,
     amount,
     category,
+    categoryId,
     emoji,
     date,
     note,
@@ -279,6 +298,7 @@ abstract class _Transaction implements Transaction {
     required final String id,
     required final int amount,
     required final String category,
+    required final String categoryId,
     required final String emoji,
     required final DateTime date,
     final String note,
@@ -294,6 +314,8 @@ abstract class _Transaction implements Transaction {
   int get amount;
   @override
   String get category;
+  @override
+  String get categoryId;
   @override
   String get emoji;
   @override

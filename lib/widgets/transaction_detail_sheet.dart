@@ -78,6 +78,7 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
       title: title,
       amount: t.amount.abs(),
       categoryName: t.category,
+      categoryId: t.categoryId,
       note: t.note,
       emoji: t.emoji,
       isPinned: false,
@@ -93,6 +94,7 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
       title: template.title,
       amount: template.amount,
       categoryName: template.categoryName,
+      categoryId: t.categoryId,
       note: template.note,
       emoji: template.emoji,
     );

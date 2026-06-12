@@ -1,3 +1,4 @@
+import '../../core/vietnamese_text_normalizer.dart';
 import '../../models/recurring_transaction.dart';
 
 /// Convert a [RecurringTransaction] to a SQLite row map.
@@ -5,6 +6,7 @@ Map<String, dynamic> recurringToRow(RecurringTransaction r) {
   return {
     'id': r.id,
     'category_name': r.categoryName,
+    'category_id': r.categoryId,
     'amount': r.amount,
     'note': r.note,
     'frequency': r.frequency,
@@ -15,10 +17,14 @@ Map<String, dynamic> recurringToRow(RecurringTransaction r) {
 }
 
 /// Convert a SQLite row map to a [RecurringTransaction].
+/// Tolerates rows missing category_id (e.g. old test fixtures) by deriving it.
 RecurringTransaction recurringFromRow(Map<String, dynamic> row) {
+  final categoryId = row['category_id'] as String?;
   return RecurringTransaction(
     id: row['id'] as String,
     categoryName: row['category_name'] as String,
+    categoryId: categoryId ??
+        'migrated_${normalizeVietnameseSearchText(row['category_name'] as String)}',
     amount: row['amount'] as int,
     note: row['note'] as String,
     frequency: row['frequency'] as String,

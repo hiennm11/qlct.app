@@ -257,7 +257,7 @@ void main() {
 
       await ds.upsert(BudgetSnapshot(
         yearMonth: '2026-05',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         limitAmount: 3000000,
         alertThreshold: 80,
         createdAt: now,
@@ -283,21 +283,21 @@ void main() {
       await ds.bulkUpsert([
         BudgetSnapshot(
           yearMonth: '2026-05',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           limitAmount: 3000000,
           alertThreshold: 80,
           createdAt: now,
         ),
         BudgetSnapshot(
           yearMonth: '2026-05',
-          categoryName: 'Cà phê',
+          categoryName: 'Cà phê', categoryId: 'coffee',
           limitAmount: 1000000,
           alertThreshold: 80,
           createdAt: now,
         ),
         BudgetSnapshot(
           yearMonth: '2026-04',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           limitAmount: 2500000,
           alertThreshold: 80,
           createdAt: now,
@@ -327,7 +327,7 @@ void main() {
       await ds.bulkUpsert([
         BudgetSnapshot(
           yearMonth: '2026-05',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           limitAmount: 3000000,
           alertThreshold: 80,
           createdAt: now,
@@ -352,14 +352,14 @@ void main() {
       await ds.bulkUpsert([
         BudgetSnapshot(
           yearMonth: '2026-05',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           limitAmount: 3000000,
           alertThreshold: 80,
           createdAt: now,
         ),
         BudgetSnapshot(
           yearMonth: '2026-04',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           limitAmount: 2500000,
           alertThreshold: 80,
           createdAt: now,

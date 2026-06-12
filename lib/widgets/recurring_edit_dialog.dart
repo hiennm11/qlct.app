@@ -74,6 +74,7 @@ class RecurringEditDialog extends StatefulWidget {
 
 class RecurringEditResult {
   final String categoryName;
+  final String categoryId;
   final int amount;
   final String note;
   final String frequency;
@@ -82,6 +83,7 @@ class RecurringEditResult {
 
   const RecurringEditResult({
     required this.categoryName,
+    required this.categoryId,
     required this.amount,
     this.note = '',
     required this.frequency,
@@ -94,6 +96,7 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
   String _selectedCategory = 'Ăn ngoài'; // fallback; actual value set from VM if available
+  String _selectedCategoryId = 'food_out';
   String _selectedFrequency = 'daily';
   DateTime _startDate = DateTime.now();
   final _formKey = GlobalKey<FormState>();
@@ -104,6 +107,7 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
     final existing = widget.existing;
     if (existing != null) {
       _selectedCategory = existing.categoryName;
+      _selectedCategoryId = existing.categoryId;
       _amountController.text = ThousandSeparatorFormatter.formatValue(existing.amount);
       _noteController.text = existing.note;
       _selectedFrequency = existing.frequency;
@@ -113,10 +117,13 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
       try {
         final vm = Provider.of<CategoryViewModel>(context, listen: false);
         if (vm.quickInputCategories.isNotEmpty) {
-          _selectedCategory = vm.quickInputCategories.first.name;
+          final first = vm.quickInputCategories.first;
+          _selectedCategory = first.name;
+          _selectedCategoryId = first.id;
         }
       } catch (_) {
         _selectedCategory = seedCategories.first.name;
+        _selectedCategoryId = seedCategories.first.id;
       }
     }
   }
@@ -273,7 +280,14 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setState(() => _selectedCategory = v!),
+                    onChanged: (v) {
+                      final catVM = Provider.of<CategoryViewModel>(context, listen: false);
+                      final cat = catVM.categoryByName(v!);
+                      setState(() {
+                        _selectedCategory = v;
+                        _selectedCategoryId = cat?.id ?? _selectedCategoryId;
+                      });
+                    },
                     validator: (v) =>
                         v == null ? 'Vui lòng chọn danh mục' : null,
                   );
@@ -359,6 +373,7 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
               RecurringEditResult(
                 id: widget.existing?.id,
                 categoryName: _selectedCategory,
+                categoryId: _selectedCategoryId,
                 amount: amount,
                 note: _noteController.text,
                 frequency: _selectedFrequency,

@@ -222,6 +222,7 @@ class ExpenseViewModel extends ChangeNotifier {
   Future<void> addTransaction({
     required int amount,
     required String category,
+    required String categoryId,
     required String emoji,
     String note = '',
   }) async {
@@ -234,6 +235,7 @@ class ExpenseViewModel extends ChangeNotifier {
         id: const Uuid().v4(),
         amount: amount,
         category: category,
+        categoryId: categoryId,
         emoji: emoji,
         date: DateTime.now(),
         note: note,

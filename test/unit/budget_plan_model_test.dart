@@ -132,7 +132,7 @@ void main() {
     test('creates with all required fields and defaults', () {
       final item = BudgetPlanItem(
         yearMonth: '2026-07',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         plannedLimit: 3000000,
       );
 
@@ -150,7 +150,7 @@ void main() {
     test('creates with all fields specified', () {
       final item = BudgetPlanItem(
         yearMonth: '2026-07',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         plannedLimit: 3000000,
         alertThreshold: 75,
         suggestedLimit: 3500000,
@@ -171,7 +171,7 @@ void main() {
     test('JSON roundtrip preserves all fields', () {
       final item = BudgetPlanItem(
         yearMonth: '2026-07',
-        categoryName: 'Cà phê',
+        categoryName: 'Cà phê', categoryId: 'coffee',
         plannedLimit: 1000000,
         alertThreshold: 70,
         suggestedLimit: 1200000,
@@ -199,6 +199,7 @@ void main() {
       final json = {
         'yearMonth': '2026-07',
         'categoryName': 'Mua online',
+        'categoryId': 'online_shopping',
         'plannedLimit': 2000000,
       };
 
@@ -215,7 +216,7 @@ void main() {
     test('copyWith updates selected fields and keeps others', () {
       final item = BudgetPlanItem(
         yearMonth: '2026-07',
-        categoryName: 'Ăn ngoài',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
         plannedLimit: 3000000,
         recommendation: 'keep',
       );

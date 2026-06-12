@@ -866,6 +866,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         id: uuid.v4(),
         amount: amounts[catIndex][amountIndex],
         category: categories[catIndex],
+        categoryId: seedCategories[catIndex].id,
         emoji: emojis[catIndex],
         date: DateTime(date.year, date.month, date.day,
             (8 + i % 14).clamp(0, 23), (i * 7 % 60)),
@@ -878,6 +879,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       Budget(
         id: uuid.v4(),
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         monthlyLimit: 3000000,
         alertThreshold: 80,
         createdAt: now.subtract(const Duration(days: 90)),
@@ -885,6 +887,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       Budget(
         id: uuid.v4(),
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: now.subtract(const Duration(days: 60)),
@@ -892,6 +895,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       Budget(
         id: uuid.v4(),
         categoryName: 'Mua online',
+        categoryId: 'online_shopping',
         monthlyLimit: 2000000,
         alertThreshold: 80,
         createdAt: now.subtract(const Duration(days: 30)),
@@ -903,6 +907,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       RecurringTransaction(
         id: uuid.v4(),
         categoryName: 'Subscription',
+        categoryId: 'subscription',
         amount: 200000,
         note: 'GitHub Copilot',
         frequency: 'monthly',
@@ -913,6 +918,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       RecurringTransaction(
         id: uuid.v4(),
         categoryName: 'Nhà (Điện, nước, wifi)',
+        categoryId: 'housing',
         amount: 3300000,
         note: 'Tiền nhà hàng tháng',
         frequency: 'monthly',
@@ -929,6 +935,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         title: 'Cơm trưa',
         amount: 35000,
         categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
         note: '',
         emoji: '🍜',
         isPinned: true,
@@ -942,6 +949,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         title: 'Cà phê sáng',
         amount: 25000,
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         note: '',
         emoji: '☕',
         isPinned: false,
@@ -955,6 +963,7 @@ Map<String, dynamic> toJsonMap(BackupData data) {
         title: 'Shopee',
         amount: 120000,
         categoryName: 'Mua online',
+        categoryId: 'online_shopping',
         note: '',
         emoji: '🛒',
         isPinned: false,

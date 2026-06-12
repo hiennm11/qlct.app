@@ -18,6 +18,7 @@ Map<String, dynamic> transactionToRow(
     'id': t.id,
     'amount': t.amount,
     'category': t.category,
+    'category_id': t.categoryId,
     'emoji': t.emoji,
     'date': t.date.toIso8601String(),
     'note': t.note,
@@ -32,11 +33,15 @@ Map<String, dynamic> transactionToRow(
 }
 
 /// Convert a SQLite row map to a [Transaction].
+/// Tolerates rows missing category_id (e.g. old test fixtures) by deriving it.
 Transaction transactionFromRow(Map<String, dynamic> row) {
+  final categoryId = row['category_id'] as String?;
   return Transaction(
     id: row['id'] as String,
     amount: row['amount'] as int,
     category: row['category'] as String,
+    categoryId: categoryId ??
+        'migrated_${normalizeVietnameseSearchText(row['category'] as String)}',
     emoji: row['emoji'] as String,
     date: DateTime.parse(row['date'] as String),
     note: row['note'] as String,

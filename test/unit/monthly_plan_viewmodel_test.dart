@@ -75,11 +75,12 @@ void main() {
   });
 
   // Helper: make a simple transaction
-  Transaction tx(String category, int amount, DateTime date) {
+  Transaction tx(String category, String categoryId, int amount, DateTime date) {
     return Transaction(
       id: 'tx-${date.millisecondsSinceEpoch}',
       amount: amount,
       category: category,
+      categoryId: categoryId,
       emoji: '',
       date: date,
       note: '',
@@ -171,7 +172,7 @@ void main() {
       final existingItems = [
         BudgetPlanItem(
           yearMonth: targetYMs,
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           plannedLimit: 5000000,
           alertThreshold: 80,
           suggestedLimit: 5000000,
@@ -224,7 +225,7 @@ void main() {
       final prevSnapshots = [
         BudgetSnapshot(
           yearMonth: prevYMs,
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           limitAmount: 3000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 5, 1),
@@ -233,13 +234,13 @@ void main() {
 
       final (rStart, rEnd) = monthBounds(DateTime(2026, 4, 1));
       final recentTxs = [
-        tx('Ăn ngoài', 2500000, DateTime(2026, 4, 5)),
-        tx('Ăn ngoài', 500000, DateTime(2026, 4, 10)),
+        tx('Ăn ngoài', 'food_out', 2500000, DateTime(2026, 4, 5)),
+        tx('Ăn ngoài', 'food_out', 500000, DateTime(2026, 4, 10)),
       ];
 
       final (pStart, pEnd) = monthBounds(DateTime(2026, 5, 1));
       final prevTxs = [
-        tx('Ăn ngoài', 3500000, DateTime(2026, 5, 3)),
+        tx('Ăn ngoài', 'food_out', 3500000, DateTime(2026, 5, 3)),
       ];
 
       // Set up ALL stubs BEFORE constructing VM
@@ -287,7 +288,7 @@ void main() {
       final liveBudgets = [
         Budget(
           id: 'b1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 4000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 6, 1),
@@ -330,7 +331,7 @@ void main() {
       final liveBudgets = [
         Budget(
           id: 'b1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 6, 1),
@@ -406,7 +407,7 @@ void main() {
       final prevSnapshots = [
         BudgetSnapshot(
           yearMonth: prevYMs,
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           limitAmount: 3000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 5, 1),
@@ -449,7 +450,7 @@ void main() {
       final liveBudgets = [
         Budget(
           id: 'b1',
-          categoryName: 'Ăn ngoài',
+          categoryName: 'Ăn ngoài', categoryId: 'food_out',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 6, 1),
@@ -618,7 +619,7 @@ void main() {
       when(() => mockSnapshotDS.getByYearMonth(any())).thenAnswer((_) async => []);
       when(() => mockTxDS.getByDateRange(any(), any()))
           .thenAnswer((_) async => [
-                tx('Ăn ngoài', 3000000, DateTime(2026, 3, 10)),
+                tx('Ăn ngoài', 'food_out', 3000000, DateTime(2026, 3, 10)),
               ]);
       when(() => mockPlanDS.saveDraft(any(), any())).thenAnswer((_) async {});
 

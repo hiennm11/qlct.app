@@ -16,6 +16,7 @@ void main() {
     String title = 'Cơm trưa',
     int amount = 35000,
     String categoryName = 'Ăn ngoài',
+    String categoryId = 'an_ngoai',
     String note = '',
     bool isPinned = false,
     int usageCount = 0,
@@ -27,6 +28,7 @@ void main() {
       title: title,
       amount: amount,
       categoryName: categoryName,
+      categoryId: categoryId,
       note: note,
       isPinned: isPinned,
       usageCount: usageCount,
@@ -78,6 +80,7 @@ void main() {
         title: 'Cà phê sáng',
         amount: 25000,
         categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
       );
 
       expect(result.success, isTrue);
@@ -99,6 +102,7 @@ void main() {
         title: 'Cà phê sáng',
         amount: 25000,
         categoryName: 'Cà phê',
+        categoryId: 'ca_phe',
       );
 
       expect(result.success, isFalse);

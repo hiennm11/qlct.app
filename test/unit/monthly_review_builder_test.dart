@@ -9,6 +9,7 @@ Transaction _tx({
   required String id,
   required int amount,
   required String category,
+  required String categoryId,
   String emoji = '📌',
   DateTime? date,
   String note = '',
@@ -18,6 +19,7 @@ Transaction _tx({
     id: id,
     amount: amount,
     category: category,
+    categoryId: categoryId,
     emoji: emoji,
     date: date ?? DateTime(2026, 6, 15),
     note: note,
@@ -28,12 +30,14 @@ Transaction _tx({
 Budget _budget({
   required String id,
   required String categoryName,
+  required String categoryId,
   required int monthlyLimit,
   int alertThreshold = 80,
 }) {
   return Budget(
     id: id,
     categoryName: categoryName,
+    categoryId: categoryId,
     monthlyLimit: monthlyLimit,
     alertThreshold: alertThreshold,
     createdAt: DateTime(2026, 1, 1),
@@ -43,6 +47,7 @@ Budget _budget({
 RecurringTransaction _recurring({
   required String id,
   required String categoryName,
+  required String categoryId,
   required int amount,
   String frequency = 'monthly',
   bool isActive = true,
@@ -50,6 +55,7 @@ RecurringTransaction _recurring({
   return RecurringTransaction(
     id: id,
     categoryName: categoryName,
+    categoryId: categoryId,
     amount: amount,
     frequency: frequency,
     nextRunAt: DateTime(2026, 6, 1),
@@ -93,12 +99,12 @@ void main() {
     group('investment separation', () {
       test('investment is separated from spending analytics', () {
         final txs = [
-          _tx(id: '1', amount: 100000, category: 'Ăn ngoài', date: DateTime(2026, 6, 1)),
-          _tx(id: '2', amount: 5000000, category: 'Đầu tư', date: DateTime(2026, 6, 2)),
-          _tx(id: '3', amount: 20000, category: 'Cà phê', date: DateTime(2026, 6, 3)),
+          _tx(id: '1', amount: 100000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 5000000, category: 'Đầu tư', categoryId: 'investment', date: DateTime(2026, 6, 2)),
+          _tx(id: '3', amount: 20000, category: 'Cà phê', categoryId: 'coffee', date: DateTime(2026, 6, 3)),
         ];
         final prevTxs = [
-          _tx(id: 'p1', amount: 80000, category: 'Ăn ngoài', date: DateTime(2026, 5, 1)),
+          _tx(id: 'p1', amount: 80000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 5, 1)),
         ];
 
         final result = builder.build(
@@ -129,15 +135,15 @@ void main() {
     group('top 5 categories + remaining', () {
       test('top 5 spending categories exclude investment', () {
         final txs = [
-          _tx(id: '1', amount: 100000, category: 'Ăn ngoài'),
-          _tx(id: '2', amount: 80000, category: 'Cà phê'),
-          _tx(id: '3', amount: 60000, category: 'Mua online'),
-          _tx(id: '4', amount: 50000, category: 'Ăn nhà'),
-          _tx(id: '5', amount: 40000, category: 'Giải trí'),
-          _tx(id: '6', amount: 30000, category: 'Sức khỏe'),
-          _tx(id: '7', amount: 20000, category: 'Học tập'),
-          _tx(id: '8', amount: 10000, category: 'Khác'),
-          _tx(id: '9', amount: 5000000, category: 'Đầu tư'),
+          _tx(id: '1', amount: 100000, category: 'Ăn ngoài', categoryId: 'food_out'),
+          _tx(id: '2', amount: 80000, category: 'Cà phê', categoryId: 'coffee'),
+          _tx(id: '3', amount: 60000, category: 'Mua online', categoryId: 'online_shopping'),
+          _tx(id: '4', amount: 50000, category: 'Ăn nhà', categoryId: 'food_home'),
+          _tx(id: '5', amount: 40000, category: 'Giải trí', categoryId: 'entertainment'),
+          _tx(id: '6', amount: 30000, category: 'Sức khỏe', categoryId: 'health'),
+          _tx(id: '7', amount: 20000, category: 'Học tập', categoryId: 'education'),
+          _tx(id: '8', amount: 10000, category: 'Khác', categoryId: 'other'),
+          _tx(id: '9', amount: 5000000, category: 'Đầu tư', categoryId: 'investment'),
         ];
 
         final result = builder.build(
@@ -165,14 +171,14 @@ void main() {
 
       test('remainingCategoryTotal computes correctly', () {
         final txs = [
-          _tx(id: '1', amount: 100000, category: 'Ăn ngoài'),
-          _tx(id: '2', amount: 80000, category: 'Cà phê'),
-          _tx(id: '3', amount: 60000, category: 'Mua online'),
-          _tx(id: '4', amount: 50000, category: 'Ăn nhà'),
-          _tx(id: '5', amount: 40000, category: 'Giải trí'),
-          _tx(id: '6', amount: 30000, category: 'Sức khỏe'),
-          _tx(id: '7', amount: 20000, category: 'Học tập'),
-          _tx(id: '8', amount: 10000, category: 'Khác'),
+          _tx(id: '1', amount: 100000, category: 'Ăn ngoài', categoryId: 'food_out'),
+          _tx(id: '2', amount: 80000, category: 'Cà phê', categoryId: 'coffee'),
+          _tx(id: '3', amount: 60000, category: 'Mua online', categoryId: 'online_shopping'),
+          _tx(id: '4', amount: 50000, category: 'Ăn nhà', categoryId: 'food_home'),
+          _tx(id: '5', amount: 40000, category: 'Giải trí', categoryId: 'entertainment'),
+          _tx(id: '6', amount: 30000, category: 'Sức khỏe', categoryId: 'health'),
+          _tx(id: '7', amount: 20000, category: 'Học tập', categoryId: 'education'),
+          _tx(id: '8', amount: 10000, category: 'Khác', categoryId: 'other'),
         ];
 
         final result = builder.build(
@@ -199,14 +205,14 @@ void main() {
     group('biggest delta absolute VND primary', () {
       test('biggest increase by absolute VND delta', () {
         final currentTxs = [
-          _tx(id: '1', amount: 200000, category: 'Ăn ngoài'), // +120k from 80k
-          _tx(id: '2', amount: 10000, category: 'Cà phê'),   // -10k from 20k
-          _tx(id: '3', amount: 5000, category: 'Mua online'), // -5k from 10k
+          _tx(id: '1', amount: 200000, category: 'Ăn ngoài', categoryId: 'food_out'), // +120k from 80k
+          _tx(id: '2', amount: 10000, category: 'Cà phê', categoryId: 'coffee'),   // -10k from 20k
+          _tx(id: '3', amount: 5000, category: 'Mua online', categoryId: 'online_shopping'), // -5k from 10k
         ];
         final prevTxs = [
-          _tx(id: 'p1', amount: 80000, category: 'Ăn ngoài', date: DateTime(2026, 5, 1)),
-          _tx(id: 'p2', amount: 20000, category: 'Cà phê', date: DateTime(2026, 5, 1)),
-          _tx(id: 'p3', amount: 10000, category: 'Mua online', date: DateTime(2026, 5, 1)),
+          _tx(id: 'p1', amount: 80000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 5, 1)),
+          _tx(id: 'p2', amount: 20000, category: 'Cà phê', categoryId: 'coffee', date: DateTime(2026, 5, 1)),
+          _tx(id: 'p3', amount: 10000, category: 'Mua online', categoryId: 'online_shopping', date: DateTime(2026, 5, 1)),
         ];
 
         final result = builder.build(
@@ -232,11 +238,11 @@ void main() {
 
       test('previous zero current positive = newly incurred label', () {
         final currentTxs = [
-          _tx(id: '1', amount: 50000, category: 'Ăn ngoài'),
-          _tx(id: '2', amount: 30000, category: 'Giải trí'), // new category
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
+          _tx(id: '2', amount: 30000, category: 'Giải trí', categoryId: 'entertainment'), // new category
         ];
         final prevTxs = [
-          _tx(id: 'p1', amount: 50000, category: 'Ăn ngoài'),
+          _tx(id: 'p1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
           // Giải trí not in previous period
         ];
 
@@ -265,12 +271,12 @@ void main() {
     group('fixed expense union distinct no double count', () {
       test('subscription + recurring-generated union distinct by transaction.id', () {
         final txs = [
-          _tx(id: '1', amount: 200000, category: 'Subscription', date: DateTime(2026, 6, 1)),
-          _tx(id: '2', amount: 150000, category: 'Nhà (Điện, nước, wifi)',
+          _tx(id: '1', amount: 200000, category: 'Subscription', categoryId: 'subscription', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 150000, category: 'Nhà (Điện, nước, wifi)', categoryId: 'housing',
               date: DateTime(2026, 6, 2), sourceRecurringId: 'rule-1'),
-          _tx(id: '3', amount: 100000, category: 'Subscription',
+          _tx(id: '3', amount: 100000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 3), sourceRecurringId: 'rule-2'),
-          _tx(id: '4', amount: 50000, category: 'Ăn ngoài'),
+          _tx(id: '4', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
         ];
 
         final result = builder.build(
@@ -304,10 +310,10 @@ void main() {
 
       test('fixed expense excludes investment transactions', () {
         final txs = [
-          _tx(id: '1', amount: 200000, category: 'Subscription'),
-          _tx(id: '2', amount: 5000000, category: 'Đầu tư',
+          _tx(id: '1', amount: 200000, category: 'Subscription', categoryId: 'subscription'),
+          _tx(id: '2', amount: 5000000, category: 'Đầu tư', categoryId: 'investment',
               sourceRecurringId: 'rule-investment'),
-          _tx(id: '3', amount: 150000, category: 'Nhà (Điện, nước, wifi)',
+          _tx(id: '3', amount: 150000, category: 'Nhà (Điện, nước, wifi)', categoryId: 'housing',
               sourceRecurringId: 'rule-home'),
         ];
 
@@ -337,8 +343,8 @@ void main() {
 
       test('fixed total is NOT subscriptionTotal + recurringTotal (no double count)', () {
         final txs = [
-          _tx(id: '1', amount: 200000, category: 'Subscription', date: DateTime(2026, 6, 1)),
-          _tx(id: '2', amount: 100000, category: 'Subscription',
+          _tx(id: '1', amount: 200000, category: 'Subscription', categoryId: 'subscription', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 100000, category: 'Subscription', categoryId: 'subscription',
               date: DateTime(2026, 6, 3), sourceRecurringId: 'rule-sub'),
         ];
 
@@ -369,9 +375,9 @@ void main() {
       test('active recurring rules shown for current month only', () {
         final txs = <Transaction>[];
         final activeRules = [
-          _recurring(id: 'r1', categoryName: 'Nhà (Điện, nước, wifi)', amount: 150000),
-          _recurring(id: 'r2', categoryName: 'Subscription', amount: 200000),
-          _recurring(id: 'r3', categoryName: 'Cà phê', amount: 50000, isActive: false),
+          _recurring(id: 'r1', categoryName: 'Nhà (Điện, nước, wifi)', categoryId: 'housing', amount: 150000),
+          _recurring(id: 'r2', categoryName: 'Subscription', categoryId: 'subscription', amount: 200000),
+          _recurring(id: 'r3', categoryName: 'Cà phê', categoryId: 'coffee', amount: 50000, isActive: false),
         ];
 
         // Current month
@@ -414,12 +420,12 @@ void main() {
     group('biggest spending day', () {
       test('biggest spending day computed from selected month', () {
         final txs = [
-          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', date: DateTime(2026, 6, 1)),
-          _tx(id: '2', amount: 30000, category: 'Cà phê', date: DateTime(2026, 6, 1)),
-          _tx(id: '3', amount: 80000, category: 'Ăn nhà', date: DateTime(2026, 6, 2)),
-          _tx(id: '4', amount: 10000, category: 'Khác', date: DateTime(2026, 6, 3)),
-          _tx(id: '5', amount: 200000, category: 'Subscription', date: DateTime(2026, 6, 4)),
-          _tx(id: '6', amount: 5000000, category: 'Đầu tư', date: DateTime(2026, 6, 5)),
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 30000, category: 'Cà phê', categoryId: 'coffee', date: DateTime(2026, 6, 1)),
+          _tx(id: '3', amount: 80000, category: 'Ăn nhà', categoryId: 'food_home', date: DateTime(2026, 6, 2)),
+          _tx(id: '4', amount: 10000, category: 'Khác', categoryId: 'other', date: DateTime(2026, 6, 3)),
+          _tx(id: '5', amount: 200000, category: 'Subscription', categoryId: 'subscription', date: DateTime(2026, 6, 4)),
+          _tx(id: '6', amount: 5000000, category: 'Đầu tư', categoryId: 'investment', date: DateTime(2026, 6, 5)),
         ];
 
         final result = builder.build(
@@ -463,9 +469,9 @@ void main() {
     group('low-data flags', () {
       test('hasEnoughDataForDelta true when >= 3 spending transactions', () {
         final txs = [
-          _tx(id: '1', amount: 50000, category: 'Ăn ngoài'),
-          _tx(id: '2', amount: 30000, category: 'Cà phê'),
-          _tx(id: '3', amount: 20000, category: 'Mua online'),
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
+          _tx(id: '2', amount: 30000, category: 'Cà phê', categoryId: 'coffee'),
+          _tx(id: '3', amount: 20000, category: 'Mua online', categoryId: 'online_shopping'),
         ];
 
         final result = builder.build(
@@ -486,8 +492,8 @@ void main() {
 
       test('hasEnoughDataForDelta false when < 3 spending transactions', () {
         final txs = [
-          _tx(id: '1', amount: 50000, category: 'Ăn ngoài'),
-          _tx(id: '2', amount: 30000, category: 'Cà phê'),
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
+          _tx(id: '2', amount: 30000, category: 'Cà phê', categoryId: 'coffee'),
         ];
 
         final result = builder.build(
@@ -508,9 +514,9 @@ void main() {
 
       test('investment transactions do not count toward spending data', () {
         final txs = [
-          _tx(id: '1', amount: 50000, category: 'Ăn ngoài'),
-          _tx(id: '2', amount: 5000000, category: 'Đầu tư'),
-          _tx(id: '3', amount: 30000, category: 'Cà phê'),
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out'),
+          _tx(id: '2', amount: 5000000, category: 'Đầu tư', categoryId: 'investment'),
+          _tx(id: '3', amount: 30000, category: 'Cà phê', categoryId: 'coffee'),
         ];
 
         final result = builder.build(
@@ -534,14 +540,14 @@ void main() {
     group('budget highlights', () {
       test('budget highlights show exceeded/warning categories', () {
         final txs = [
-          _tx(id: '1', amount: 500000, category: 'Ăn ngoài'),
-          _tx(id: '2', amount: 450000, category: 'Subscription'),
-          _tx(id: '3', amount: 50000, category: 'Cà phê'),
+          _tx(id: '1', amount: 500000, category: 'Ăn ngoài', categoryId: 'food_out'),
+          _tx(id: '2', amount: 450000, category: 'Subscription', categoryId: 'subscription'),
+          _tx(id: '3', amount: 50000, category: 'Cà phê', categoryId: 'coffee'),
         ];
         final budgets = [
-          _budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 300000, alertThreshold: 80), // exceeded (166%)
-          _budget(id: 'b2', categoryName: 'Subscription', monthlyLimit: 500000, alertThreshold: 80), // warning (90%)
-          _budget(id: 'b3', categoryName: 'Cà phê', monthlyLimit: 100000, alertThreshold: 80), // normal (50%)
+          _budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'food_out', monthlyLimit: 300000, alertThreshold: 80), // exceeded (166%)
+          _budget(id: 'b2', categoryName: 'Subscription', categoryId: 'subscription', monthlyLimit: 500000, alertThreshold: 80), // warning (90%)
+          _budget(id: 'b3', categoryName: 'Cà phê', categoryId: 'coffee', monthlyLimit: 100000, alertThreshold: 80), // normal (50%)
         ];
 
         final result = builder.build(
@@ -570,12 +576,12 @@ void main() {
 
       test('budget highlights skip investment categories (ADR-0025 §6)', () {
         final txs = [
-          _tx(id: '1', amount: 500000, category: 'Ăn ngoài'),
-          _tx(id: '2', amount: 18000000, category: 'Đầu tư'), // 180% of limit
+          _tx(id: '1', amount: 500000, category: 'Ăn ngoài', categoryId: 'food_out'),
+          _tx(id: '2', amount: 18000000, category: 'Đầu tư', categoryId: 'investment'), // 180% of limit
         ];
         final budgets = [
-          _budget(id: 'b1', categoryName: 'Ăn ngoài', monthlyLimit: 300000, alertThreshold: 80), // exceeded
-          _budget(id: 'b2', categoryName: 'Đầu tư', monthlyLimit: 10000000, alertThreshold: 80), // exceeded
+          _budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'food_out', monthlyLimit: 300000, alertThreshold: 80), // exceeded
+          _budget(id: 'b2', categoryName: 'Đầu tư', categoryId: 'investment', monthlyLimit: 10000000, alertThreshold: 80), // exceeded
         ];
 
         final result = builder.build(

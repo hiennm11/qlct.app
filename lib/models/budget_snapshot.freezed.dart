@@ -23,6 +23,7 @@ BudgetSnapshot _$BudgetSnapshotFromJson(Map<String, dynamic> json) {
 mixin _$BudgetSnapshot {
   String get yearMonth => throw _privateConstructorUsedError;
   String get categoryName => throw _privateConstructorUsedError;
+  String get categoryId => throw _privateConstructorUsedError;
   int get limitAmount => throw _privateConstructorUsedError;
   int get alertThreshold => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
@@ -47,6 +48,7 @@ abstract class $BudgetSnapshotCopyWith<$Res> {
   $Res call({
     String yearMonth,
     String categoryName,
+    String categoryId,
     int limitAmount,
     int alertThreshold,
     DateTime createdAt,
@@ -70,6 +72,7 @@ class _$BudgetSnapshotCopyWithImpl<$Res, $Val extends BudgetSnapshot>
   $Res call({
     Object? yearMonth = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? limitAmount = null,
     Object? alertThreshold = null,
     Object? createdAt = null,
@@ -83,6 +86,10 @@ class _$BudgetSnapshotCopyWithImpl<$Res, $Val extends BudgetSnapshot>
             categoryName: null == categoryName
                 ? _value.categoryName
                 : categoryName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            categoryId: null == categoryId
+                ? _value.categoryId
+                : categoryId // ignore: cast_nullable_to_non_nullable
                       as String,
             limitAmount: null == limitAmount
                 ? _value.limitAmount
@@ -114,6 +121,7 @@ abstract class _$$BudgetSnapshotImplCopyWith<$Res>
   $Res call({
     String yearMonth,
     String categoryName,
+    String categoryId,
     int limitAmount,
     int alertThreshold,
     DateTime createdAt,
@@ -136,6 +144,7 @@ class __$$BudgetSnapshotImplCopyWithImpl<$Res>
   $Res call({
     Object? yearMonth = null,
     Object? categoryName = null,
+    Object? categoryId = null,
     Object? limitAmount = null,
     Object? alertThreshold = null,
     Object? createdAt = null,
@@ -149,6 +158,10 @@ class __$$BudgetSnapshotImplCopyWithImpl<$Res>
         categoryName: null == categoryName
             ? _value.categoryName
             : categoryName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        categoryId: null == categoryId
+            ? _value.categoryId
+            : categoryId // ignore: cast_nullable_to_non_nullable
                   as String,
         limitAmount: null == limitAmount
             ? _value.limitAmount
@@ -173,6 +186,7 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
   const _$BudgetSnapshotImpl({
     required this.yearMonth,
     required this.categoryName,
+    required this.categoryId,
     required this.limitAmount,
     this.alertThreshold = 80,
     required this.createdAt,
@@ -186,6 +200,8 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
   @override
   final String categoryName;
   @override
+  final String categoryId;
+  @override
   final int limitAmount;
   @override
   @JsonKey()
@@ -195,7 +211,7 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
 
   @override
   String toString() {
-    return 'BudgetSnapshot(yearMonth: $yearMonth, categoryName: $categoryName, limitAmount: $limitAmount, alertThreshold: $alertThreshold, createdAt: $createdAt)';
+    return 'BudgetSnapshot(yearMonth: $yearMonth, categoryName: $categoryName, categoryId: $categoryId, limitAmount: $limitAmount, alertThreshold: $alertThreshold, createdAt: $createdAt)';
   }
 
   @override
@@ -207,6 +223,8 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
                 other.yearMonth == yearMonth) &&
             (identical(other.categoryName, categoryName) ||
                 other.categoryName == categoryName) &&
+            (identical(other.categoryId, categoryId) ||
+                other.categoryId == categoryId) &&
             (identical(other.limitAmount, limitAmount) ||
                 other.limitAmount == limitAmount) &&
             (identical(other.alertThreshold, alertThreshold) ||
@@ -221,6 +239,7 @@ class _$BudgetSnapshotImpl implements _BudgetSnapshot {
     runtimeType,
     yearMonth,
     categoryName,
+    categoryId,
     limitAmount,
     alertThreshold,
     createdAt,
@@ -247,6 +266,7 @@ abstract class _BudgetSnapshot implements BudgetSnapshot {
   const factory _BudgetSnapshot({
     required final String yearMonth,
     required final String categoryName,
+    required final String categoryId,
     required final int limitAmount,
     final int alertThreshold,
     required final DateTime createdAt,
@@ -259,6 +279,8 @@ abstract class _BudgetSnapshot implements BudgetSnapshot {
   String get yearMonth;
   @override
   String get categoryName;
+  @override
+  String get categoryId;
   @override
   int get limitAmount;
   @override
