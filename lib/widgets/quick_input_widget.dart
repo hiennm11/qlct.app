@@ -23,6 +23,10 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
   final Map<String, double> _amounts = {};
   bool _isExpanded = false;
 
+  double _amountFor(Category c) {
+    return _amounts[c.id] ??= c.quickAmountDefault.toDouble();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -79,7 +83,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                       final category = cats[index];
                       return _CategoryCard(
                     category: category,
-                    amount: _amounts[category.id]!,
+                    amount: _amountFor(category),
                     onAmountChanged: (value) {
                       setState(() {
                         _amounts[category.id] = value;
@@ -89,7 +93,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                       final vm = context.read<ExpenseViewModel>();
                       try {
                         await vm.addTransaction(
-                          amount: _amounts[category.id]!.toInt(),
+                          amount: _amountFor(category).toInt(),
                           category: category.name,
                           categoryId: category.id,
                           emoji: category.emoji,
@@ -107,7 +111,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Đã thêm ${CurrencyFormatter.format(_amounts[category.id]!.toInt())} - ${category.name}',
+                                'Đã thêm ${CurrencyFormatter.format(_amountFor(category).toInt())} - ${category.name}',
                               ),
                               duration: const Duration(seconds: 2),
                             ),
