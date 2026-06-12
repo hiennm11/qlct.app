@@ -10,6 +10,7 @@ import 'package:sqflite/sqflite.dart' hide Transaction;
 import 'package:uuid/uuid.dart';
 
 import '../core/constants.dart';
+import '../core/vietnamese_text_normalizer.dart';
 import '../data/database/database_helper.dart';
 import '../data/datasources/transaction_local_datasource.dart';
 import '../data/datasources/budget_local_datasource.dart';
@@ -397,6 +398,8 @@ Map<String, dynamic> toJsonMap(BackupData data) {
 
     // Try to deserialize using the Freezed model
     try {
+      // Backfill missing categoryId on old-schema backups (pre-ADR-0029)
+      _backfillCategoryIds(map);
       final backupData = BackupData.fromJson(map);
       return ImportResult.valid(backupData);
     } catch (e, stack) {
@@ -404,6 +407,89 @@ Map<String, dynamic> toJsonMap(BackupData data) {
       return ImportResult.error([
         'Không thể đọc dữ liệu trong file: file có thể bị hỏng hoặc sai định dạng.'
       ]);
+    }
+  }
+
+  /// Backfill missing `categoryId` fields on old-schema backups (pre-ADR-0029).
+  /// Old backups only had category name strings; we resolve them to category IDs
+  /// using the seed catalog and normalize names for matching.
+  static void _backfillCategoryIds(Map<String, dynamic> map) {
+    // Build name→id index from seedCategories (always available, no DB needed)
+    final nameToId = <String, String>{};
+    for (final cat in seedCategories) {
+      nameToId[normalizeVietnameseSearchText(cat.name)] = cat.id;
+      nameToId[cat.name] = cat.id; // also raw name for exact match
+    }
+
+    String? resolveId(String? name) {
+      if (name == null || name.isEmpty) return null;
+      // Prefer exact match
+      if (nameToId.containsKey(name)) return nameToId[name];
+      // Fallback to normalized
+      final norm = normalizeVietnameseSearchText(name);
+      if (nameToId.containsKey(norm)) return nameToId[norm];
+      // Unknown legacy name → create UUID placeholder id
+      return 'placeholder_${norm}_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    // Backfill transactions
+    final txs = map['transactions'];
+    if (txs is List) {
+      for (final t in txs) {
+        if (t is Map<String, dynamic> && !t.containsKey('categoryId')) {
+          t['categoryId'] = resolveId(t['category'] as String?) ?? 'other';
+        }
+      }
+    }
+
+    // Backfill budgets
+    final budgets = map['budgets'];
+    if (budgets is List) {
+      for (final b in budgets) {
+        if (b is Map<String, dynamic> && !b.containsKey('categoryId')) {
+          b['categoryId'] = resolveId(b['category_name'] as String?) ?? 'other';
+        }
+      }
+    }
+
+    // Backfill recurring transactions
+    final recurs = map['recurringTransactions'];
+    if (recurs is List) {
+      for (final r in recurs) {
+        if (r is Map<String, dynamic> && !r.containsKey('categoryId')) {
+          r['categoryId'] = resolveId(r['category_name'] as String?) ?? 'other';
+        }
+      }
+    }
+
+    // Backfill quick templates
+    final templates = map['quickTemplates'];
+    if (templates is List) {
+      for (final qt in templates) {
+        if (qt is Map<String, dynamic> && !qt.containsKey('categoryId')) {
+          qt['categoryId'] = resolveId(qt['category_name'] as String?) ?? 'other';
+        }
+      }
+    }
+
+    // Backfill budget snapshots
+    final snaps = map['budgetSnapshots'];
+    if (snaps is List) {
+      for (final s in snaps) {
+        if (s is Map<String, dynamic> && !s.containsKey('categoryId')) {
+          s['categoryId'] = resolveId(s['category_name'] as String?) ?? 'other';
+        }
+      }
+    }
+
+    // Backfill budget plan items
+    final planItems = map['budgetPlanItems'];
+    if (planItems is List) {
+      for (final item in planItems) {
+        if (item is Map<String, dynamic> && !item.containsKey('categoryId')) {
+          item['categoryId'] = resolveId(item['category_name'] as String?) ?? 'other';
+        }
+      }
     }
   }
 
