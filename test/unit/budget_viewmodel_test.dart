@@ -4,6 +4,7 @@ import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/budget_plan.dart';
 import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/budget_status.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
@@ -251,14 +252,18 @@ void main() {
   group('updateStats', () {
     test('updates _stats and notifies listeners', () async {
       when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
-      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
+      // ADR-0036: provide category catalog so id-based lookups resolve.
+      viewModel = BudgetViewModel(
+        mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage,
+        initialCategories: seedCategories,
+      );
       await Future.delayed(Duration.zero);
 
       final stats = ExpenseStats(
         todayExpense: 50000,
         weekExpense: 200000,
         monthExpense: 800000,
-        categoryTotals: {'Ăn ngoài': 500000},
+        categoryTotals: {'food_out': 500000},
       );
 
       viewModel.updateStats(stats);
@@ -272,7 +277,7 @@ void main() {
       final budget = Budget(
         id: '1',
         categoryName: 'Ăn ngoài',
-        categoryId: 'an_ngoai',
+        categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -287,7 +292,7 @@ void main() {
         todayExpense: 0,
         weekExpense: 0,
         monthExpense: 2000000,
-        categoryTotals: {'Ăn ngoài': 2000000},
+        categoryTotals: {'food_out': 2000000},
       ));
 
       final statuses = viewModel.budgetStatuses;
@@ -299,7 +304,7 @@ void main() {
       final budget = Budget(
         id: '1',
         categoryName: 'Ăn ngoài',
-        categoryId: 'an_ngoai',
+        categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -314,7 +319,7 @@ void main() {
         todayExpense: 0,
         weekExpense: 0,
         monthExpense: 4500000,
-        categoryTotals: {'Ăn ngoài': 4500000},
+        categoryTotals: {'food_out': 4500000},
       ));
 
       final statuses = viewModel.budgetStatuses;
@@ -325,7 +330,7 @@ void main() {
       final budget = Budget(
         id: '1',
         categoryName: 'Ăn ngoài',
-        categoryId: 'an_ngoai',
+        categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -340,7 +345,7 @@ void main() {
         todayExpense: 0,
         weekExpense: 0,
         monthExpense: 6000000,
-        categoryTotals: {'Ăn ngoài': 6000000},
+        categoryTotals: {'food_out': 6000000},
       ));
 
       final statuses = viewModel.budgetStatuses;
@@ -358,7 +363,7 @@ void main() {
         todayExpense: 0,
         weekExpense: 0,
         monthExpense: 500000,
-        categoryTotals: {'Cà phê': 500000},
+        categoryTotals: {'coffee': 500000},
       ));
 
       final statuses = viewModel.budgetStatuses;
@@ -388,7 +393,7 @@ void main() {
       final budget1 = Budget(
         id: '1',
         categoryName: 'Ăn ngoài',
-        categoryId: 'an_ngoai',
+        categoryId: 'food_out',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -396,7 +401,7 @@ void main() {
       final budget2 = Budget(
         id: '2',
         categoryName: 'Cà phê',
-        categoryId: 'ca_phe',
+        categoryId: 'coffee',
         monthlyLimit: 1000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -411,7 +416,7 @@ void main() {
         todayExpense: 0,
         weekExpense: 0,
         monthExpense: 0,
-        categoryTotals: {'Ăn ngoài': 200000, 'Cà phê': 900000},
+        categoryTotals: {'food_out': 200000, 'coffee': 900000},
       ));
 
       final statuses = viewModel.budgetStatuses;
@@ -424,7 +429,7 @@ void main() {
       final invBudget = Budget(
         id: 'inv-1',
         categoryName: 'Đầu tư',
-        categoryId: 'dau_tu',
+        categoryId: 'investment',
         monthlyLimit: 10000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -432,7 +437,7 @@ void main() {
       final foodBudget = Budget(
         id: 'food-1',
         categoryName: 'Ăn ngoài',
-        categoryId: 'an_ngoai',
+        categoryId: 'food_out',
         monthlyLimit: 5000000,
         alertThreshold: 80,
         createdAt: DateTime.now(),
@@ -449,8 +454,8 @@ void main() {
         weekExpense: 0,
         monthExpense: 15000000,
         categoryTotals: {
-          'Đầu tư': 8000000, // exceeded but should not show
-          'Ăn ngoài': 1000000, // normal
+          'investment': 8000000, // exceeded but should not show
+          'food_out': 1000000, // normal
         },
       ));
 
@@ -476,7 +481,7 @@ void main() {
         todayExpense: 0,
         weekExpense: 0,
         monthExpense: 5000000,
-        categoryTotals: {'Đầu tư': 5000000},
+        categoryTotals: {'investment': 5000000},
       ));
 
       final statuses = viewModel.budgetStatuses;
@@ -501,8 +506,8 @@ void main() {
         weekExpense: 0,
         monthExpense: 5000000,
         categoryTotals: {
-          'Ăn ngoài': 1000000,
-          'Đầu tư': 4000000,
+          'food_out': 1000000,
+          'investment': 4000000,
         },
       ));
 
@@ -530,8 +535,8 @@ void main() {
         weekExpense: 0,
         monthExpense: 13000000,
         categoryTotals: {
-          'Ăn ngoài': 8000000,
-          'Đầu tư': 5000000,
+          'food_out': 8000000,
+          'investment': 5000000,
         },
       ));
 
@@ -819,8 +824,8 @@ void main() {
         weekExpense: 0,
         monthExpense: 11000000,
         categoryTotals: {
-          'Ăn ngoài': 3000000,
-          'Đầu tư': 8000000,
+          'food_out': 3000000,
+          'investment': 8000000,
         },
       ));
 
@@ -1052,8 +1057,8 @@ void main() {
       const currentYMs = '2026-06';
 
       final liveBudgets = [
-        Budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
-        Budget(id: 'inv1', categoryName: 'Đầu tư', categoryId: 'dau_tu', monthlyLimit: 10000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'food_out', monthlyLimit: 3000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
+        Budget(id: 'inv1', categoryName: 'Đầu tư', categoryId: 'investment', monthlyLimit: 10000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1)),
       ];
 
       final draftPlan = BudgetPlan(
@@ -1065,7 +1070,7 @@ void main() {
         updatedAt: DateTime(2026, 5, 1),
       );
       final draftItems = [
-        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'an_ngoai', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
+        BudgetPlanItem(yearMonth: currentYMs, categoryName: 'Ăn ngoài', categoryId: 'food_out', plannedLimit: 5000000, alertThreshold: 80, suggestedLimit: 4000000, baseLimit: 3000000, lastMonthSpent: 3500000, wasOverBudgetLastMonth: true, recommendation: 'increase'),
         // Đầu tư not in plan (investment excluded)
       ];
 

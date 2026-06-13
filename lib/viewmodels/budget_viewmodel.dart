@@ -276,7 +276,7 @@ class BudgetViewModel extends ChangeNotifier {
 
       // Build a set of non-investment categories from plan items
       final planCategories = items
-          .where((item) => !_isInvestmentCategory(item.categoryId, item.categoryName))
+          .where((item) => !_isInvestmentCategory(item.categoryId))
           .toList();
 
       // Build a set of categoryIds that should exist after apply
@@ -308,7 +308,7 @@ class BudgetViewModel extends ChangeNotifier {
 
       // Step 3b: delete zero-limit or missing categories
       for (final existing in existingBudgets) {
-        if (_isInvestmentCategory(existing.categoryId, existing.categoryName)) continue;
+        if (_isInvestmentCategory(existing.categoryId)) continue;
         if (!shouldExistCategoryIds.contains(existing.categoryId)) {
           await _dataSource.delete(existing.id);
         }
@@ -509,43 +509,33 @@ class BudgetViewModel extends ChangeNotifier {
     }
   }
 
-  bool _isInvestmentCategory(String? categoryId, String? categoryName) {
-    // Resolve by ID first
-    if (categoryId != null) {
-      for (final c in _categories) {
-        if (c.id == categoryId) {
-          return c.kind == CategoryKind.investment;
-        }
-      }
-      // Fallback: check seed defaults for test scenarios
-      for (final c in seedCategories) {
-        if (c.id == categoryId) {
-          return c.kind == CategoryKind.investment;
-        }
+  bool _isInvestmentCategory(String categoryId) {
+    // ADR-0036: resolve by id only. Name fallback removed — callers must
+    // pass the stable identity, not the display-name snapshot.
+    for (final c in _categories) {
+      if (c.id == categoryId) {
+        return c.kind == CategoryKind.investment;
       }
     }
-    // Fall back to name matching only when caller only has name snapshot
-    if (categoryName != null) {
-      for (final c in _categories) {
-        if (c.name == categoryName) {
-          return c.kind == CategoryKind.investment;
-        }
-      }
-      for (final c in seedCategories) {
-        if (c.name == categoryName) {
-          return c.kind == CategoryKind.investment;
-        }
+    // Fallback: check seed defaults for test scenarios where _categories
+    // is empty (BudgetViewModel may be constructed before reloadCategories
+    // has fired).
+    for (final c in seedCategories) {
+      if (c.id == categoryId) {
+        return c.kind == CategoryKind.investment;
       }
     }
     return false;
   }
 
-  /// ADR-0025 §6: Compute spending-only total by excluding investment categories
+  /// ADR-0025 §6: Compute spending-only total by excluding investment categories.
+  /// ADR-0036: categoryTotals keys are categoryId, resolved via the loaded
+  /// category catalog. Orphan ids (not in _categories) are counted as
+  /// spending — they were already in the live stats.
   int _computeSpendingTotal(Map<String, int> categoryTotals) {
     int total = 0;
     for (final entry in categoryTotals.entries) {
-      // categoryTotals is keyed by categoryName snapshot — use name-based lookup
-      if (!_isInvestmentCategory(null, entry.key)) {
+      if (!_isInvestmentCategory(entry.key)) {
         total += entry.value;
       }
     }
@@ -554,17 +544,19 @@ class BudgetViewModel extends ChangeNotifier {
 
   /// Calculate budget statuses sorted by percent used.
   /// Excludes investment categories per ADR-0025 §6.
+  /// ADR-0036: categoryTotals is keyed by categoryId. Budget lookup and
+  /// spent resolution use id, not display name.
   List<BudgetStatus> _calculateStatuses() {
     if (_stats == null) {
       // Return statuses for non-investment budgets with default stats if no stats yet
       final nonInvestmentBudgets = _budgets
-          .where((b) => !_isInvestmentCategory(b.categoryId, b.categoryName))
+          .where((b) => !_isInvestmentCategory(b.categoryId))
           .toList();
       final statuses = nonInvestmentBudgets
           .map((b) => BudgetStatus.fromBudget(
               b,
-              _stats?.categoryTotals[b.categoryName] ?? 0,
-              emoji: _resolveEmoji(b.categoryName),
+              _stats?.categoryTotals[b.categoryId] ?? 0,
+              emoji: _resolveEmojiById(b.categoryId),
             ))
           .toList();
       statuses.sort((a, b) => b.percentUsed.compareTo(a.percentUsed));
@@ -574,10 +566,10 @@ class BudgetViewModel extends ChangeNotifier {
     final categoryTotals = _stats!.categoryTotals;
     final List<BudgetStatus> statuses = [];
 
-    // Create a map of existing non-investment budgets by category name
+    // Create a map of existing non-investment budgets by categoryId
     final budgetMap = {
       for (var b in _budgets)
-        if (!_isInvestmentCategory(b.categoryId, b.categoryName)) b.categoryName: b
+        if (!_isInvestmentCategory(b.categoryId)) b.categoryId: b
     };
 
     // For each category (excluding investment)
@@ -585,11 +577,11 @@ class BudgetViewModel extends ChangeNotifier {
     for (final category in iterationList) {
       if (category.kind == CategoryKind.investment) continue; // ADR-0025 §6
 
-      final spent = categoryTotals[category.name] ?? 0;
+      final spent = categoryTotals[category.id] ?? 0;
 
-      if (budgetMap.containsKey(category.name)) {
+      if (budgetMap.containsKey(category.id)) {
         // Has budget - calculate status
-        final budget = budgetMap[category.name]!;
+        final budget = budgetMap[category.id]!;
         statuses.add(BudgetStatus.fromBudget(budget, spent, emoji: category.emoji));
       } else if (spent > 0) {
         // No budget but has spent - show with limit=0
@@ -604,14 +596,14 @@ class BudgetViewModel extends ChangeNotifier {
     return statuses;
   }
 
-  /// Resolve emoji for a category name from the loaded categories,
-  /// falling back to seed defaults, then 📌.
-  String _resolveEmoji(String categoryName) {
+  /// Resolve emoji for a category id from the loaded categories,
+  /// falling back to seed defaults, then 📌. ADR-0036: id-based lookup.
+  String _resolveEmojiById(String categoryId) {
     for (final c in _categories) {
-      if (c.name == categoryName) return c.emoji;
+      if (c.id == categoryId) return c.emoji;
     }
     for (final c in seedCategories) {
-      if (c.name == categoryName) return c.emoji;
+      if (c.id == categoryId) return c.emoji;
     }
     return '📌';
   }

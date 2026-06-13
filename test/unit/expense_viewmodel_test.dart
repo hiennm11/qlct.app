@@ -310,6 +310,7 @@ void main() {
     });
 
     test('categoryTotals groups amounts correctly', () async {
+      // ADR-0036: categoryTotals is keyed by categoryId, not display name.
       final now = DateTime.now();
       final t1 = Transaction(
         id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: sampleCategory.id, emoji: '🍜',
@@ -327,7 +328,40 @@ void main() {
       viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
       await Future.delayed(Duration.zero);
 
-      expect(viewModel.stats.categoryTotals['Ăn ngoài'], 80000);
+      // Keyed by categoryId (stable identity) — sampleCategory.id = 'food_out'.
+      expect(viewModel.stats.categoryTotals[sampleCategory.id], 80000);
+      // The map must NOT key by the display name anymore.
+      expect(viewModel.stats.categoryTotals.containsKey('Ăn ngoài'), isFalse,
+          reason: 'ADR-0036: keys are categoryId, not display name');
+    });
+
+    test('categoryTotals aggregates by id across renames', () async {
+      // ADR-0036 regression: when the same categoryId is recorded under two
+      // different display names (one pre-rename, one post-rename), the
+      // aggregate must collapse to a single entry keyed by the id, summing
+      // both amounts.
+      final now = DateTime.now();
+      final txPreRename = Transaction(
+        id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', emoji: '🍜',
+        date: DateTime(now.year, now.month, 5), note: '',
+      );
+      final txPostRename = Transaction(
+        id: '2', amount: 30000, category: 'Đi ăn', categoryId: 'food_out', emoji: '🍜',
+        date: DateTime(now.year, now.month, 10), note: '',
+      );
+
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [txPreRename, txPostRename]);
+      when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
+          .thenAnswer((_) async => [txPreRename, txPostRename]);
+
+      viewModel = ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
+      await Future.delayed(Duration.zero);
+
+      final totals = viewModel.stats.categoryTotals;
+      expect(totals.length, 1,
+          reason: 'Same categoryId under different display names must collapse');
+      expect(totals['food_out'], 80000,
+          reason: 'Sum of pre-rename and post-rename amounts');
     });
   });
 

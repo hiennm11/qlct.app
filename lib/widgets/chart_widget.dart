@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/expense_stats.dart';
+import '../models/category.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../core/theme.dart';
 import '../core/formatters.dart';
 import 'section_header.dart';
 
-/// Widget displaying expense chart by category
+/// Widget displaying expense chart by category.
+///
+/// ADR-0036: stats are keyed by `categoryId`. This widget takes a
+/// pre-resolved `List<Category>` from the parent and maps id → display
+/// (name, emoji, color). Same categoryId always gets the same color via
+/// `id.hashCode.abs() % palette.length`.
 class ChartWidget extends StatefulWidget {
-  const ChartWidget({super.key});
+  final List<Category> activeCategories;
+
+  const ChartWidget({super.key, required this.activeCategories});
 
   @override
   State<ChartWidget> createState() => _ChartWidgetState();
@@ -20,6 +28,7 @@ class _ChartWidgetState extends State<ChartWidget> {
   // and re-layouts every section on every build; recomputing them on each
   // ExpenseViewModel notification is wasted work when stats haven't changed.
   ExpenseStats? _lastStats;
+  List<Category>? _lastCategories;
   List<PieChartSectionData>? _cachedSections;
 
   @override
@@ -32,6 +41,7 @@ class _ChartWidgetState extends State<ChartWidget> {
         if (viewModel.isLoading && viewModel.allTransactions.isEmpty) {
           // Loading state — drop any cached sections since data is stale.
           _lastStats = null;
+          _lastCategories = null;
           _cachedSections = null;
           return const Card(
             child: Padding(
@@ -45,6 +55,7 @@ class _ChartWidgetState extends State<ChartWidget> {
 
         if (categoryTotals.isEmpty) {
           _lastStats = null;
+          _lastCategories = null;
           _cachedSections = null;
           return const Card(
             child: Padding(
@@ -66,10 +77,13 @@ class _ChartWidgetState extends State<ChartWidget> {
           );
         }
 
-        // Recompute sections only when stats instance changes.
-        if (_cachedSections == null || !identical(_lastStats, stats)) {
-          _cachedSections = _createSections(categoryTotals);
+        // Recompute sections only when stats or active categories change.
+        if (_cachedSections == null ||
+            !identical(_lastStats, stats) ||
+            !identical(_lastCategories, widget.activeCategories)) {
+          _cachedSections = _createSections(categoryTotals, widget.activeCategories);
           _lastStats = stats;
+          _lastCategories = widget.activeCategories;
         }
 
         return Card(
@@ -96,7 +110,10 @@ class _ChartWidgetState extends State<ChartWidget> {
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: _Legend(categoryTotals: categoryTotals),
+                        child: _Legend(
+                          categoryTotals: categoryTotals,
+                          activeCategories: widget.activeCategories,
+                        ),
                       ),
                     ],
                   ),
@@ -109,15 +126,18 @@ class _ChartWidgetState extends State<ChartWidget> {
     );
   }
 
-  List<PieChartSectionData> _createSections(Map<String, int> categoryTotals) {
+  List<PieChartSectionData> _createSections(
+    Map<String, int> categoryTotals,
+    List<Category> activeCategories,
+  ) {
     final total = categoryTotals.values.fold(0, (sum, val) => sum + val);
     final colors = AppColors.categoryColors;
 
-    int colorIndex = 0;
     return categoryTotals.entries.map((entry) {
       final percentage = (entry.value / total * 100).toStringAsFixed(1);
-      final color = colors[colorIndex % colors.length];
-      colorIndex++;
+      // ADR-0036: deterministic color by categoryId hash. Same id always
+      // gets the same color regardless of iteration order.
+      final color = colors[entry.key.hashCode.abs() % colors.length];
 
       return PieChartSectionData(
         value: entry.value.toDouble(),
@@ -136,19 +156,26 @@ class _ChartWidgetState extends State<ChartWidget> {
 
 class _Legend extends StatelessWidget {
   final Map<String, int> categoryTotals;
+  final List<Category> activeCategories;
 
-  const _Legend({required this.categoryTotals});
+  const _Legend({
+    required this.categoryTotals,
+    required this.activeCategories,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.categoryColors;
+    final categoriesById = {for (final c in activeCategories) c.id: c};
 
-    int colorIndex = 0;
     return ListView(
       shrinkWrap: true,
       children: categoryTotals.entries.map((entry) {
-        final color = colors[colorIndex % colors.length];
-        colorIndex++;
+        // ADR-0036: stable color by id hash, name from catalog.
+        final color = colors[entry.key.hashCode.abs() % colors.length];
+        final cat = categoriesById[entry.key];
+        final displayName = cat?.name ?? 'Khác';
+        final emoji = cat?.emoji ?? '📌';
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
@@ -168,7 +195,7 @@ class _Legend extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      entry.key,
+                      '$emoji $displayName',
                       style: const TextStyle(fontSize: 12),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

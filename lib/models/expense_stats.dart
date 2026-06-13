@@ -2,7 +2,12 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'expense_stats.freezed.dart';
 
-/// Statistics for expense tracking
+/// Statistics for expense tracking.
+///
+/// [categoryTotals] is keyed by `Transaction.categoryId` (stable identity
+/// per ADR-0027), NOT by the display-name snapshot. UI consumers must
+/// resolve each id against the current `Category` catalog to obtain the
+/// display name, emoji, and color (ADR-0036).
 @freezed
 class ExpenseStats with _$ExpenseStats {
   const factory ExpenseStats({

@@ -515,6 +515,7 @@ class ExpenseViewModel extends ChangeNotifier {
     int todayExpense = 0;
     int weekExpense = 0;
     int monthExpense = 0;
+    // ADR-0036: keyed by categoryId (stable identity), not display name.
     final Map<String, int> categoryTotals = {};
 
     for (final transaction in _transactions) {
@@ -534,8 +535,10 @@ class ExpenseViewModel extends ChangeNotifier {
 
       if (transaction.date.isAfter(monthStart.subtract(const Duration(seconds: 1)))) {
         monthExpense += transaction.amount;
-        categoryTotals[transaction.category] =
-            (categoryTotals[transaction.category] ?? 0) + transaction.amount;
+        final id = transaction.categoryId;
+        if (id.isNotEmpty) {
+          categoryTotals[id] = (categoryTotals[id] ?? 0) + transaction.amount;
+        }
       }
     }
 

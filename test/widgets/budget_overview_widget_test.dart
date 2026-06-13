@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/budget_plan.dart';
 import 'package:qlct/models/budget_snapshot.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/models/expense_stats.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
@@ -42,6 +43,7 @@ void main() {
     registerFallbackValue(Budget(
       id: '0',
       categoryName: '',
+      categoryId: 'fallback',
       monthlyLimit: 0,
       alertThreshold: 80,
       createdAt: DateTime.now(),
@@ -58,6 +60,7 @@ void main() {
     registerFallbackValue(BudgetPlanItem(
       yearMonth: '2026-01',
       categoryName: 'test',
+      categoryId: 'fallback',
       plannedLimit: 0,
     ));
   });
@@ -95,7 +98,7 @@ void main() {
     when(() => mockPlanRepo.count()).thenAnswer((_) async => 0);
     when(() => mockPlanRepo.itemCount()).thenAnswer((_) async => 0);
     // CategoryLocalDataSource stub
-    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => []);
+    when(() => mockCategoryDS.getAll()).thenAnswer((_) async => seedCategories);
     // StorageService stubs
     when(() => mockStorage.loadValue<int>('total_budget')).thenReturn(null);
     // Pre-load so _loadBudgetsFuture resolves before any test body runs.
@@ -121,6 +124,7 @@ void main() {
         Budget(
           id: '1',
           categoryName: 'Ăn ngoài',
+          categoryId: 'food_out',
           monthlyLimit: 2000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 1, 1),
@@ -128,6 +132,7 @@ void main() {
         Budget(
           id: '2',
           categoryName: 'Cà phê',
+          categoryId: 'coffee',
           monthlyLimit: 1000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 1, 1),
@@ -135,6 +140,7 @@ void main() {
         Budget(
           id: '3',
           categoryName: 'Ăn nhà',
+          categoryId: 'food_home',
           monthlyLimit: 5000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 1, 1),
@@ -145,6 +151,7 @@ void main() {
         Budget(
           id: '1',
           categoryName: 'Ăn ngoài',
+          categoryId: 'food_out',
           monthlyLimit: 2000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 1, 1),
@@ -152,6 +159,7 @@ void main() {
         Budget(
           id: '2',
           categoryName: 'Cà phê',
+          categoryId: 'coffee',
           monthlyLimit: 1000000,
           alertThreshold: 80,
           createdAt: DateTime(2026, 1, 1),
@@ -209,9 +217,9 @@ void main() {
         when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
         vm.updateStats(buildStats({
-          'Ăn ngoài': 2500000, // 125% exceeded
-          'Cà phê': 900000,    // 90% warning
-          'Ăn nhà': 500000,    // 10% normal
+          'food_out': 2500000, // 125% exceeded
+          'coffee': 900000,    // 90% warning
+          'food_home': 500000, // 10% normal
         }));
         await tester.pumpWidget(wrap());
         await tester.pump();
@@ -225,9 +233,9 @@ void main() {
         when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
         vm.updateStats(buildStats({
-          'Ăn ngoài': 2500000,
-          'Cà phê': 900000,
-          'Ăn nhà': 500000,
+          'food_out': 2500000,
+          'coffee': 900000,
+          'food_home': 500000,
         }));
         await tester.pumpWidget(wrap());
         await tester.pump();
@@ -241,9 +249,9 @@ void main() {
         when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
         vm.updateStats(buildStats({
-          'Ăn ngoài': 2500000,
-          'Cà phê': 900000,
-          'Ăn nhà': 500000,
+          'food_out': 2500000,
+          'coffee': 900000,
+          'food_home': 500000,
         }));
         await tester.pumpWidget(wrap());
         await tester.pump();
@@ -259,9 +267,9 @@ void main() {
         when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
         vm.updateStats(buildStats({
-          'Ăn ngoài': 2500000,
-          'Cà phê': 900000,
-          'Ăn nhà': 500000,
+          'food_out': 2500000,
+          'coffee': 900000,
+          'food_home': 500000,
         }));
         await tester.pumpWidget(wrap());
         await tester.pump();
@@ -282,9 +290,9 @@ void main() {
         when(() => mockRepo.getAll()).thenAnswer((_) async => mixedBudgets());
         await vm.forceReload();
         vm.updateStats(buildStats({
-          'Ăn ngoài': 2500000,
-          'Cà phê': 900000,
-          'Ăn nhà': 500000,
+          'food_out': 2500000,
+          'coffee': 900000,
+          'food_home': 500000,
         }));
         await tester.pumpWidget(wrap());
         await tester.pump();
@@ -309,8 +317,8 @@ void main() {
         when(() => mockRepo.getAll()).thenAnswer((_) async => exceededBudgets());
         await vm.forceReload();
         vm.updateStats(buildStats({
-          'Ăn ngoài': 3000000, // 150% exceeded
-          'Cà phê': 1200000,   // 120% exceeded
+          'food_out': 3000000, // 150% exceeded
+          'coffee': 1200000,   // 120% exceeded
         }));
         await tester.pumpWidget(wrap());
         await tester.pump();
@@ -333,6 +341,7 @@ void main() {
             Budget(
               id: 'inv-1',
               categoryName: 'Đầu tư',
+              categoryId: 'investment',
               monthlyLimit: 10000000,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -340,6 +349,7 @@ void main() {
             Budget(
               id: 'food-1',
               categoryName: 'Ăn ngoài',
+              categoryId: 'food_out',
               monthlyLimit: 1000000,
               alertThreshold: 80,
               createdAt: DateTime(2026, 1, 1),
@@ -348,8 +358,8 @@ void main() {
       await vm.forceReload();
       // Make Ăn ngoài warning (90% of 1M = 900k) so it shows by default
       vm.updateStats(buildStats({
-        'Đầu tư': 12000000, // exceeded but should be excluded
-        'Ăn ngoài': 900000, // 90% warning — shows in default view
+        'investment': 12000000, // exceeded but should be excluded
+        'food_out': 900000, // 90% warning — shows in default view
       }));
       await tester.pumpWidget(wrap());
       await tester.pump();

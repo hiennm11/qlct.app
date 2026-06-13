@@ -39,15 +39,28 @@ class MonthlyReviewBuilder {
       return false;
     }
 
+    // ADR-0036: drop orphan ids (tx whose categoryId is not in the
+    // catalog) at the source. Orphans are unrenderable data — the
+    // category was deleted but the transaction still exists. They
+    // must not drive any aggregate, including the spending total.
+    final categoryIds = {for (final c in categories) c.id};
+    bool isOrphan(Transaction t) =>
+        t.categoryId.isNotEmpty && !categoryIds.contains(t.categoryId);
+
+    final currentMonthTxsFiltered =
+        currentMonthTxs.where((t) => !isOrphan(t)).toList();
+    final previousPeriodTxsFiltered =
+        previousPeriodTxs.where((t) => !isOrphan(t)).toList();
+
     // Separate spending vs investment
-    final currentSpending = currentMonthTxs
+    final currentSpending = currentMonthTxsFiltered
         .where((t) => !isCatInvestment(t.category))
         .toList();
-    final currentInvestment = currentMonthTxs
+    final currentInvestment = currentMonthTxsFiltered
         .where((t) => isCatInvestment(t.category))
         .toList();
 
-    final previousSpending = previousPeriodTxs
+    final previousSpending = previousPeriodTxsFiltered
         .where((t) => !isCatInvestment(t.category))
         .toList();
 
@@ -64,23 +77,19 @@ class MonthlyReviewBuilder {
     // Biggest increase/decrease
     final hasEnoughData = currentSpending.length >= 3;
     final biggestIncrease = _buildBiggestDelta(
-      currentSpending, previousPeriodTxs
-          .where((t) => !isCatInvestment(t.category))
-          .toList(),
+      currentSpending, previousSpending,
       categories: categories,
       positive: true,
     );
     final biggestDecrease = _buildBiggestDelta(
-      currentSpending, previousPeriodTxs
-          .where((t) => !isCatInvestment(t.category))
-          .toList(),
+      currentSpending, previousSpending,
       categories: categories,
       positive: false,
     );
 
     // Fixed expense summary
     final fixedExpenseSummary = _buildFixedExpenseSummary(
-      currentMonthTxs,
+      currentMonthTxsFiltered,
       activeRecurringRules,
       categories,
     );
@@ -118,10 +127,15 @@ class MonthlyReviewBuilder {
     int totalSpending,
     List<Category> categories,
   ) {
-    // Group by category
+    // ADR-0036: group by categoryId, not display name. Skip ids that
+    // do not exist in the supplied categories catalog (orphan ids).
+    final categoriesById = {for (final c in categories) c.id: c};
     final categoryTotals = <String, int>{};
     for (final tx in spendingTxs) {
-      categoryTotals[tx.category] = (categoryTotals[tx.category] ?? 0) + tx.amount;
+      final id = tx.categoryId;
+      if (id.isEmpty) continue;
+      if (!categoriesById.containsKey(id)) continue; // orphan, skip
+      categoryTotals[id] = (categoryTotals[id] ?? 0) + tx.amount;
     }
 
     // Sort by amount descending, take top 5
@@ -131,14 +145,13 @@ class MonthlyReviewBuilder {
     final top5 = sorted.take(5).toList();
 
     return top5.map((entry) {
-      final cat = categories.where((c) => c.name == entry.key).firstOrNull;
-      final emoji = cat?.emoji ?? '📌';
+      final cat = categoriesById[entry.key]!;
       final percent = totalSpending > 0
           ? ((entry.value / totalSpending) * 100).round()
           : 0;
       return MonthlyReviewCategorySummary(
-        categoryName: entry.key,
-        emoji: emoji,
+        categoryName: cat.name,
+        emoji: cat.emoji,
         amount: entry.value,
         percentOfSpending: percent,
       );
@@ -160,27 +173,35 @@ class MonthlyReviewBuilder {
     required List<Category> categories,
     required bool positive,
   }) {
-    // Group by category
+    // ADR-0036: group by categoryId, skip orphan ids.
     final currentTotals = <String, int>{};
     final previousTotals = <String, int>{};
+    final categoriesById = {for (final c in categories) c.id: c};
 
     for (final tx in currentSpending) {
-      currentTotals[tx.category] = (currentTotals[tx.category] ?? 0) + tx.amount;
+      final id = tx.categoryId;
+      if (id.isEmpty) continue;
+      if (!categoriesById.containsKey(id)) continue;
+      currentTotals[id] = (currentTotals[id] ?? 0) + tx.amount;
     }
     for (final tx in previousSpending) {
-      previousTotals[tx.category] = (previousTotals[tx.category] ?? 0) + tx.amount;
+      final id = tx.categoryId;
+      if (id.isEmpty) continue;
+      if (!categoriesById.containsKey(id)) continue;
+      previousTotals[id] = (previousTotals[id] ?? 0) + tx.amount;
     }
 
-    // Find all categories in either period
-    final allCategories = {...currentTotals.keys, ...previousTotals.keys};
+    // Find all categoryIds in either period
+    final allIds = {...currentTotals.keys, ...previousTotals.keys};
 
     // Compute deltas
     final deltas = <_DeltaEntry>[];
-    for (final catName in allCategories) {
-      final current = currentTotals[catName] ?? 0;
-      final previous = previousTotals[catName] ?? 0;
+    for (final id in allIds) {
+      final current = currentTotals[id] ?? 0;
+      final previous = previousTotals[id] ?? 0;
       final deltaVnd = current - previous;
       final isNewlyIncurred = previous == 0 && current > 0;
+      final displayName = categoriesById[id]?.name ?? 'Khác';
 
       // Calculate percent (handle division by zero)
       double deltaPercent;
@@ -191,7 +212,7 @@ class MonthlyReviewBuilder {
       }
 
       deltas.add(_DeltaEntry(
-        categoryName: catName,
+        categoryName: displayName,
         currentAmount: current,
         previousAmount: previous,
         deltaVnd: deltaVnd,
@@ -324,22 +345,28 @@ class MonthlyReviewBuilder {
     List<Category> categories,
     Map<String, int> carryByCategoryId,
   ) {
-    // Group spending by category
+    // ADR-0036: group spending by categoryId, not display name.
+    // Orphan ids (not in the catalog) are silently dropped — they
+    // have no budget to highlight and no category to render.
     final categoryTotals = <String, int>{};
+    final categoriesById = {for (final c in categories) c.id: c};
     for (final tx in currentSpending) {
-      categoryTotals[tx.category] = (categoryTotals[tx.category] ?? 0) + tx.amount;
+      final id = tx.categoryId;
+      if (id.isEmpty) continue;
+      if (!categoriesById.containsKey(id)) continue;
+      categoryTotals[id] = (categoryTotals[id] ?? 0) + tx.amount;
     }
 
-    final budgetMap = {for (var b in budgets) b.categoryName: b};
+    final budgetMap = {for (var b in budgets) b.categoryId: b};
     final highlights = <MonthlyReviewBudgetHighlight>[];
 
     // ADR-0025 §6: skip investment categories in budget highlights
     for (final category in categories) {
       if (category.kind == CategoryKind.investment) continue;
-      final budget = budgetMap[category.name];
+      final budget = budgetMap[category.id];
       if (budget == null) continue;
 
-      final spent = categoryTotals[category.name] ?? 0;
+      final spent = categoryTotals[category.id] ?? 0;
       final limit = budget.monthlyLimit;
       final percentUsed = limit > 0 ? ((spent / limit) * 100).round() : 0;
       final isExceeded = percentUsed >= 100;

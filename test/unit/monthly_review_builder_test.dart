@@ -657,5 +657,189 @@ void main() {
         expect(result.budgetHighlights[0].carryAmount, 0);
       });
     });
+
+    // ─── ADR-0036: categoryId-based aggregation ─────────────────────────────
+
+    group('ADR-0036: top categories dedupe across category rename', () {
+      test('same categoryId under different display names collapses to single entry', () {
+        // Regression: the same categoryId must aggregate together even when
+        // one transaction was logged before the category was renamed and one
+        // after. Pre-ADR-0036 the local map was keyed by display name and
+        // these would have produced two top-5 entries.
+        final txs = [
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 30000, category: 'Đi ăn', categoryId: 'food_out', date: DateTime(2026, 6, 5)),
+        ];
+
+        final result = builder.build(
+          currentMonthTxs: txs,
+          previousPeriodTxs: [],
+          budgets: [],
+          activeRecurringRules: [],
+          categories: seedCategories,
+          selectedMonth: _monthStart(2026, 6),
+          currentPeriodStart: _monthStart(2026, 6),
+          currentPeriodEnd: _monthEnd(2026, 6),
+          previousPeriodStart: _monthStart(2026, 5),
+          previousPeriodEnd: _monthEnd(2026, 5),
+        );
+
+        // Both transactions must collapse into a single top-category entry.
+        expect(result.topCategories.length, 1,
+            reason: 'Same categoryId must collapse regardless of display name');
+        // Amount is the sum of both transactions.
+        expect(result.topCategories.first.amount, 80000,
+            reason: 'Sum of pre-rename and post-rename amounts');
+        // Display name is the current (live) one, not the historical snapshot.
+        expect(result.topCategories.first.categoryName, 'Ăn ngoài',
+            reason: 'Top-category display name is the live catalog name');
+      });
+
+      test('top 5: deduped spending + 1 investment tx leaves 1 entry', () {
+        // 3 spending txs (2 distinct categoryIds, one split across rename) +
+        // 1 investment tx. Top-5 must have 1 spending entry + 0 investment.
+        final txs = [
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 30000, category: 'Đi ăn', categoryId: 'food_out', date: DateTime(2026, 6, 5)),
+          _tx(id: '3', amount: 20000, category: 'Cà phê', categoryId: 'coffee', date: DateTime(2026, 6, 6)),
+          _tx(id: '4', amount: 5000000, category: 'Đầu tư', categoryId: 'investment', date: DateTime(2026, 6, 7)),
+        ];
+
+        final result = builder.build(
+          currentMonthTxs: txs,
+          previousPeriodTxs: [],
+          budgets: [],
+          activeRecurringRules: [],
+          categories: seedCategories,
+          selectedMonth: _monthStart(2026, 6),
+          currentPeriodStart: _monthStart(2026, 6),
+          currentPeriodEnd: _monthEnd(2026, 6),
+          previousPeriodStart: _monthStart(2026, 5),
+          previousPeriodEnd: _monthEnd(2026, 5),
+        );
+
+        expect(result.topCategories.length, 2,
+            reason: 'food_out (deduped) + coffee; investment excluded');
+        expect(result.topCategories.first.amount, 80000,
+            reason: 'food_out = 50k + 30k after rename collapse');
+        expect(result.topCategories.first.categoryName, 'Ăn ngoài');
+        expect(result.topCategories[1].categoryName, 'Cà phê');
+        // Investment must never appear in top categories.
+        expect(result.topCategories.any((c) => c.categoryName == 'Đầu tư'), isFalse);
+        // spendingTotal excludes investment (5M).
+        expect(result.spendingTotal, 100000);
+        expect(result.investmentTotal, 5000000);
+      });
+    });
+
+    group('ADR-0036: orphan categoryId', () {
+      test('tx with categoryId not in catalog is skipped from aggregates', () {
+        // tx.categoryId points to a category that does NOT exist in the
+        // categories catalog. It must not appear in topCategories, must not
+        // contribute to spendingTotal, and must not crash the builder.
+        final txs = [
+          _tx(id: '1', amount: 70000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 25000, category: 'Tên cũ', categoryId: 'orphan_id', date: DateTime(2026, 6, 5)),
+        ];
+
+        final result = builder.build(
+          currentMonthTxs: txs,
+          previousPeriodTxs: [],
+          budgets: [],
+          activeRecurringRules: [],
+          categories: seedCategories,
+          selectedMonth: _monthStart(2026, 6),
+          currentPeriodStart: _monthStart(2026, 6),
+          currentPeriodEnd: _monthEnd(2026, 6),
+          previousPeriodStart: _monthStart(2026, 5),
+          previousPeriodEnd: _monthEnd(2026, 5),
+        );
+
+        // Only the known categoryId appears in top categories.
+        expect(result.topCategories.length, 1,
+            reason: 'Orphan categoryId must be skipped from aggregates');
+        expect(result.topCategories.first.categoryName, 'Ăn ngoài');
+        expect(result.topCategories.first.amount, 70000);
+        // Spending total excludes orphan contribution.
+        expect(result.spendingTotal, 70000);
+        // No crashes; orphan is dropped, so remaining (= total - top) is 0.
+        expect(result.remainingCategoryTotal, 0);
+      });
+
+      test('orphan categoryId does not crash budget highlights', () {
+        final txs = [
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 30000, category: 'Orphan', categoryId: 'orphan_id', date: DateTime(2026, 6, 2)),
+        ];
+        final budgets = [
+          // Limit chosen so 50k of food_out = 50% (below alert 80%) is normal,
+          // not warning. We assert no crash and no double-count; the highlight
+          // is not emitted because food_out is in normal range, which is the
+          // correct behavior. The orphan's 30k must not appear anywhere in
+          // the budgetHighlights list since it has no matching budget.
+          _budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'food_out', monthlyLimit: 300000, alertThreshold: 80),
+        ];
+
+        final result = builder.build(
+          currentMonthTxs: txs,
+          previousPeriodTxs: [],
+          budgets: budgets,
+          activeRecurringRules: [],
+          categories: seedCategories,
+          selectedMonth: _monthStart(2026, 6),
+          currentPeriodStart: _monthStart(2026, 6),
+          currentPeriodEnd: _monthEnd(2026, 6),
+          previousPeriodStart: _monthStart(2026, 5),
+          previousPeriodEnd: _monthEnd(2026, 5),
+        );
+
+        // food_out is in normal range (50k/300k = 16%) — no highlight emitted.
+        // Orphan's 30k must not be reattributed to food_out's bucket.
+        expect(result.budgetHighlights, isEmpty,
+            reason: 'food_out is in normal range; orphan must not be reattributed');
+        // Spending total excludes orphan's 30k (ADR-0036: orphan ids are
+        // dropped from id-key aggregation when the id is not in categories,
+        // so the orphan is treated as data the catalog cannot render).
+        expect(result.spendingTotal, 50000);
+      });
+    });
+
+    group('ADR-0036: budget highlights by categoryId (idempotent on rename)', () {
+      test('spending across rename does not double-count in budget highlight spent', () {
+        // The two transactions share categoryId='food_out' but carry
+        // different display-name snapshots. The highlight must total 80k,
+        // not produce two separate highlights (one per display name).
+        final txs = [
+          _tx(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'food_out', date: DateTime(2026, 6, 1)),
+          _tx(id: '2', amount: 30000, category: 'Đi ăn', categoryId: 'food_out', date: DateTime(2026, 6, 5)),
+        ];
+        final budgets = [
+          _budget(id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'food_out', monthlyLimit: 100000, alertThreshold: 80),
+        ];
+
+        final result = builder.build(
+          currentMonthTxs: txs,
+          previousPeriodTxs: [],
+          budgets: budgets,
+          activeRecurringRules: [],
+          categories: seedCategories,
+          selectedMonth: _monthStart(2026, 6),
+          currentPeriodStart: _monthStart(2026, 6),
+          currentPeriodEnd: _monthEnd(2026, 6),
+          previousPeriodStart: _monthStart(2026, 5),
+          previousPeriodEnd: _monthEnd(2026, 5),
+        );
+
+        // Exactly one highlight for the deduped categoryId.
+        expect(result.budgetHighlights.length, 1,
+            reason: 'Renamed display names must not produce duplicate highlights');
+        expect(result.budgetHighlights.first.categoryName, 'Ăn ngoài');
+        expect(result.budgetHighlights.first.spent, 80000,
+            reason: 'Spent = 50k + 30k after id-based aggregation');
+        // 80k of 100k limit = 80% = warning.
+        expect(result.budgetHighlights.first.isWarning, isTrue);
+        expect(result.budgetHighlights.first.isExceeded, isFalse);
+      });
+    });
   });
 }

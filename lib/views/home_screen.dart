@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
 
 import '../viewmodels/recurring_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
 import '../widgets/stats_widget.dart';
 import '../widgets/transaction_list_widget.dart';
 import '../widgets/chart_widget.dart';
@@ -350,7 +351,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: const ChartWidget(),
+                    // ADR-0036: ChartWidget needs the live category catalog
+                    // to resolve categoryId → name/emoji/color. Watch
+                    // CategoryViewModel so renames reflect immediately.
+                    child: Consumer<CategoryViewModel>(
+                      builder: (context, categoryVM, _) =>
+                          ChartWidget(activeCategories: categoryVM.activeCategories),
+                    ),
                   ),
                 ),
                 const SliverToBoxAdapter(
