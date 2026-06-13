@@ -175,6 +175,8 @@ Do not chase unrelated legacy/full-suite failures.
 
 ### Deferred
 
-- Hard delete for unused custom categories.
-- Drag-and-drop category ordering.
-- Fix `quick_input_widget._amounts` key from category name to categoryId.
+- ~~Hard delete for unused custom categories.~~ **Closed by [ADR-0034](../adr/0034-category-cleanup-batch.md)** — budget-aware hard delete landed.
+- Drag-and-drop category ordering. **Still open** — defer từ [ADR-0028 §Deferred](../adr/0028-category-management-safe-fields.md). Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~Fix `quick_input_widget._amounts` key from category name to categoryId.~~ **Closed incidentally by [ADR-0036](../adr/0036-stats-aggregates-by-categoryid.md)** — `_amounts` đã key by `category.id` từ ADR-0027+.
+
+> 2 items closed, 1 item (DnD ordering) still open. Audit 2026-06-13.

@@ -230,8 +230,10 @@ No schema version bump needed. The `categories` table structure is unchanged fro
 
 ### Deferred
 
-- Edit `CategoryKind` and `BudgetBehavior` after creation.
-- Hard delete for unused custom categories.
-- Drag-and-drop category ordering.
-- Investment category creation by users.
-- Fix `quick_input_widget._amounts` to key by `categoryId`.
+- ~~Edit `CategoryKind` and `BudgetBehavior` after creation.~~ **Closed by [ADR-0033](../adr/0033-category-behavior-editing.md)** — kind/behavior dropdowns landed (trừ `other`).
+- ~~Hard delete for unused custom categories.~~ **Closed by [ADR-0034](../adr/0034-category-cleanup-batch.md)** — budget-aware hard delete landed.
+- Drag-and-drop category ordering. **Still open** — defer tiếp ở [ADR-0033 §Deferred](../adr/0033-category-behavior-editing.md). Tracked in `CONTEXT.md` §Open Deferred Items.
+- Investment category creation by users. **Still open** — categories vẫn forced `spending`/`flexible` ở create (per ADR-0031 §2.1). Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~Fix `quick_input_widget._amounts` to key by `categoryId`.~~ **Closed incidentally by [ADR-0036](../adr/0036-stats-aggregates-by-categoryid.md)** — `_amounts` đã key by `category.id` từ ADR-0027+.
+
+> 3 items closed, 2 items still open (DnD ordering, investment create). Audit 2026-06-13.

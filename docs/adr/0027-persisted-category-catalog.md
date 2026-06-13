@@ -454,11 +454,13 @@ Rationale: ADR-0023 already made backup validation strict. Category config affec
 
 ### Deferred
 
-- Category management UI.
-- Financial table migration to `categoryId`.
-- Transaction `categoryNameSnapshot`.
-- Rollover mode and rollover adjustment traces.
-- Advanced editing of `kind` and `budgetBehavior`.
+- ~~Category management UI.~~ **Closed by [ADR-0028](../adr/0028-category-management-safe-fields.md)** — safe-fields management UI landed.
+- ~~Financial table migration to `categoryId`.~~ **Closed by [ADR-0029](../adr/0029-category-id-financial-table-migration.md)** — `category_id TEXT` added to all financial tables.
+- ~~Transaction `categoryNameSnapshot`.~~ **Closed by [ADR-0029](../adr/0029-category-id-financial-table-migration.md)** — `category_name` retained as denormalized snapshot.
+- ~~Rollover mode and rollover adjustment traces.~~ **Closed by [ADR-0030](../adr/0030-rollover-category-id-matching.md) + [ADR-0032](../adr/0032-monthly-budget-carry-over.md) + [ADR-0035](../adr/0035-monthly-review-carry-out.md)** — rollover policy and carry-over display landed.
+- ~~Advanced editing of `kind` and `budgetBehavior`.~~ **Closed by [ADR-0033](../adr/0033-category-behavior-editing.md)** — `CategoryKind` + `BudgetBehavior` dropdowns in `CategoryEditSheet`.
+
+> All items in this §Deferred list are now closed. Audit 2026-06-13.
 
 ## Implementation Notes
 

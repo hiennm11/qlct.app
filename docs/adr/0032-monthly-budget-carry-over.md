@@ -266,8 +266,10 @@ Do not chase unrelated legacy/full-suite failures.
 
 ### Deferred
 
-- Negative carry-over / debt-style rollover.
-- Per-category rollover rules.
-- Editing `BudgetBehavior` in category management.
-- A dedicated rollover detail screen.
-- Real-time projected carry-over during the current month.
+- Negative carry-over / debt-style rollover. **Still open** — carry-over hiện chỉ compute `max(0, limit - spent)`, không track negative balance. Generic future work.
+- Per-category rollover rules. **Still open** — flexible carry, fixed/excluded skip. Generic future work.
+- ~~Editing `BudgetBehavior` in category management.~~ **Closed by [ADR-0033](../adr/0033-category-behavior-editing.md)** — `BudgetBehavior` dropdown landed.
+- A dedicated rollover detail screen. **Still open** — generic future UX.
+- Real-time projected carry-over during the current month. **Still open** — generic future.
+
+> 1 item closed, 4 items still open (generic future scope). Audit 2026-06-13.

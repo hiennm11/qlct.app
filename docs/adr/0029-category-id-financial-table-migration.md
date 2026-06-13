@@ -347,8 +347,12 @@ Those are unlocked by this migration but remain separate phases.
 
 ## Deferred
 
-- Category rename and custom category creation.
-- Category merge or hard delete flows.
-- User-facing placeholder cleanup workflow.
-- Advanced behavior editing (`CategoryKind`, `BudgetBehavior`).
-- Phase 3 budget rollover.
+- ~~Category rename and custom category creation.~~ **Closed by [ADR-0031](../adr/0031-category-rename-create.md)** — rename + create landed.
+- Category merge or hard delete flows. **Partially closed**:
+  - Hard delete: **Closed by [ADR-0034](../adr/0034-category-cleanup-batch.md)** — budget-aware hard delete UI.
+  - Merge: **Still open** — defer tiếp ở [ADR-0034 §Deferred](../adr/0034-category-cleanup-batch.md). Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~User-facing placeholder cleanup workflow.~~ **Closed by [ADR-0034](../adr/0034-category-cleanup-batch.md)** — placeholder archived category cleanup batch.
+- ~~Advanced behavior editing (`CategoryKind`, `BudgetBehavior`).~~ **Closed by [ADR-0033](../adr/0033-category-behavior-editing.md)** — kind/behavior dropdowns landed.
+- ~~Phase 3 budget rollover.~~ **Closed by [ADR-0032](../adr/0032-monthly-budget-carry-over.md) + [ADR-0035](../adr/0035-monthly-review-carry-out.md)** — rollover carry-over policy + Monthly Review display landed.
+
+> 4 items fully closed, 1 item (merge) partially closed. Audit 2026-06-13.

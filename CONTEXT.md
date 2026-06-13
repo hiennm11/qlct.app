@@ -198,6 +198,46 @@ Monthly Review budget insight → MonthlyReviewViewModel.loadMonth(selectedMonth
 39. **Monthly Review Carry-Out** — ADR-0035: `MonthlyReviewBuilder.build()` accepts optional `Map<String, int> carryByCategoryId` that flows into `MonthlyReviewBudgetHighlight.carryAmount`. `MonthlyReviewViewModel._loadCurrentMonth()` builds the carry map from past-month snapshots and passes it to the builder. Monthly Review screen renders `Còn dư chuyển tháng sau: +X ₫` in green below exceeded/warning budget highlight rows when `carryAmount > 0`. Current month renders no carry line (spending not yet final).
 40. **Stats Aggregates by CategoryId** — ADR-0036: `ExpenseStats.categoryTotals` và `MonthlyReviewBuilder` local maps aggregate theo `Transaction.categoryId`, không phải display name. UI widgets (chart, legend, monthly review screen) nhận `List<Category>` từ parent và resolve `categoryId` → `(name, emoji, color)` cho display. Color = `id.hashCode.abs() % palette.length` để ổn định qua runs. `_isInvestmentCategory` drop name fallback, luôn check qua `Category.kind` ở resolved `Category`. Closes ADR-0030 §Deferred item 4. Closes ADR-0031 §Deferred item 5 incidentally (`QuickInputWidget._amounts` đã key by `category.id` từ ADR-0027+).
 
+## Open Deferred Items
+
+Tracked từ audit 2026-06-13 sau khi ADR-0036 close. Status: **🔴 open** = chưa có ADR close, **🟡 acknowledged** = explicit defer với rationale, không nên làm ngay.
+
+### 🔴 Open (concrete, scope rõ, có thể viết ADR mới)
+
+| # | Item | First deferred in | Also mentioned in | Note |
+|---|------|-------------------|-------------------|------|
+| 1 | **Drag-and-drop category ordering** | ADR-0028 §Deferred | ADR-0033 §Deferred | Hiện tại `sortOrder` edit bằng number input (ADR-0028 negative: "less intuitive than drag-and-drop"). 2 lần defer cùng 1 item → chưa có ADR đóng. |
+| 2 | **Merge categories** | ADR-0034 §Deferred | — | ADR-0034 close "hard delete" + "placeholder cleanup" nhưng defer "merge" (reassign all transactions từ cat A → cat B). |
+| 3 | **Soft-delete recovery for custom categories** | ADR-0034 §Deferred | — | ADR-0034 chỉ implement hard delete. Chưa có trash/restore flow cho custom categories đã xoá nhầm. |
+
+### 🟡 Acknowledged (explicit defer, chưa nên làm)
+
+| # | Item | First deferred in | Note |
+|---|------|-------------------|------|
+| 4 | **SQL query thay `txRepo.getAll()` cho recurring duplicate check** | ADR-0015 §D4 | "Dataset hiện nhỏ (<1000 tx), chưa gây performance issue thực tế. Làm khi cần." — explicit defer với rationale. |
+| 5 | **Generic test coverage gaps từ ADR-0002** | ADR-0002 §"Not covered yet" | "Integration tests, widget tests for individual widgets, ExportService tests — deferred to follow-up ADR." — chưa có ADR follow-up. Hiện đã có ~421 tests (nhiều cái cover these areas rồi) nhưng chưa audit. |
+
+### 📋 Generic "out of scope" lists (chưa có concrete ADR request, track low priority)
+
+| Source | Items |
+|--------|-------|
+| ADR-0020 | Persisted suggestion memory, Merchant/fuzzy matching, Auto-template generation, Template suggestions, Full-history suggestion queries, ML/ranking |
+| ADR-0019 | Smart suggestions / merchant memory |
+| ADR-0026 | Planning multiple future months (no month picker beyond `currentMonth + 1`) |
+| ADR-0021 | Same-period compare cho current month (chưa chắc cần) |
+| ADR-0023 | Checksum trong backup (đã bị reject); partial restore skipping corrupt rows (rejected cho backup contract) |
+| ADR-0025 | Apply past snapshot back to current live config |
+| ADR-0010 | Migration/backup/analytics test files (test coverage — overlap với #5) |
+
+### Pre-existing issues (không phải deferred nhưng vẫn open)
+
+- **`budget_overview_widget_test.dart` execution hang** — `pumpAndSettle` timeout 10 phút. Pre-existing widget test infrastructure issue, ngoài scope ADR-0036. Cần address riêng nếu muốn CI chạy file này.
+
+### Recommended next
+
+- **Nhóm A (concrete)**: Drag-and-drop ordering (#1) — đã 2 lần defer, có giá trị UX rõ, recommend viết ADR mới trước.
+- **Nhóm B (low risk)**: Soft-delete recovery (#3) — bổ sung cho hard delete đã có ở ADR-0034.
+
 ## Dependencies
 
 | Package | Purpose |

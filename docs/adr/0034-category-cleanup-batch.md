@@ -101,6 +101,8 @@ Do not chase unrelated legacy/full-suite failures.
 
 ### Deferred
 
-- Merge categories.
-- Soft-delete recovery for custom categories.
-- Monthly Review carry-out UI.
+- Merge categories. **Still open** — reassign all transactions từ cat A → cat B. Tracked in `CONTEXT.md` §Open Deferred Items.
+- Soft-delete recovery for custom categories. **Still open** — chưa có trash/restore flow. Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~Monthly Review carry-out UI.~~ **Closed by [ADR-0035](../adr/0035-monthly-review-carry-out.md)** — `Còn dư chuyển tháng sau: +X ₫` display landed.
+
+> 1 item closed, 2 items still open (merge, soft-delete recovery). Audit 2026-06-13.

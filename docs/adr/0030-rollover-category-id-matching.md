@@ -143,7 +143,11 @@ Do not chase unrelated legacy/full-suite failures in this slice.
 
 ### Deferred
 
-- Actual rollover carry-over policy and bucket math.
-- Category rename UI.
-- Custom category creation and merge flows.
-- Moving `ExpenseStats.categoryTotals` from name-keyed maps to categoryId-keyed aggregates.
+- ~~Actual rollover carry-over policy and bucket math.~~ **Closed by [ADR-0032](../adr/0032-monthly-budget-carry-over.md) + [ADR-0035](../adr/0035-monthly-review-carry-out.md)** — `carryAmount` computation, persistence, and Monthly Review display landed.
+- ~~Category rename UI.~~ **Closed by [ADR-0031](../adr/0031-category-rename-create.md)**.
+- Custom category creation and merge flows. **Partially closed**:
+  - Custom category creation: **Closed by [ADR-0031](../adr/0031-category-rename-create.md)**.
+  - Merge: **Still open** — defer tiếp ở [ADR-0034 §Deferred](../adr/0034-category-cleanup-batch.md).
+- ~~Moving `ExpenseStats.categoryTotals` from name-keyed maps to categoryId-keyed aggregates.~~ **Closed by [ADR-0036](../adr/0036-stats-aggregates-by-categoryid.md)** — `categoryTotals` + `MonthlyReviewBuilder` aggregates theo `categoryId`. Commit `2e5e88c`.
+
+> 3 items fully closed, 1 item (merge) partially closed. Audit 2026-06-13.
