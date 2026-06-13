@@ -176,7 +176,7 @@ Do not chase unrelated legacy/full-suite failures.
 ### Deferred
 
 - ~~Hard delete for unused custom categories.~~ **Closed by [ADR-0034](../adr/0034-category-cleanup-batch.md)** — budget-aware hard delete landed.
-- Drag-and-drop category ordering. **Still open** — defer từ [ADR-0028 §Deferred](../adr/0028-category-management-safe-fields.md). Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~Drag-and-drop category ordering.~~ **Closed by [ADR-0037](../adr/0037-category-management-ux-v2.md) §Feature 1** — `ReorderableListView` + drag handle, `CategoryViewModel.reorderCategories` persists 10/20/30… order + force `other` → 9999. Defer từ [ADR-0028 §Deferred](../adr/0028-category-management-safe-fields.md) cuối cùng đã close.
 - ~~Fix `quick_input_widget._amounts` key from category name to categoryId.~~ **Closed incidentally by [ADR-0036](../adr/0036-stats-aggregates-by-categoryid.md)** — `_amounts` đã key by `category.id` từ ADR-0027+.
 
 > 2 items closed, 1 item (DnD ordering) still open. Audit 2026-06-13.

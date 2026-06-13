@@ -102,7 +102,7 @@ Do not chase unrelated legacy/full-suite failures.
 ### Deferred
 
 - Merge categories. **Still open** — reassign all transactions từ cat A → cat B. Tracked in `CONTEXT.md` §Open Deferred Items.
-- Soft-delete recovery for custom categories. **Still open** — chưa có trash/restore flow. Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~Soft-delete recovery for custom categories.~~ **Closed by [ADR-0037](../adr/0037-category-management-ux-v2.md) §Feature 2** — `Category.deletedAt: DateTime?` (separate field per deviation rationale), `CategoryViewModel.softDeleteCategory`/`restoreCategory`/`purgeCategory`, "Thùng rác" section với "Khôi phục" + "Xoá vĩnh viễn" (có confirm) actions. SQLite v14→v15 + backup v8→v9.
 - ~~Monthly Review carry-out UI.~~ **Closed by [ADR-0035](../adr/0035-monthly-review-carry-out.md)** — `Còn dư chuyển tháng sau: +X ₫` display landed.
 
 > 1 item closed, 2 items still open (merge, soft-delete recovery). Audit 2026-06-13.

@@ -232,7 +232,7 @@ No schema version bump needed. The `categories` table structure is unchanged fro
 
 - ~~Edit `CategoryKind` and `BudgetBehavior` after creation.~~ **Closed by [ADR-0033](../adr/0033-category-behavior-editing.md)** — kind/behavior dropdowns landed (trừ `other`).
 - ~~Hard delete for unused custom categories.~~ **Closed by [ADR-0034](../adr/0034-category-cleanup-batch.md)** — budget-aware hard delete landed.
-- Drag-and-drop category ordering. **Still open** — defer tiếp ở [ADR-0033 §Deferred](../adr/0033-category-behavior-editing.md). Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~Drag-and-drop category ordering.~~ **Closed by [ADR-0037](../adr/0037-category-management-ux-v2.md) §Feature 1** — `ReorderableListView` với drag handle, `CategoryViewModel.reorderCategories` persist 10/20/30… order, force `other` → 9999.
 - Investment category creation by users. **Still open** — categories vẫn forced `spending`/`flexible` ở create (per ADR-0031 §2.1). Tracked in `CONTEXT.md` §Open Deferred Items.
 - ~~Fix `quick_input_widget._amounts` to key by `categoryId`.~~ **Closed incidentally by [ADR-0036](../adr/0036-stats-aggregates-by-categoryid.md)** — `_amounts` đã key by `category.id` từ ADR-0027+.
 

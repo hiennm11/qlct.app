@@ -314,6 +314,12 @@ Manual smoke (release build):
 
 ## Deferred
 
-- Old v8 backup re-import "resurrect" soft-deleted categories — nếu users complain, có thể add explicit "soft-deleted state" trong import dialog. Tracked trong `CONTEXT.md` §Open Deferred Items nếu cần.
-- Multi-select trong trash section (xoá/purge nhiều cùng lúc) — chưa cần, scale hiện tại nhỏ.
-- Drag-and-drop reorder cho archived section — không cần, archived = read-only management.
+Generic out-of-scope items identified during implementation, không có concrete user request. Track low priority trong `CONTEXT.md` §Open Deferred Items nếu user phản hồi.
+
+- **Auto-purge trash sau N ngày** — trash hiện tại giữ vĩnh viễn cho đến khi user tự "Xoá vĩnh viễn" (per Q3 grill). Có thể add `purgeDeletedOlderThan(DateTime)` background job sau nếu data tích luỹ nhiều.
+- **Merge 2 categories** — vẫn open ở ADR-0034 §Deferred, separate ADR.
+- **Placeholder category cleanup workflow** — ADR-0034 chỉ cleanup hàng loạt từ migration; chưa có UI xoá 1 placeholder thủ công (dù có thể dùng `softDeleteCategory`).
+- **Re-order archived section** — archived = read-only, không cần DnD.
+- **Bulk-archive categories** — chưa cần multi-select.
+- **Old v8 backup re-import "resurrect" soft-deleted categories** — nếu users complain, có thể add explicit "soft-deleted state" notice trong import dialog.
+- **Multi-select trong trash section** (xoá/purge nhiều cùng lúc) — chưa cần, scale hiện tại nhỏ.

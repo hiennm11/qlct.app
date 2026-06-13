@@ -216,11 +216,11 @@ Widgets should not call `CategoryLocalDataSource.upsert` directly. `CategoryView
 - ~~Category rename after Phase 2.6 categoryId migration.~~ **Closed by [ADR-0031](../adr/0031-category-rename-create.md)** — rename UI landed (except `other`).
 - ~~Custom category creation.~~ **Closed by [ADR-0031](../adr/0031-category-rename-create.md)** — `CategoryViewModel.createCategory` + `CategoryCreateSheet` landed.
 - ~~Hard delete for unused custom categories.~~ **Closed by [ADR-0034](../adr/0034-category-cleanup-batch.md)** — hard delete in `CategoryManagementScreen` (với budget-aware guard).
-- Drag-and-drop ordering. **Still open** — `sortOrder` vẫn edit bằng number input. Defer thêm ở [ADR-0033 §Deferred](../adr/0033-category-behavior-editing.md). Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~Drag-and-drop ordering.~~ **Closed by [ADR-0037](../adr/0037-category-management-ux-v2.md) §Feature 1** — `ReorderableListView` + `Icons.drag_handle` on `CategoryManagementScreen`, `CategoryViewModel.reorderCategories` persists 10/20/30… order + bumps `updatedAt` cho backup last-write-wins.
 - ~~Advanced editing of `CategoryKind` and `BudgetBehavior`.~~ **Closed by [ADR-0033](../adr/0033-category-behavior-editing.md)** — kind/behavior dropdowns in `CategoryEditSheet`.
 - ~~Rollover behavior configuration.~~ **Closed by [ADR-0032](../adr/0032-monthly-budget-carry-over.md) + [ADR-0035](../adr/0035-monthly-review-carry-out.md)** — carry-over policy + review display landed.
 
-> 5/6 items closed. Drag-and-drop ordering vẫn open. Audit 2026-06-13.
+> 6/6 items closed by ADR-0037. Audit 2026-06-13.
 
 ## Implementation Plan
 
