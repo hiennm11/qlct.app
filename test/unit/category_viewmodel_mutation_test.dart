@@ -114,6 +114,17 @@ class _FakeCategoryDataSource implements CategoryLocalDataSource {
     _store[id] = existing.copyWith(updatedAt: updatedAt);
   }
 
+  @override
+  Future<void> updateSortOrder(
+    String id,
+    int sortOrder,
+    DateTime updatedAt,
+  ) async {
+    final existing = _store[id];
+    if (existing == null) return;
+    _store[id] = existing.copyWith(sortOrder: sortOrder, updatedAt: updatedAt);
+  }
+
   // ===== ADR-0038: Merge =====
 
   @override
@@ -871,6 +882,104 @@ void main() {
       // restoreCalls counter on fake DS: should be >= 1
       expect(catDs.restoreCalls, greaterThanOrEqualTo(1));
       expect(catDs.mergeCalls, hasLength(1));
+    });
+  });
+
+  // ===== ADR-0037 hotfix: reorder must not be blocked by stale data =====
+  // User reported "vẫn bug" after the ReorderableListView-in-ListView fix:
+  // dragging a category throws CategoryValidationException. Root cause:
+  // reorderCategories was calling upsert() which calls validate() on every
+  // field. Legacy categories whose normalizedName was computed with an
+  // older normalizer no longer match the current normalizeVietnameseSearchText,
+  // so validate() throws. Reorder is a pure sortOrder mutation — it must
+  // not require full-row validity. Fix: write via updateSortOrder which
+  // bypasses validate().
+  group('CategoryViewModel.reorderCategories (ADR-0037 hotfix)', () {
+    test('succeeds with a category that has stale normalizedName', () async {
+      // Simulate legacy data: normalizedName is from an older normalizer
+      // and does not equal normalizeVietnameseSearchText(name). For
+      // "Cà phê" the current normalizer would produce "ca phe".
+      // We set "ca_phe" (with underscore) — guaranteed to mismatch.
+      final now = DateTime(2026, 6, 10, 12);
+      final stale = Category(
+        id: 'stale',
+        name: 'Cà phê',
+        normalizedName: 'ca_phe_legacy',
+        emoji: '☕',
+        kind: CategoryKind.spending,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 10000,
+        quickAmountDefault: 20000,
+        quickAmountMax: 100000,
+        voicePhrases: ['cà phê'],
+        sortOrder: 50,
+        isSystem: false,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final catDs = _FakeCategoryDataSource()..seed([stale, _other()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      // Sanity: the fake does not validate on upsert, but a real
+      // SqliteCategoryDataSource would throw on this stale row.
+      // Confirm the test fixture represents the bad-data state.
+      expect(stale.normalizedName, isNot('ca phe'));
+
+      // Reorder must NOT call upsert() (which would re-validate the row).
+      // It must succeed even though the row's normalizedName is stale.
+      // Swap the order — stale moves to slot 0, other stays at 9999.
+      final reordered = <Category>[
+        vm.activeCategories[1], // other (sorted by sortOrder: stale=50, other=9999)
+        vm.activeCategories[0], // stale
+      ];
+      final ok = await vm.reorderCategories(reordered);
+
+      expect(ok, true, reason: 'reorder must not be blocked by stale data');
+      expect(vm.errorMessage, isNull);
+      // Critical assertion: the bug pattern. upsertCalls must stay 0
+      // — the reorder path must use updateSortOrder, not upsert.
+      expect(catDs.upsertCalls, 0,
+          reason: 'reorder must not call upsert (would re-validate)');
+      // Verify the new sortOrder was actually persisted via the new path.
+      // After swap, stale gets sortOrder=10 (first non-other slot).
+      final reorderedStale = vm.categoryById('stale')!;
+      expect(reorderedStale.sortOrder, 10,
+          reason: 'stale row moved to first slot, sortOrder=10');
+      // updatedAt must have been bumped (backup last-write-wins contract)
+      expect(reorderedStale.updatedAt.isAfter(stale.updatedAt), true);
+    });
+
+    test('succeeds with normal data and writes correct sortOrder', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee(), _other()]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final active = vm.activeCategories.toList();
+      // Reverse: [other, coffee]
+      final ok = await vm.reorderCategories(active.reversed.toList());
+
+      expect(ok, true);
+      expect(vm.errorMessage, isNull);
+      // coffee is at index 0 in reversed → sortOrder 10
+      expect(vm.categoryById('coffee')!.sortOrder, 10);
+      // other is forced to 9999 (last slot) regardless of input position
+      expect(vm.categoryById('other')!.sortOrder, 9999);
+      // Still must not call upsert
+      expect(catDs.upsertCalls, 0);
+    });
+
+    test('rejects empty input with friendly error', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      final ok = await vm.reorderCategories(const []);
+      expect(ok, false);
+      expect(vm.errorMessage, 'Danh sách danh mục trống');
     });
   });
 }

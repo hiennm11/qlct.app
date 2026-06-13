@@ -405,6 +405,75 @@ void main() {
     });
   });
 
+  // ===== ADR-0037 hotfix: reorder must not require full-row validity =====
+  // User reported: drag a category → CategoryValidationException.
+  // Root cause: reorder path called upsert() which calls validate() on
+  // every field. Legacy categories whose normalizedName was computed
+  // with an older normalizer no longer match the current
+  // normalizeVietnameseSearchText, so validate() throws.
+  // Fix: reorder uses updateSortOrder() which bypasses validate().
+  // This test simulates legacy data by raw-inserting a row whose
+  // normalizedName would fail validate() if we tried to upsert it.
+  // If the reorder path is ever changed back to call upsert(), the VM
+  // test will catch it; this test catches the bug at the datasource
+  // boundary where validate() is bypassed by design.
+  group('updateSortOrder (ADR-0037 hotfix)', () {
+    test('updates sortOrder + updatedAt on a stale row without validate()',
+        () async {
+      // Simulate legacy data: insert via raw SQL with a normalizedName
+      // that does NOT match normalizeVietnameseSearchText(name).
+      // upsert() with this row would throw CategoryValidationException.
+      final now = DateTime(2026, 6, 10, 12);
+      final db = await dbHelper.database;
+      await db.insert('categories', {
+        'id': 'legacy',
+        'name': 'Cà phê',
+        'normalized_name': 'ca_phe_legacy_stale',
+        'emoji': '☕',
+        'kind': 'spending',
+        'budget_behavior': 'flexible',
+        'quick_amount_min': 10000,
+        'quick_amount_default': 20000,
+        'quick_amount_max': 100000,
+        'voice_phrases_json': '["cà phê"]',
+        'sort_order': 50,
+        'is_system': 0,
+        'is_archived': 0,
+        'deleted_at': null,
+        'created_at': now.millisecondsSinceEpoch,
+        'updated_at': now.millisecondsSinceEpoch,
+      });
+
+      // Sanity: this row's normalizedName would fail validate().
+      final stale = await dataSource.getById('legacy');
+      expect(stale, isNotNull);
+      expect(
+        () => SqliteCategoryDataSource.validate(stale!),
+        throwsA(isA<CategoryValidationException>()),
+        reason: 'fixture must be a row that fails validate()',
+      );
+
+      // The fix: updateSortOrder must NOT call validate().
+      // It must succeed and bump updatedAt + sortOrder.
+      final newUpdatedAt = DateTime(2026, 6, 11, 12);
+      await dataSource.updateSortOrder('legacy', 99, newUpdatedAt);
+
+      final after = await dataSource.getById('legacy');
+      expect(after, isNotNull);
+      expect(after!.sortOrder, 99);
+      expect(after.updatedAt, newUpdatedAt);
+      // normalizedName stays unchanged — we did not re-validate.
+      expect(after.normalizedName, 'ca_phe_legacy_stale');
+    });
+
+    test('no-op when id does not exist', () async {
+      // Must not throw. db.update with no matches returns 0 affected rows.
+      await dataSource.updateSortOrder('nonexistent', 10, DateTime(2026));
+      final all = await dataSource.getAll();
+      expect(all, isEmpty);
+    });
+  });
+
   group('count', () {
     test('returns 0 when empty', () async {
       final result = await dataSource.count();

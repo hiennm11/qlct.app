@@ -64,6 +64,12 @@ abstract class CategoryLocalDataSource {
   /// ADR-0037: bump updatedAt. Used by reorder so backup last-write-wins re-imports.
   Future<void> touchUpdatedAt(String id, DateTime updatedAt);
 
+  /// ADR-0037 hotfix: targeted write of sortOrder + updatedAt for one row.
+  /// Bypasses [validate] because reorder must not be blocked by stale
+  /// `normalizedName` (or any other field invariant) on legacy data — the
+  /// reorder path does not touch those fields. No-op if id does not exist.
+  Future<void> updateSortOrder(String id, int sortOrder, DateTime updatedAt);
+
   /// ADR-0038: dry-run. Count rows in 6 tables that would be affected by
   /// merging sourceId → targetId. Throws [CategoryMergeCollision] for
   /// blocking pre-flight conditions.

@@ -39,6 +39,12 @@ class _NullDataSource implements CategoryLocalDataSource {
   @override
   Future<void> touchUpdatedAt(String id, DateTime updatedAt) async {}
   @override
+  Future<void> updateSortOrder(
+    String id,
+    int sortOrder,
+    DateTime updatedAt,
+  ) async {}
+  @override
   Future<MergePreview> getMergePreview(String sourceId, String targetId) async =>
       const MergePreview();
   @override
@@ -616,21 +622,25 @@ class CategoryViewModel extends ChangeNotifier {
       }
     }
     final now = DateTime.now();
-    final updated = <Category>[];
+    // ADR-0037 hotfix: build a list of (id, sortOrder, updatedAt) triples
+    // and write via updateSortOrder (no full-row upsert, no validate()).
+    // Reorder is a pure sortOrder mutation — it must not be blocked by
+    // stale normalizedName on legacy data.
+    final writes = <({String id, int sortOrder, DateTime updatedAt})>[];
     int order = 10;
     for (final c in reordered) {
       if (c.id == 'other') continue; // handled separately
-      updated.add(c.copyWith(sortOrder: order, updatedAt: now));
+      writes.add((id: c.id, sortOrder: order, updatedAt: now));
       order += 10;
     }
     // Place `other` last at 9999 if present in current active list.
     final other = activeCategories.where((c) => c.id == 'other').firstOrNull;
     if (other != null) {
-      updated.add(other.copyWith(sortOrder: 9999, updatedAt: now));
+      writes.add((id: 'other', sortOrder: 9999, updatedAt: now));
     }
     try {
-      for (final c in updated) {
-        await _dataSource.upsert(c);
+      for (final w in writes) {
+        await _dataSource.updateSortOrder(w.id, w.sortOrder, w.updatedAt);
       }
       await reload();
       return true;

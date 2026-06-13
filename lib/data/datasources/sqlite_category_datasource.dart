@@ -220,6 +220,28 @@ class SqliteCategoryDataSource implements CategoryLocalDataSource {
     );
   }
 
+  @override
+  Future<void> updateSortOrder(
+    String id,
+    int sortOrder,
+    DateTime updatedAt,
+  ) async {
+    final db = await _dbHelper.database;
+    // Targeted write — does NOT call validate() on the row's other fields.
+    // Reorder is purely a sortOrder mutation; we must not block it on
+    // stale normalizedName or any other field invariant. No-op if id
+    // does not exist (db.update with no matches returns 0 rows).
+    await db.update(
+      'categories',
+      {
+        'sort_order': sortOrder,
+        'updated_at': updatedAt.millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   // ===== ADR-0038: Merge categories =====
 
   /// Guard helper: throws [CategoryMergeCollision] when source/target
