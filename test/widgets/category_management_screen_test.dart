@@ -166,5 +166,41 @@ void main() {
       );
       expect(sheetGiaitri, findsOneWidget);
     });
+
+    // ===== ADR-0037: Drag-and-drop reorder regression =====
+    // User reported: drag a category row throws an exception.
+    // Root cause: ReorderableListView.builder was nested inside a ListView,
+    // which gives unbounded vertical constraints and breaks the drag overlay.
+    // Fix: wrap with SingleChildScrollView + Column.
+    testWidgets('dragging a category row does not throw', (tester) async {
+      final vm = CategoryViewModel.seeded([_coffee(), _archived()]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<CategoryViewModel>.value(
+            value: vm,
+            child: const CategoryManagementScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Locate the drag-handle icon for the active coffee row.
+      final dragHandle = find.descendant(
+        of: find.byType(ReorderableDragStartListener),
+        matching: find.byIcon(Icons.drag_handle),
+      );
+      expect(dragHandle, findsWidgets);
+
+      // Perform a drag gesture: start on the handle, drag downward.
+      // This is the exact gesture that previously threw an exception.
+      final handleCenter = tester.getCenter(dragHandle.first);
+      await tester.dragFrom(handleCenter, const Offset(0, 200));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // If we got here without an exception, the bug is fixed.
+      // Verify screen still renders.
+      expect(find.text('Cà phê'), findsOneWidget);
+    });
   });
 }

@@ -217,8 +217,9 @@ class CategoryManagementScreen extends StatelessWidget {
             ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
           final trash = vm.deletedCategories;
 
-          return ListView(
-            children: [
+          return SingleChildScrollView(
+            child: Column(
+              children: [
               // Active section with drag-and-drop reordering (ADR-0037).
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -325,7 +326,8 @@ class CategoryManagementScreen extends StatelessWidget {
                 ),
                 ...trash.map((c) => _buildTrashRow(context, vm, c)),
               ],
-            ],
+              ],
+            ),
           );
         },
       ),
