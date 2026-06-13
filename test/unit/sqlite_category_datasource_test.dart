@@ -19,7 +19,8 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 12,
+        // ADR-0037: include deleted_at column for soft-delete trash.
+        version: 15,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE categories (
@@ -36,6 +37,7 @@ void main() {
               sort_order              INTEGER NOT NULL,
               is_system                INTEGER NOT NULL DEFAULT 0,
               is_archived              INTEGER NOT NULL DEFAULT 0,
+              deleted_at               INTEGER,
               created_at               INTEGER NOT NULL,
               updated_at               INTEGER NOT NULL
             )
@@ -44,6 +46,8 @@ void main() {
               'CREATE INDEX IF NOT EXISTS idx_categories_normalized_name ON categories(normalized_name)');
           await db.execute(
               'CREATE INDEX IF NOT EXISTS idx_categories_is_archived ON categories(is_archived)');
+          await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_categories_deleted_at ON categories(deleted_at) WHERE deleted_at IS NULL');
         },
       ),
     );

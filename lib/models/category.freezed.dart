@@ -33,7 +33,10 @@ mixin _$Category {
   List<String> get voicePhrases => throw _privateConstructorUsedError;
   int get sortOrder => throw _privateConstructorUsedError;
   bool get isSystem => throw _privateConstructorUsedError;
-  bool get isArchived => throw _privateConstructorUsedError;
+  bool get isArchived =>
+      throw _privateConstructorUsedError; // ADR-0037: soft-delete timestamp. NULL = active, non-NULL = in trash.
+  // No @Default so Freezed reads null for missing JSON keys in old v8 backups.
+  DateTime? get deletedAt => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -66,6 +69,7 @@ abstract class $CategoryCopyWith<$Res> {
     int sortOrder,
     bool isSystem,
     bool isArchived,
+    DateTime? deletedAt,
     DateTime createdAt,
     DateTime updatedAt,
   });
@@ -99,6 +103,7 @@ class _$CategoryCopyWithImpl<$Res, $Val extends Category>
     Object? sortOrder = null,
     Object? isSystem = null,
     Object? isArchived = null,
+    Object? deletedAt = freezed,
     Object? createdAt = null,
     Object? updatedAt = null,
   }) {
@@ -156,6 +161,10 @@ class _$CategoryCopyWithImpl<$Res, $Val extends Category>
                 ? _value.isArchived
                 : isArchived // ignore: cast_nullable_to_non_nullable
                       as bool,
+            deletedAt: freezed == deletedAt
+                ? _value.deletedAt
+                : deletedAt // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
             createdAt: null == createdAt
                 ? _value.createdAt
                 : createdAt // ignore: cast_nullable_to_non_nullable
@@ -193,6 +202,7 @@ abstract class _$$CategoryImplCopyWith<$Res>
     int sortOrder,
     bool isSystem,
     bool isArchived,
+    DateTime? deletedAt,
     DateTime createdAt,
     DateTime updatedAt,
   });
@@ -225,6 +235,7 @@ class __$$CategoryImplCopyWithImpl<$Res>
     Object? sortOrder = null,
     Object? isSystem = null,
     Object? isArchived = null,
+    Object? deletedAt = freezed,
     Object? createdAt = null,
     Object? updatedAt = null,
   }) {
@@ -282,6 +293,10 @@ class __$$CategoryImplCopyWithImpl<$Res>
             ? _value.isArchived
             : isArchived // ignore: cast_nullable_to_non_nullable
                   as bool,
+        deletedAt: freezed == deletedAt
+            ? _value.deletedAt
+            : deletedAt // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
         createdAt: null == createdAt
             ? _value.createdAt
             : createdAt // ignore: cast_nullable_to_non_nullable
@@ -312,6 +327,7 @@ class _$CategoryImpl implements _Category {
     required this.sortOrder,
     this.isSystem = true,
     this.isArchived = false,
+    this.deletedAt,
     required this.createdAt,
     required this.updatedAt,
   }) : _voicePhrases = voicePhrases;
@@ -353,6 +369,10 @@ class _$CategoryImpl implements _Category {
   @override
   @JsonKey()
   final bool isArchived;
+  // ADR-0037: soft-delete timestamp. NULL = active, non-NULL = in trash.
+  // No @Default so Freezed reads null for missing JSON keys in old v8 backups.
+  @override
+  final DateTime? deletedAt;
   @override
   final DateTime createdAt;
   @override
@@ -360,7 +380,7 @@ class _$CategoryImpl implements _Category {
 
   @override
   String toString() {
-    return 'Category(id: $id, name: $name, normalizedName: $normalizedName, emoji: $emoji, kind: $kind, budgetBehavior: $budgetBehavior, quickAmountMin: $quickAmountMin, quickAmountDefault: $quickAmountDefault, quickAmountMax: $quickAmountMax, voicePhrases: $voicePhrases, sortOrder: $sortOrder, isSystem: $isSystem, isArchived: $isArchived, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Category(id: $id, name: $name, normalizedName: $normalizedName, emoji: $emoji, kind: $kind, budgetBehavior: $budgetBehavior, quickAmountMin: $quickAmountMin, quickAmountDefault: $quickAmountDefault, quickAmountMax: $quickAmountMax, voicePhrases: $voicePhrases, sortOrder: $sortOrder, isSystem: $isSystem, isArchived: $isArchived, deletedAt: $deletedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -392,6 +412,8 @@ class _$CategoryImpl implements _Category {
                 other.isSystem == isSystem) &&
             (identical(other.isArchived, isArchived) ||
                 other.isArchived == isArchived) &&
+            (identical(other.deletedAt, deletedAt) ||
+                other.deletedAt == deletedAt) &&
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
@@ -415,6 +437,7 @@ class _$CategoryImpl implements _Category {
     sortOrder,
     isSystem,
     isArchived,
+    deletedAt,
     createdAt,
     updatedAt,
   );
@@ -448,6 +471,7 @@ abstract class _Category implements Category {
     required final int sortOrder,
     final bool isSystem,
     final bool isArchived,
+    final DateTime? deletedAt,
     required final DateTime createdAt,
     required final DateTime updatedAt,
   }) = _$CategoryImpl;
@@ -480,7 +504,10 @@ abstract class _Category implements Category {
   @override
   bool get isSystem;
   @override
-  bool get isArchived;
+  bool get isArchived; // ADR-0037: soft-delete timestamp. NULL = active, non-NULL = in trash.
+  // No @Default so Freezed reads null for missing JSON keys in old v8 backups.
+  @override
+  DateTime? get deletedAt;
   @override
   DateTime get createdAt;
   @override

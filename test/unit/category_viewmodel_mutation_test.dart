@@ -24,14 +24,23 @@ class _FakeCategoryDataSource implements CategoryLocalDataSource {
   }
 
   @override
-  Future<List<Category>> getAll() async => _store.values.toList()
+  Future<List<Category>> getAll() async => _store.values
+      .where((c) => c.deletedAt == null)
+      .toList()
     ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
   @override
   Future<List<Category>> getActive() async => _store.values
-      .where((c) => !c.isArchived)
+      .where((c) => !c.isArchived && c.deletedAt == null)
       .toList()
     ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+  @override
+  Future<List<Category>> getDeleted() async {
+    final list = _store.values.where((c) => c.deletedAt != null).toList()
+      ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
+    return list;
+  }
 
   @override
   Future<Category?> getById(String id) async => _store[id];
@@ -65,6 +74,34 @@ class _FakeCategoryDataSource implements CategoryLocalDataSource {
 
   @override
   Future<void> seedDefaultsIfEmpty() async {}
+
+  @override
+  Future<void> softDelete(String id, {DateTime? deletedAt}) async {
+    final existing = _store[id];
+    if (existing == null) return;
+    if (existing.id == 'other' || existing.isSystem) return;
+    _store[id] = existing.copyWith(
+      deletedAt: deletedAt ?? DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<void> restore(String id) async {
+    final existing = _store[id];
+    if (existing == null) return;
+    _store[id] = existing.copyWith(
+      deletedAt: null,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<void> touchUpdatedAt(String id, DateTime updatedAt) async {
+    final existing = _store[id];
+    if (existing == null) return;
+    _store[id] = existing.copyWith(updatedAt: updatedAt);
+  }
 }
 
 class _FakeBudgetDataSource implements BudgetLocalDataSource {

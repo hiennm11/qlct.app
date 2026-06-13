@@ -58,6 +58,8 @@ class SqliteCategoryDataSource implements CategoryLocalDataSource {
     final db = await _dbHelper.database;
     final maps = await db.query(
       'categories',
+      // ADR-0037: filter out soft-deleted. Trash reads use getDeleted.
+      where: 'deleted_at IS NULL',
       orderBy: 'sort_order ASC, name ASC',
     );
     return maps.map(categoryFromRow).toList();
@@ -68,8 +70,19 @@ class SqliteCategoryDataSource implements CategoryLocalDataSource {
     final db = await _dbHelper.database;
     final maps = await db.query(
       'categories',
-      where: 'is_archived = 0',
+      where: 'is_archived = 0 AND deleted_at IS NULL',
       orderBy: 'sort_order ASC, name ASC',
+    );
+    return maps.map(categoryFromRow).toList();
+  }
+
+  @override
+  Future<List<Category>> getDeleted() async {
+    final db = await _dbHelper.database;
+    final maps = await db.query(
+      'categories',
+      where: 'deleted_at IS NOT NULL',
+      orderBy: 'deleted_at DESC',
     );
     return maps.map(categoryFromRow).toList();
   }
@@ -161,6 +174,46 @@ class SqliteCategoryDataSource implements CategoryLocalDataSource {
     final db = await _dbHelper.database;
     await db.delete(
       'categories',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  @override
+  Future<void> softDelete(String id, {DateTime? deletedAt}) async {
+    final db = await _dbHelper.database;
+    final ts = (deletedAt ?? DateTime.now()).millisecondsSinceEpoch;
+    await db.update(
+      'categories',
+      {
+        'deleted_at': ts,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ? AND id != ? AND is_system = 0',
+      whereArgs: [id, 'other'],
+    );
+  }
+
+  @override
+  Future<void> restore(String id) async {
+    final db = await _dbHelper.database;
+    await db.update(
+      'categories',
+      {
+        'deleted_at': null,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  @override
+  Future<void> touchUpdatedAt(String id, DateTime updatedAt) async {
+    final db = await _dbHelper.database;
+    await db.update(
+      'categories',
+      {'updated_at': updatedAt.millisecondsSinceEpoch},
       where: 'id = ?',
       whereArgs: [id],
     );

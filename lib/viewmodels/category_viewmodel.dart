@@ -16,6 +16,8 @@ class _NullDataSource implements CategoryLocalDataSource {
   @override
   Future<List<Category>> getActive() async => [];
   @override
+  Future<List<Category>> getDeleted() async => [];
+  @override
   Future<Category?> getById(String id) async => null;
   @override
   Future<Category?> getByName(String name) async => null;
@@ -29,6 +31,12 @@ class _NullDataSource implements CategoryLocalDataSource {
   Future<void> seedDefaultsIfEmpty() async {}
   @override
   Future<void> delete(String id) async {}
+  @override
+  Future<void> softDelete(String id, {DateTime? deletedAt}) async {}
+  @override
+  Future<void> restore(String id) async {}
+  @override
+  Future<void> touchUpdatedAt(String id, DateTime updatedAt) async {}
 }
 
 /// App-level category state (ADR-0027 Phase 2.5A).
@@ -102,8 +110,16 @@ class CategoryViewModel extends ChangeNotifier {
   // Getters
   List<Category> get allCategories => List.unmodifiable(_allCategories);
 
+  /// Active = not archived, not soft-deleted (ADR-0037).
   List<Category> get activeCategories =>
-      _allCategories.where((c) => !c.isArchived).toList();
+      _allCategories.where((c) => !c.isArchived && c.deletedAt == null).toList();
+
+  /// Soft-deleted categories (trash). Ordered by deletedAt DESC. ADR-0037.
+  List<Category> get deletedCategories {
+    final list = _allCategories.where((c) => c.deletedAt != null).toList()
+      ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
+    return list;
+  }
 
   /// Active categories sorted by sortOrder.
   List<Category> get quickInputCategories {
@@ -545,6 +561,11 @@ class CategoryViewModel extends ChangeNotifier {
 
   /// Hard delete a custom category. Checks canDelete first.
   /// Returns true on success; sets errorMessage on failure.
+  ///
+  /// Deprecated: use [softDeleteCategory] (moves to trash) or [purgeCategory]
+  /// (hard delete from trash). Kept for callers that still expect a hard
+  /// delete; new code should not use this.
+  @Deprecated('use softDeleteCategory for default, purgeCategory for trash hard delete')
   Future<bool> deleteCategory(String categoryId) async {
     final existing = await _dataSource.getById(categoryId);
     if (existing == null || existing.isSystem || categoryId == 'other') {
@@ -553,6 +574,124 @@ class CategoryViewModel extends ChangeNotifier {
       return false;
     }
     if (!await canDeleteCategory(categoryId)) {
+      return false;
+    }
+    try {
+      await _dataSource.delete(categoryId);
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ===== ADR-0037 §Feature 1: Drag-and-drop reorder =====
+
+  /// Persist a new display order for active categories. Input MUST be the
+  /// new active list in the desired order. Assigns 10/20/30… sequentially.
+  /// `other` is forced to 9999. Bumps updatedAt on each so backup merge
+  /// re-imports the new order.
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> reorderCategories(List<Category> reordered) async {
+    if (reordered.isEmpty) {
+      _errorMessage = 'Danh sách danh mục trống';
+      notifyListeners();
+      return false;
+    }
+    // Guard: every entry must be active (not archived, not deleted).
+    for (final c in reordered) {
+      if (c.isArchived || c.deletedAt != null) {
+        _errorMessage = 'Danh mục "${c.name}" không khả dụng để sắp xếp';
+        notifyListeners();
+        return false;
+      }
+    }
+    final now = DateTime.now();
+    final updated = <Category>[];
+    int order = 10;
+    for (final c in reordered) {
+      if (c.id == 'other') continue; // handled separately
+      updated.add(c.copyWith(sortOrder: order, updatedAt: now));
+      order += 10;
+    }
+    // Place `other` last at 9999 if present in current active list.
+    final other = activeCategories.where((c) => c.id == 'other').firstOrNull;
+    if (other != null) {
+      updated.add(other.copyWith(sortOrder: 9999, updatedAt: now));
+    }
+    try {
+      for (final c in updated) {
+        await _dataSource.upsert(c);
+      }
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ===== ADR-0037 §Feature 2: Soft-delete trash =====
+
+  /// Move a category to trash. Reuses canDeleteCategory guard (blocks
+  /// system/other/budget-referenced). Sets deletedAt = now.
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> softDeleteCategory(String categoryId) async {
+    if (!await canDeleteCategory(categoryId)) {
+      return false;
+    }
+    try {
+      await _dataSource.softDelete(categoryId);
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Restore a soft-deleted category from trash. Idempotent (no-op if not
+  /// in trash). Bumps updatedAt.
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> restoreCategory(String categoryId) async {
+    final existing = categoryById(categoryId);
+    if (existing == null) {
+      _errorMessage = 'Không tìm thấy danh mục';
+      notifyListeners();
+      return false;
+    }
+    if (existing.deletedAt == null) {
+      // Idempotent: nothing to do, but report success.
+      return true;
+    }
+    try {
+      await _dataSource.restore(categoryId);
+      await reload();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Hard delete a category from trash. Only allowed if currently
+  /// soft-deleted (prevents accidental hard delete of active items).
+  /// Returns true on success; sets errorMessage on failure.
+  Future<bool> purgeCategory(String categoryId) async {
+    final existing = categoryById(categoryId);
+    if (existing == null) {
+      _errorMessage = 'Không tìm thấy danh mục';
+      notifyListeners();
+      return false;
+    }
+    if (existing.deletedAt == null) {
+      _errorMessage = 'Chỉ có thể xoá vĩnh viễn danh mục trong thùng rác';
+      notifyListeners();
       return false;
     }
     try {

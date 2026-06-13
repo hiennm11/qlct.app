@@ -26,6 +26,9 @@ _$CategoryImpl _$$CategoryImplFromJson(Map<String, dynamic> json) =>
       sortOrder: (json['sortOrder'] as num).toInt(),
       isSystem: json['isSystem'] as bool? ?? true,
       isArchived: json['isArchived'] as bool? ?? false,
+      deletedAt: json['deletedAt'] == null
+          ? null
+          : DateTime.parse(json['deletedAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -45,6 +48,7 @@ Map<String, dynamic> _$$CategoryImplToJson(_$CategoryImpl instance) =>
       'sortOrder': instance.sortOrder,
       'isSystem': instance.isSystem,
       'isArchived': instance.isArchived,
+      'deletedAt': instance.deletedAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
     };

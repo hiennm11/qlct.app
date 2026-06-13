@@ -5,7 +5,7 @@ import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/budget_snapshot.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/models/quick_template.dart';
-import 'package:qlct/models/budget_plan.dart';
+import 'package:qlct/models/category.dart';
 
 void main() {
   group('BackupData', () {
@@ -118,8 +118,8 @@ void main() {
       expect(backup.transactions[4].id, 'tx-4');
     });
 
-    test('currentSchemaVersion is 8 (ADR-0032)', () {
-      expect(currentSchemaVersion, 8);
+    test('currentSchemaVersion is 9 (ADR-0037)', () {
+      expect(currentSchemaVersion, 9);
     });
 
     test('appId field present in model with default', () {
@@ -407,6 +407,129 @@ void main() {
       );
 
       expect(backup2.budgetSnapshots.first.carryAmount, 0);
+    });
+
+    // ===== ADR-0037: v8 → v9 backup schema (deletedAt on Category) =====
+
+    test('v8 JSON missing deletedAt on Category defaults to null (ADR-0037 compat)',
+        () {
+      // Simulate v8 backup: category has no deletedAt field.
+      final v8Json = {
+        'appId': 'qlct.app',
+        'schemaVersion': 8,
+        'exportedAt': '2026-06-10T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        'quickTemplates': <Map<String, dynamic>>[],
+        'budgetSnapshots': <Map<String, dynamic>>[],
+        'budgetPlans': <Map<String, dynamic>>[],
+        'budgetPlanItems': <Map<String, dynamic>>[],
+        'categories': [
+          {
+            'id': 'food_out',
+            'name': 'Ăn ngoài',
+            'normalizedName': 'an ngoai',
+            'emoji': '🍜',
+            'kind': 'spending',
+            'budgetBehavior': 'flexible',
+            'quickAmountMin': 30000,
+            'quickAmountDefault': 50000,
+            'quickAmountMax': 200000,
+            'voicePhrases': <String>[],
+            'sortOrder': 10,
+            'isSystem': false,
+            'isArchived': false,
+            'createdAt': '2026-06-01T00:00:00.000Z',
+            'updatedAt': '2026-06-01T00:00:00.000Z',
+            // no deletedAt field — legacy v8 backup
+          }
+        ],
+      };
+
+      final backup = BackupData.fromJson(v8Json);
+
+      expect(backup.schemaVersion, 8);
+      expect(backup.categories.length, 1);
+      expect(backup.categories.first.id, 'food_out');
+      expect(backup.categories.first.deletedAt, isNull,
+          reason: 'deletedAt must default to null when missing from v8 backup');
+    });
+
+    test('v9 JSON with soft-deleted Category parses with deletedAt preserved (ADR-0037)',
+        () {
+      // v9 backup where one category is soft-deleted (in trash). The restore
+      // path goes BackupData.fromJson(...) → restore service, so we test the
+      // parse path directly. (Round-trip via toJson is a separate concern
+      // tracked outside this test.)
+      final v9Json = {
+        'appId': 'qlct.app',
+        'schemaVersion': 9,
+        'exportedAt': '2026-06-13T10:00:00.000Z',
+        'appVersion': '1.0.0',
+        'totalBudget': 0,
+        'transactions': <Map<String, dynamic>>[],
+        'budgets': <Map<String, dynamic>>[],
+        'recurringTransactions': <Map<String, dynamic>>[],
+        'quickTemplates': <Map<String, dynamic>>[],
+        'budgetSnapshots': <Map<String, dynamic>>[],
+        'budgetPlans': <Map<String, dynamic>>[],
+        'budgetPlanItems': <Map<String, dynamic>>[],
+        'categories': [
+          {
+            'id': 'food_out',
+            'name': 'Ăn ngoài',
+            'normalizedName': 'an ngoai',
+            'emoji': '🍜',
+            'kind': 'spending',
+            'budgetBehavior': 'flexible',
+            'quickAmountMin': 30000,
+            'quickAmountDefault': 50000,
+            'quickAmountMax': 200000,
+            'voicePhrases': <String>[],
+            'sortOrder': 10,
+            'isSystem': true,
+            'isArchived': false,
+            'deletedAt': null,
+            'createdAt': '2026-01-01T00:00:00.000Z',
+            'updatedAt': '2026-01-01T00:00:00.000Z',
+          },
+          {
+            'id': 'old_brand',
+            'name': 'Thương hiệu cũ',
+            'normalizedName': 'thuong hieu cu',
+            'emoji': '🏷️',
+            'kind': 'spending',
+            'budgetBehavior': 'flexible',
+            'quickAmountMin': 10000,
+            'quickAmountDefault': 20000,
+            'quickAmountMax': 100000,
+            'voicePhrases': <String>[],
+            'sortOrder': 50,
+            'isSystem': false,
+            'isArchived': false,
+            'deletedAt': '2026-06-12T14:30:00.000Z',
+            'createdAt': '2026-01-01T00:00:00.000Z',
+            'updatedAt': '2026-06-12T14:30:00.000Z',
+          },
+        ],
+      };
+
+      final backup = BackupData.fromJson(v9Json);
+
+      expect(backup.schemaVersion, 9);
+      expect(backup.categories.length, 2);
+
+      final active = backup.categories.firstWhere((c) => c.id == 'food_out');
+      expect(active.deletedAt, isNull);
+
+      final trashed = backup.categories.firstWhere((c) => c.id == 'old_brand');
+      expect(trashed.deletedAt, isNotNull);
+      expect(trashed.deletedAt!.toIso8601String(),
+          '2026-06-12T14:30:00.000Z',
+          reason: 'soft-delete state must survive backup import');
     });
   });
 }

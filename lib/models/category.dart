@@ -43,12 +43,20 @@ class Category with _$Category {
     required int sortOrder,
     @Default(true) bool isSystem,
     @Default(false) bool isArchived,
+    // ADR-0037: soft-delete timestamp. NULL = active, non-NULL = in trash.
+    // No @Default so Freezed reads null for missing JSON keys in old v8 backups.
+    DateTime? deletedAt,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) = _Category;
 
   factory Category.fromJson(Map<String, dynamic> json) =>
       _$CategoryFromJson(json);
+}
+
+/// ADR-0037: soft-delete query helper.
+extension CategoryDeletionX on Category {
+  bool get isDeleted => deletedAt != null;
 }
 
 /// ADR-0028 §8: Validate safe fields for edit on the Category model.

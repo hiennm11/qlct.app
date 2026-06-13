@@ -20,14 +20,15 @@ part 'backup_data.g.dart';
 /// v6: adds categories (ADR-0027 §13).
 /// v7: adds categoryId to all financial models (ADR-0029).
 /// v8: adds carryAmount to BudgetSnapshot (ADR-0032).
-const int currentSchemaVersion = 8;
+/// v9: adds deletedAt to Category (ADR-0037).
+const int currentSchemaVersion = 9;
 
 /// App identifier stamped into every v3+ backup file so a stray foreign backup
 /// file (e.g. from a different app) is rejected at validation time.
 const String backupAppId = 'qlct.app';
 
 /// Full backup payload containing all app data
-@freezed
+@Freezed(toJson: true)
 class BackupData with _$BackupData {
   const factory BackupData({
     @Default('') String appId,

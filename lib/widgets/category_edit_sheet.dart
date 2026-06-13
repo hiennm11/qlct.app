@@ -279,12 +279,15 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
   }
 
   Future<void> _deleteCategory() async {
+    // ADR-0037: soft-delete moves to trash; user can restore from
+    // management screen's "Thùng rác" section.
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xoá danh mục?'),
+        title: const Text('Xoá vào thùng rác?'),
         content: const Text(
-          'Xoá danh mục này? Hành động này không thể hoàn tác.',
+          'Danh mục sẽ được chuyển vào thùng rác. Bạn có thể khôi phục lại từ '
+          'màn hình Quản lý danh mục.',
         ),
         actions: [
           TextButton(
@@ -294,7 +297,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xoá'),
+            child: const Text('Xoá vào thùng rác'),
           ),
         ],
       ),
@@ -303,7 +306,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
 
     if (!mounted) return;
     final vm = context.read<CategoryViewModel>();
-    final ok = await vm.deleteCategory(widget.category.id);
+    final ok = await vm.softDeleteCategory(widget.category.id);
     if (!mounted) return;
     if (ok) {
       Navigator.pop(context); // close sheet
@@ -581,7 +584,11 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
                     decoration: InputDecoration(
                       labelText: 'Thứ tự hiển thị',
                       hintText: '10',
-                      helperText: isOther ? 'Danh mục "Khác" luônở cuối (9999)' : 'Bỏ trống để tự động gán số tiếp theo',
+                      // ADR-0037: hint points users at the drag-and-drop UI.
+                      helperText: isOther
+                          ? 'Danh mục "Khác" luôn ở cuối (9999)'
+                          : 'Dùng kéo-thả trên màn hình quản lý để sắp xếp nhanh. '
+                              'Bỏ trống để tự động gán số tiếp theo.',
                     ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -648,7 +655,7 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red,
                       ),
-                      child: const Text('Xoá danh mục'),
+                      child: const Text('Xoá vào thùng rác'),
                     ),
                   ],
 

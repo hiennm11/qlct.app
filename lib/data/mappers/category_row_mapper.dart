@@ -17,6 +17,7 @@ Map<String, dynamic> categoryToRow(Category c) {
     'sort_order': c.sortOrder,
     'is_system': c.isSystem ? 1 : 0,
     'is_archived': c.isArchived ? 1 : 0,
+    'deleted_at': c.deletedAt?.millisecondsSinceEpoch,
     'created_at': c.createdAt.millisecondsSinceEpoch,
     'updated_at': c.updatedAt.millisecondsSinceEpoch,
   };
@@ -45,6 +46,9 @@ Category categoryFromRow(Map<String, dynamic> row) {
     sortOrder: row['sort_order'] as int,
     isSystem: (row['is_system'] as int) == 1,
     isArchived: (row['is_archived'] as int) == 1,
+    deletedAt: row['deleted_at'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(row['deleted_at'] as int),
     createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
     updatedAt: DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int),
   );

@@ -5,7 +5,7 @@ import 'package:qlct/core/vietnamese_text_normalizer.dart';
 
 class DatabaseHelper {
   static const _databaseName = 'qlct.db';
-  static const _databaseVersion = 14;
+  static const _databaseVersion = 15;
 
   Database? _database;
   String? _testPathOverride;
@@ -149,6 +149,7 @@ class DatabaseHelper {
         sort_order              INTEGER NOT NULL,
         is_system INTEGER NOT NULL DEFAULT 0,
         is_archived              INTEGER NOT NULL DEFAULT 0,
+        deleted_at               INTEGER,
         created_at               INTEGER NOT NULL,
         updated_at               INTEGER NOT NULL
       )
@@ -157,6 +158,9 @@ class DatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_categories_normalized_name ON categories(normalized_name)');
     await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_categories_is_archived ON categories(is_archived)');
+    // ADR-0037: partial index for soft-delete lookups.
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_categories_deleted_at ON categories(deleted_at) WHERE deleted_at IS NULL');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -521,6 +525,13 @@ class DatabaseHelper {
       // ADR-0032: add carry_amount to budget_snapshots
       await db.execute(
           'ALTER TABLE budget_snapshots ADD COLUMN carry_amount INTEGER NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 15) {
+      // ADR-0037: add deleted_at to categories for soft-delete trash
+      await db.execute(
+          'ALTER TABLE categories ADD COLUMN deleted_at INTEGER');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_categories_deleted_at ON categories(deleted_at) WHERE deleted_at IS NULL');
     }
   }
 
