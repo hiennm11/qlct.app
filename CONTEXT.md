@@ -217,12 +217,15 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 - ~~**Drag-and-drop category ordering**~~ — ADR-0028 §Deferred + ADR-0033 §Deferred → ADR-0037 §Feature 1. ReorderableListView với drag handle, `reorderCategories` assign 10/20/30…, force `other` → 9999, bump `updatedAt` cho backup last-write-wins.
 - ~~**Soft-delete recovery for custom categories**~~ — ADR-0034 §Deferred → ADR-0037 §Feature 2. `deletedAt: DateTime?` separate field (deviation: distinct from `isArchived` để giữ ADR-0028 semantics cho archive vs trash). VM có `softDeleteCategory`/`restoreCategory`/`purgeCategory`; UI có "Thùng rác" section với "Khôi phục" + "Xoá vĩnh viễn".
 
+### ✅ Closed by ADR-0017 Slice 2 (audit 2026-06-13)
+
+- ~~**SQL query thay `txRepo.getAll()` cho recurring duplicate check**~~ — ADR-0015 §D4 → ADR-0017 Slice 2 (commit `d23ad81`). `TransactionLocalDataSource.existsBySourceRecurringIdAndDate(sourceId, dateStr)` (O(K) qua `idx_transactions_source_recurring`) thay thế O(n) `getAll()` scan trong `RecurringTransactionViewModel.checkAndGenerate`. Stale doc entry — was deferred with rationale "dataset <1000 tx" nhưng đã ship 2026-06-06.
+
 ### 🟡 Acknowledged (explicit defer, chưa nên làm)
 
 | # | Item | First deferred in | Note |
 |---|------|-------------------|------|
-| 2 | **SQL query thay `txRepo.getAll()` cho recurring duplicate check** | ADR-0015 §D4 | "Dataset hiện nhỏ (<1000 tx), chưa gây performance issue thực tế. Làm khi cần." — explicit defer với rationale. |
-| 3 | **Generic test coverage gaps từ ADR-0002** | ADR-0002 §"Not covered yet" | "Integration tests, widget tests for individual widgets, ExportService tests — deferred to follow-up ADR." — chưa có ADR follow-up. Hiện đã có ~758 tests (nhiều cái cover these areas rồi) nhưng chưa audit. |
+| 3 | **ExportService dedicated test file** | ADR-0002 §"Not covered yet" | ADR-0002 deferred "ExportService tests — deferred to follow-up ADR". `ExportService` is mocked in 12 tests across `test/unit/expense_viewmodel_test.dart` + `test/widgets/*` nhưng chưa có dedicated `export_service_test.dart`. CSV escaping edge cases (commas/quotes/newlines trong note), JSON format guarantees, empty-list path, date filter path chưa được cover trực tiếp. Promote to concrete task: 1-day effort, ~50 lines test file, no ADR cần. Track ở §Recommended next. |
 
 ### 📋 Generic "out of scope" lists (chưa có concrete ADR request, track low priority)
 
@@ -235,7 +238,7 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 | ADR-0023 | Checksum trong backup (đã bị reject); partial restore skipping corrupt rows (rejected cho backup contract) |
 | ADR-0025 | Apply past snapshot back to current live config |
 | ADR-0010 | Migration/backup/analytics test files (test coverage — overlap với #3) |
-| ADR-0037 | Auto-purge trash sau N ngày; placeholder category cleanup workflow; re-order archived section; bulk-archive categories |
+| ADR-0037 | Auto-purge trash sau N ngày (background job + user setting required); re-order archived section (read-only by design, 2-step via unarchive-reorder re-archive); bulk-archive categories (reuses ADR-0009 multi-select pattern, no user demand yet) |
 
 ### Pre-existing issues (không phải deferred nhưng vẫn open)
 
@@ -244,7 +247,7 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 
 ### Recommended next
 
-- **Audit remaining "Acknowledged" items** (#2, #3) — review nếu còn scope rõ để promote thành ADR mới, hoặc giữ nguyên explicit defer.
+- **Audit remaining "Acknowledged" items** (#3) — ExportService test file là gap còn lại. Add `test/unit/export_service_test.dart` cover CSV escaping + JSON format + empty/date-filter paths (~50 lines, 1-day effort).
 - **Cleanup**: Pre-ADR-0037 test fixture drift (~27 failures, nhiều cái chỉ là 1-line schema version bump). Nên batch trong 1 commit housekeeping.
 - **Audit ADR-0037 generic out-of-scope list** (auto-purge, placeholder cleanup, re-order archived, bulk-archive) — xem user còn cần approach nào trong số này không.
 

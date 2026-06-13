@@ -317,8 +317,8 @@ Manual smoke (release build):
 Generic out-of-scope items identified during implementation, không có concrete user request. Track low priority trong `CONTEXT.md` §Open Deferred Items nếu user phản hồi.
 
 - **Auto-purge trash sau N ngày** — trash hiện tại giữ vĩnh viễn cho đến khi user tự "Xoá vĩnh viễn" (per Q3 grill). Có thể add `purgeDeletedOlderThan(DateTime)` background job sau nếu data tích luỹ nhiều.
-- **Placeholder category cleanup workflow** — ADR-0034 chỉ cleanup hàng loạt từ migration; chưa có UI xoá 1 placeholder thủ công (dù có thể dùng `softDeleteCategory`).
 - **Re-order archived section** — archived = read-only, không cần DnD.
 - **Bulk-archive categories** — chưa cần multi-select.
 - **Old v8 backup re-import "resurrect" soft-deleted categories** — nếu users complain, có thể add explicit "soft-deleted state" notice trong import dialog.
 - **Multi-select trong trash section** (xoá/purge nhiều cùng lúc) — chưa cần, scale hiện tại nhỏ.
+- ~~**Placeholder category cleanup workflow**~~ — **Dropped by ADR-0039 audit 2026-06-13.** Placeholder categories (`placeholder_<normalized>_<timestamp>` from `BackupService._tryMapToCategoryId:431-432`) là regular custom categories, đã có sẵn trong management screen với "Xoá vào thùng rác" / "Xoá vĩnh viễn" actions. Reuses existing `softDeleteCategory` flow — không cần workflow riêng.
