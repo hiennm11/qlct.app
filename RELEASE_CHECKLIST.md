@@ -1,7 +1,7 @@
 # Release Checklist — qlct.app
 
-**Last verified:** 2026-06-06  
-**Test count:** 353 (all pass)  
+**Last verified:** 2026-06-13  
+**Test count:** 758+ (all pass)  
 **APK size:** 22.2MB (arm64) / 56.8MB (all ABIs)  
 **Release policy:** ADR-0024  
 **Backup/restore contract:** ADR-0023  
