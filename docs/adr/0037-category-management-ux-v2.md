@@ -322,3 +322,39 @@ Generic out-of-scope items identified during implementation, không có concrete
 - **Old v8 backup re-import "resurrect" soft-deleted categories** — nếu users complain, có thể add explicit "soft-deleted state" notice trong import dialog.
 - **Multi-select trong trash section** (xoá/purge nhiều cùng lúc) — chưa cần, scale hiện tại nhỏ.
 - ~~**Placeholder category cleanup workflow**~~ — **Dropped by ADR-0039 audit 2026-06-13.** Placeholder categories (`placeholder_<normalized>_<timestamp>` from `BackupService._tryMapToCategoryId:431-432`) là regular custom categories, đã có sẵn trong management screen với "Xoá vào thùng rác" / "Xoá vĩnh viễn" actions. Reuses existing `softDeleteCategory` flow — không cần workflow riêng.
+
+## Addendum: Hotfix 2026-06-14 (commit 2f3278b, build 1.7.0+2026061403)
+
+**Reported:** Drag a category row trên v1.7.0+2026061302 throws `CategoryValidationException` (SnackBar đỏ). User không thể reorder được.
+
+**Root cause:** `reorderCategories` (line 631-634) gọi `_dataSource.upsert(c)` trong loop, mỗi lần gọi chạy `validate()` trên tất cả 9 rules (sqlite_category_datasource.dart:17-55). Drag → `c.copyWith(sortOrder: order, updatedAt: now)` preserve `normalizedName` cũ từ row gốc. Nếu row có `normalizedName` từ phiên bản `normalizeVietnameseSearchText` cũ (hoặc import từ backup v8 cũ), giá trị không khớp với current normalizer output → rule ở line 49 throw `CategoryValidationException: normalizedName (ca_phe_legacy) must equal normalizeVietnameseSearchText(name) (ca phe)`. Exception được catch bởi try/catch của `reorderCategories` (line 637) và show như SnackBar — user thấy như "quăng exception".
+
+Đáng lưu ý: **layout fix trước đó (commit 6dfe917, wrap với `SingleChildScrollView` + `Column`)** cũng là một real bug (ReorderableListView-in-ListView constraint issue) nhưng **không phải** bug user report. Hai bug tách biệt; fix layout không giải quyết validation exception.
+
+**Fix:**
+
+1. Thêm `updateSortOrder(id, sortOrder, updatedAt)` vào `CategoryLocalDataSource` interface — targeted `db.update` chỉ write 2 columns (`sort_order` + `updated_at`) qua `WHERE id = ?`, **không gọi `validate()`**.
+2. `SqliteCategoryDataSource.updateSortOrder` impl: `db.update('categories', {sort_order, updated_at}, where: 'id = ?', whereArgs: [id])`. No-op nếu id không tồn tại.
+3. `_FakeCategoryDataSource` (test) và `_NullDataSource` (no-DI path) implement stub.
+4. `reorderCategories` rewrite: build `List<({String id, int sortOrder, DateTime updatedAt})>` triples (skip `other` trong loop chính, append `(id: 'other', sortOrder: 9999, updatedAt: now)` cuối cùng), iterate gọi `updateSortOrder` thay `upsert`.
+
+**Trade-off đã chọn:** Targeted update thay vì self-heal `normalizedName` trong VM. Lý do:
+- Reorder là pure sortOrder mutation — không có lý do gì phải re-validate các fields khác.
+- Self-heal trong VM sẽ silently fix user data mà không surface bug — che giấu data quality issue, làm khó debug khi user edit các category tương tự.
+- Edit path (`updateCategory`) vẫn strict — nếu user mở edit sheet trên row có `normalizedName` stale, sẽ thấy validation error và sửa được (đó là intent đúng).
+
+**Tests (lock the architecture):**
+
+- `test/unit/sqlite_category_datasource_test.dart` — 2 tests trong group `updateSortOrder (ADR-0037 hotfix)`:
+  - Stale row: raw-insert row với `normalized_name = 'ca_phe_legacy_stale'` (mismatch `normalizeVietnameseSearchText('Cà phê') = 'ca phe'`), assert `validate()` throws, sau đó assert `updateSortOrder` succeeds và bump `sortOrder` + `updatedAt` mà không đụng `normalizedName`.
+  - No-op: `updateSortOrder('nonexistent', 10, ...)` không throw, `getAll()` rỗng.
+- `test/unit/category_viewmodel_mutation_test.dart` — 3 tests trong group `CategoryViewModel.reorderCategories (ADR-0037 hotfix)`:
+  - Stale-data reorder: seed category với `normalizedName = 'ca_phe_legacy'`, gọi `reorderCategories` swap, assert `ok=true`, `errorMessage=null`, **`upsertCalls == 0`** (lock architecture: reorder không được gọi `upsert`).
+  - Normal reorder: seed `_coffee` + `_other`, reverse, assert `coffee.sortOrder=10` + `other.sortOrder=9999` + `upsertCalls==0`.
+  - Empty input: assert `errorMessage = 'Danh sách danh mục trống'`.
+
+**Verification (proves test catches bug):** Tạm thời revert `SqliteCategoryDataSource.updateSortOrder` để gọi `validate(existing)` trước khi `db.update`. Re-run SQLite test → fail với đúng `CategoryValidationException: normalizedName (ca_phe_legacy_stale) must equal normalizeVietnameseSearchText(name) (ca phe)`. Restore fix → pass.
+
+**Pattern documented:** Mutation paths chỉ touch 1-2 fields nên dùng targeted update method trên datasource (no `validate()`), không dùng full-row `upsert()`. Heuristic: nếu thấy `for (c in updated) await _dataSource.upsert(c)` và loop chỉ thay đổi ≤2 fields → refactor thành targeted method. Apply tương tự cho future CategoryViewModel mutations (nếu có) và các domain khác có validate() strict.
+
+**No new tag:** Giữ nguyên git tag `v1.7.0`. Bump `BUILD` 2026061302 → 2026061403 (per ADR-0024 §5 rollback rule: hotfix = bump BUILD +1 trong cùng date, cross-date dùng date mới).

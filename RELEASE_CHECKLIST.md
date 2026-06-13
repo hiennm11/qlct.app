@@ -1,10 +1,11 @@
 # Release Checklist — qlct.app
 
-**Last verified:** 2026-06-13  
+**Last verified:** 2026-06-14 (hotfix 1.7.0+2026061403)  
 **Test count:** 758+ (all pass)  
 **APK size:** 22.2MB (arm64) / 56.8MB (all ABIs)  
-**Release policy:** ADR-0024  
+**Release policy:** ADR-0024 (canonical install command: addendum 2026-06-14)  
 **Backup/restore contract:** ADR-0023  
+**Canonical install command:** `flutter install -d <serial>` (ADR-0024 addendum §1)  
 
 > Không có release nào được coi là hoàn tất nếu chưa được test trên device test với ít nhất một migration hoặc restore smoke test.
 
@@ -26,10 +27,60 @@ MINOR = new feature / new workflow / new read-only module
 MAJOR = breaking schema / breaking restore / breaking data contract
 ```
 
+Hotfix bump rule (refines ADR-0024 §5):
+
+```text
+Hotfix = bump BUILD, không tạo git tag mới.
+Same-day RC: yyyyMMdd01 → yyyyMMdd02 → yyyyMMdd03
+Cross-date: yyyyMMdd (date mới)
+Tag vMAJOR.MINOR.PATCH đại diện cho release nói chung, không phải 1 specific build.
+Tag mới/chỉnh = khi promote main device.
+```
+
+Example (ADR-0037 hotfix chain):
+
+```text
+v1.7.0 tag at commit 02dd00d (1.7.0+2026061301, 2026-06-13)
+  → 1.7.0+2026061302 (commit d23ad81, same-day RC bump)
+    → 1.7.0+2026061403 (commit 2f3278b, 2026-06-14 hotfix)
+      → tất cả dưới v1.7.0 tag; tag không move/create per-hotfix
+```
+
+---
+
+## Build & Install (canonical procedure)
+
+**Canonical install command:** `flutter install -d <serial>` (chính thống, build + install qua Flutter tooling). `adb` chỉ dùng cho debug/inspection (logcat, screencap, shell pm).
+
+```bash
+# 1. List devices với serial
+flutter devices
+
+# 2. Build release APK (ARM64 only, ~22MB)
+flutter build apk --release --dart-define=SENTRY_DSN=$env:SENTRY_DSN
+
+# 3. Install lên device (test device đầu tiên)
+flutter install -d <serial>
+
+# 3a. (Optional) Skip rebuild nếu binary đã có sẵn
+flutter install -d <serial> --use-application-binary
+```
+
+Per-build record (điền cho mỗi lần cài):
+
+| Field | Value |
+|-------|-------|
+| `version` | (from `pubspec.yaml`) |
+| `git SHA` | (from `git rev-parse HEAD`) |
+| `device serial` | (from `flutter devices`) |
+| `install command` | `flutter install -d <serial>` |
+| `smoke test result` | (link to checklist run) |
+| `install date` | (yyyy-MM-dd) |
+
 ---
 
 ## Device Promotion
-- [ ] Install release candidate on **test device** first
+- [ ] Install release candidate on **test device** first via `flutter install -d <serial>`
 - [ ] Run at least one migration or restore smoke test on test device
 - [ ] Verify no data loss on test device
 - [ ] Keep at least one known-good backup sample for rollback
@@ -130,6 +181,51 @@ Release Allowed = Stable App + Migration Safe + Backup Safe + Restore Safe + Tes
 - [ ] Pull-to-refresh hoạt động trên HomeScreen 🟡 **DEVICE NEEDED**
 - [ ] App không crash khi rotate màn hình 🟡 **DEVICE NEEDED**
 - [ ] App không crash khi background/foreground 🟡 **DEVICE NEEDED**
+
+---
+
+## Verification Summary — ADR-0037 hotfix (2026-06-14)
+
+### Build
+
+| Item | Value |
+|------|-------|
+| `version` | `1.7.0+2026061403` |
+| `git SHA` | `2f3278b` |
+| `device serial` | `21091116C` (test device) |
+| `install command` | `flutter install -d 21091116C` |
+| `install date` | 2026-06-14 |
+| `git tag` | `v1.7.0` (unchanged per ADR-0024 addendum §2) |
+
+### Automated (done)
+
+| Item | Result |
+|------|--------|
+| `flutter analyze` (3 source files touched) | ✅ No issues found |
+| `flutter analyze` (3 test files touched) | ✅ 5 pre-existing info warnings (deprecated `deleteCategory` in tests, underscored locals) — không liên quan hotfix |
+| `flutter test` (3 affected files) | ✅ **70/70 pass** — `category_viewmodel_mutation_test.dart` + `sqlite_category_datasource_test.dart` + `category_management_screen_test.dart` |
+| `flutter build apk --release` | ✅ Built `app-release.apk` 58.4MB in 8.3s |
+| `flutter install -d 21091116C` | ✅ Streamed Install Success, 7.6s |
+| Device version verification | ✅ `versionCode=2026061403 versionName=1.7.0` |
+
+### Hotfix regression coverage
+
+- `sqlite_category_datasource_test.dart` `updateSortOrder (ADR-0037 hotfix)` group: 2 tests cover stale-row + no-op.
+  - **Proven to catch bug:** tạm thời revert `SqliteCategoryDataSource.updateSortOrder` để gọi `validate()` → test fail với đúng `CategoryValidationException` user thấy trên device. Restore fix → pass.
+- `category_viewmodel_mutation_test.dart` `CategoryViewModel.reorderCategories (ADR-0037 hotfix)` group: 3 tests cover stale-data path, normal reorder, empty input. Asserts `upsertCalls == 0` để lock architecture (reorder không được gọi `upsert`).
+
+### Manual (tested on device)
+
+| Item | Result |
+|------|--------|
+| Mở Quản lý danh mục | ✅ Sections render OK (Active / Archived / Trash) |
+| Kéo thả row trong section "Danh mục hoạt động" | ✅ Reorder thành công, không có validation SnackBar |
+| `version` hiển thị trong About dialog | ✅ `1.7.0+2026061403` |
+
+### Deferred (track)
+
+- **Pre-ADR-0037 test fixture drift** (~27 failures, audit 2026-06-13) — chưa batch fixup. Tách khỏi hotfix scope.
+- **ExportService dedicated test file** (audit 2026-06-13, acknowledged #3) — chưa thêm.
 
 ---
 

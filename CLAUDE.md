@@ -12,6 +12,10 @@ Canonical roles map directly: `needs-triage`, `needs-info`, `ready-for-agent`, `
 
 Single-context: `CONTEXT.md` at root + `docs/adr/`. See `docs/agents/domain.md`.
 
+### Build, install, release
+
+Canonical install command: `flutter install -d <serial>` (ADR-0024 addendum 2026-06-14). `adb` chỉ dùng cho debug/inspection. Hotfix = RC bump trên BUILD (`yyyyMMdd` → `yyyyMMdd01` → …), không tạo git tag mới cho đến khi promote main device. Full procedure: `RELEASE_CHECKLIST.md` → "Build & Install" section. Versioning/device policy: `docs/adr/0024-release-versioning-device-policy.md`.
+
 ### Flutter skills
 
 Project skills in `.agents/skills/`. Load via `skill` tool when coding.

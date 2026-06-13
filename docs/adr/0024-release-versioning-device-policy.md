@@ -182,3 +182,51 @@ Rejected. Backup/restore is the rollback mechanism. A release without tested res
 - ADR-0012: Release Verification — V1.0.0 Go-Live Gate
 - ADR-0023: Full Backup & Restore Contract
 - `RELEASE_CHECKLIST.md`
+
+## Addendum 2026-06-14: Canonical Install Command + Hotfix Tagging
+
+**Author:** hiennm11
+**Status:** Accepted
+**Context:** Trước addendum này, install APK lên device thường dùng `adb install -r build/app/outputs/flutter-apk/app-release.apk` thủ công. Approach này dễ miss (path resolve sai, multiple devices, không verify version), và adb không thuộc Flutter tooling nên không tích hợp với `flutter build` artifacts. Sau khi review build/install flow cho hotfix 1.7.0+2026061403 (ADR-0037 addendum, commit 2f3278b), chuẩn hóa install command + clarify hotfix tagging rule.
+
+### 1. Canonical install command
+
+**Use `flutter install -d <serial>`** thay vì `adb install`. Lý do:
+
+- `flutter install` resolve binary từ `build/app/outputs/flutter-apk/app-release.apk` (cùng artifact `flutter build apk` tạo ra), không cần tự track path.
+- Validate version thông qua Flutter tooling trước khi push.
+- List devices: `flutter devices` (chính thống) thay `adb devices`.
+- Skip rebuild nếu binary đã có: `flutter install -d <serial> --use-application-binary`.
+
+`adb` vẫn dùng cho debug/inspection (logcat, screencap, shell pm, etc.) — không cấm, chỉ không phải default cho app install.
+
+### 2. Hotfix tagging rule (refines §5)
+
+§5 cover rollback (bump BUILD +1, re-test test device first). Addendum này clarify tag semantics cho hotfix:
+
+- **Hotfix = RC bump, không tạo git tag mới.** Tag `vMAJOR.MINOR.PATCH` đại diện cho release nói chung, không phải 1 specific build. Hotfix trên cùng `MAJOR.MINOR.PATCH` (vd `1.7.0+2026061302` → `1.7.0+2026061403`) vẫn thuộc tag `v1.7.0`.
+- **Tag mới = khi promote main device.** Khi user quyết định cài stable build lên main device (per §2 device policy), tạo/cập nhật tag tại commit đó với date stamp trong checklist.
+- **Same-day RC candidates** (vd 2 hotfixes trong cùng ngày) dùng `yyyyMMdd01`, `yyyyMMdd02`, `yyyyMMdd03` cho BUILD. Tag vẫn là 1 cho cùng MAJOR.MINOR.PATCH.
+
+Example flow (ADR-0037 hotfix):
+
+```text
+v1.7.0 tag at commit 02dd00d (1.7.0+2026061301, 2026-06-13)
+  → hotfix 1.7.0+2026061302 (commit d23ad81, same day RC bump)
+    → user reports bug, hotfix 1.7.0+2026061403 (commit 2f3278b, 2026-06-14)
+      → all under v1.7.0 tag; tag NOT moved/created per-hotfix
+```
+
+**Rationale:** Tag spam theo từng RC làm history noisy, và `v1.7.0` semantically đại diện cho "release branch 1.7.0, latest tested build on main device". Hotfix build number trong `pubspec.yaml` + RELEASE_CHECKLIST là audit trail đầy đủ.
+
+### 3. Checklist integration
+
+`RELEASE_CHECKLIST.md` cần update để:
+- Note canonical install command (`flutter install -d <serial>`).
+- Note hotfix bump rule (§5 + addendum §2) trong Versioning section.
+- Per-build record: `version`, `git SHA`, `device serial`, `install command`, `smoke test result`.
+
+## References (addendum)
+
+- ADR-0037 (addendum 2026-06-14): Category Drag-and-Drop + Soft-Delete Trash — hotfix pattern.
+- `RELEASE_CHECKLIST.md` (build/install procedure section).
