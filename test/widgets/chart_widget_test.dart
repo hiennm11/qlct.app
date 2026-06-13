@@ -29,6 +29,7 @@ void main() {
       id: '0',
       amount: 0,
       category: '',
+      categoryId: 'test_cat',
       emoji: '',
       date: DateTime.now(),
       note: '',
@@ -51,7 +52,7 @@ void main() {
       home: Scaffold(
         body: ChangeNotifierProvider.value(
           value: vm,
-          child: const ChartWidget(),
+          child: const ChartWidget(activeCategories: []),
         ),
       ),
     );
@@ -72,6 +73,7 @@ void main() {
         id: 'tx-1',
         amount: 50000,
         category: 'Ăn ngoài',
+        categoryId: 'food_out',
         emoji: '🍔',
         date: now,
         note: '',
@@ -91,6 +93,7 @@ void main() {
         id: 'tx-1',
         amount: 50000,
         category: 'Ăn ngoài',
+        categoryId: 'food_out',
         emoji: '🍔',
         date: DateTime.now(),
         note: '',
