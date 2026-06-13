@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:qlct/core/vietnamese_text_normalizer.dart';
 import 'package:qlct/models/category.dart';
+import 'package:qlct/models/merge_preview.dart';
 import 'package:qlct/data/database/database_helper.dart';
 import 'package:qlct/data/mappers/category_row_mapper.dart';
 import 'package:qlct/data/datasources/category_local_datasource.dart';
@@ -216,6 +217,119 @@ class SqliteCategoryDataSource implements CategoryLocalDataSource {
       {'updated_at': updatedAt.millisecondsSinceEpoch},
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  // ===== ADR-0038: Merge categories =====
+
+  /// Guard helper: throws [CategoryMergeCollision] when source/target
+  /// are the same id, or when source is the protected `other` fallback.
+  void _checkMergeable(String sourceId, String targetId) {
+    if (sourceId == targetId) {
+      throw CategoryMergeCollision('sameCategory',
+          'Danh mục nguồn và đích phải khác nhau');
+    }
+    if (sourceId == 'other') {
+      throw CategoryMergeCollision('protectedSource',
+          'Không thể hợp nhất danh mục "Khác"');
+    }
+  }
+
+  @override
+  Future<MergePreview> getMergePreview(
+    String sourceId,
+    String targetId,
+  ) async {
+    _checkMergeable(sourceId, targetId);
+    final db = await _dbHelper.database;
+    Future<int> count(String table) async {
+      final result = await db.rawQuery(
+        'SELECT COUNT(*) AS c FROM $table WHERE category_id = ?',
+        [sourceId],
+      );
+      return Sqflite.firstIntValue(result) ?? 0;
+    }
+
+    return MergePreview(
+      transactions: await count('transactions'),
+      budgets: await count('budgets'),
+      snapshots: await count('budget_snapshots'),
+      planItems: await count('budget_plan_items'),
+      recurring: await count('recurring_transactions'),
+      quickTemplates: await count('quick_templates'),
+    );
+  }
+
+  @override
+  Future<MergeResult> merge(String sourceId, String targetId) async {
+    _checkMergeable(sourceId, targetId);
+    final preview = await getMergePreview(sourceId, targetId);
+    await _dbHelper.runInTransaction((txn) async {
+      // 1. transactions (no UNIQUE on category_id)
+      await txn.update('transactions', {'category_id': targetId},
+          where: 'category_id = ?', whereArgs: [sourceId]);
+      // 2. budgets — UNIQUE(category_id) blocks
+      final targetBudget = await txn.query('budgets',
+          where: 'category_id = ?', whereArgs: [targetId], limit: 1);
+      if (targetBudget.isNotEmpty) {
+        throw CategoryMergeCollision('budgetExists',
+            'Danh mục đích đã có ngân sách — xoá ngân sách đích trước');
+      }
+      await txn.update('budgets', {'category_id': targetId},
+          where: 'category_id = ?', whereArgs: [sourceId]);
+      // 3. budget_snapshots — composite PK (year_month, category_id).
+      // On PK collision with target, drop source's row (LIMIT 1 win to target).
+      final sourceSnaps = await txn.query('budget_snapshots',
+          columns: ['year_month'],
+          where: 'category_id = ?', whereArgs: [sourceId]);
+      for (final snap in sourceSnaps) {
+        final ym = snap['year_month'] as String;
+        try {
+          await txn.update('budget_snapshots', {'category_id': targetId},
+              where: 'category_id = ? AND year_month = ?',
+              whereArgs: [sourceId, ym]);
+        } on DatabaseException {
+          // PK collision: target already has (ym, targetId) — drop source's
+          await txn.delete('budget_snapshots',
+              where: 'category_id = ? AND year_month = ?',
+              whereArgs: [sourceId, ym]);
+        }
+      }
+      // 4. budget_plan_items — same PK collision handling
+      final sourcePlans = await txn.query('budget_plan_items',
+          columns: ['year_month'],
+          where: 'category_id = ?', whereArgs: [sourceId]);
+      for (final plan in sourcePlans) {
+        final ym = plan['year_month'] as String;
+        try {
+          await txn.update('budget_plan_items', {'category_id': targetId},
+              where: 'category_id = ? AND year_month = ?',
+              whereArgs: [sourceId, ym]);
+        } on DatabaseException {
+          await txn.delete('budget_plan_items',
+              where: 'category_id = ? AND year_month = ?',
+              whereArgs: [sourceId, ym]);
+        }
+      }
+      // 5. recurring (no UNIQUE)
+      await txn.update('recurring_transactions', {'category_id': targetId},
+          where: 'category_id = ?', whereArgs: [sourceId]);
+      // 6. quick_templates (no UNIQUE)
+      await txn.update('quick_templates', {'category_id': targetId},
+          where: 'category_id = ?', whereArgs: [sourceId]);
+      // 7. soft-delete source (reuses existing softDelete WHERE guard)
+      final now = DateTime.now();
+      await txn.update('categories', {
+        'deleted_at': now.millisecondsSinceEpoch,
+        'updated_at': now.millisecondsSinceEpoch,
+      },
+          where: 'id = ? AND id != ? AND is_system = 0',
+          whereArgs: [sourceId, 'other']);
+    });
+    return MergeResult(
+      affected: preview,
+      sourceId: sourceId,
+      targetId: targetId,
     );
   }
 }

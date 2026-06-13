@@ -1,4 +1,5 @@
 import 'package:qlct/models/category.dart';
+import 'package:qlct/models/merge_preview.dart';
 
 /// Validation exception thrown by [CategoryLocalDataSource] for invalid input.
 class CategoryValidationException implements Exception {
@@ -6,6 +7,17 @@ class CategoryValidationException implements Exception {
   CategoryValidationException(this.message);
   @override
   String toString() => 'CategoryValidationException: $message';
+}
+
+/// ADR-0038: thrown by merge() for blocking pre-flight conditions.
+/// [kind] values: 'sameCategory' | 'protectedSource' |
+///                'budgetExists' | 'sourceHasBudget'.
+class CategoryMergeCollision implements Exception {
+  final String kind;
+  final String message;
+  CategoryMergeCollision(this.kind, this.message);
+  @override
+  String toString() => 'CategoryMergeCollision($kind): $message';
 }
 
 /// Persistence seam for Category domain (ADR-0027 Phase 2.5A).
@@ -51,4 +63,15 @@ abstract class CategoryLocalDataSource {
 
   /// ADR-0037: bump updatedAt. Used by reorder so backup last-write-wins re-imports.
   Future<void> touchUpdatedAt(String id, DateTime updatedAt);
+
+  /// ADR-0038: dry-run. Count rows in 6 tables that would be affected by
+  /// merging sourceId → targetId. Throws [CategoryMergeCollision] for
+  /// blocking pre-flight conditions.
+  Future<MergePreview> getMergePreview(String sourceId, String targetId);
+
+  /// ADR-0038: cascade. UPDATE all 6 tables' category_id from sourceId to
+  /// targetId, then soft-delete source (reuses ADR-0037 trash). Single
+  /// SQLite transaction. Throws [CategoryMergeCollision] on UNIQUE
+  /// collision or invalid input.
+  Future<MergeResult> merge(String sourceId, String targetId);
 }

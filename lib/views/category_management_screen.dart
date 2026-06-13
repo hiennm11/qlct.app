@@ -5,6 +5,7 @@ import 'package:qlct/models/category.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/category_create_sheet.dart';
 import 'package:qlct/widgets/category_edit_sheet.dart';
+import 'package:qlct/widgets/category_merge_sheet.dart';
 
 /// ADR-0028 §3 + ADR-0037: Full-screen category management page.
 /// 3 sections: Active (drag-and-drop reorder), Archived, Trash (soft-delete recovery).
@@ -173,6 +174,13 @@ class CategoryManagementScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quản lý danh mục'),
+        actions: [
+          IconButton(
+            tooltip: 'Hợp nhất danh mục',
+            icon: const Icon(Icons.merge_type),
+            onPressed: () => CategoryMergeSheet.show(context),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Tạo danh mục mới',

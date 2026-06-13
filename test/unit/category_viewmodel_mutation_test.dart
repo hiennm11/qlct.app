@@ -3,6 +3,7 @@ import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/category.dart';
+import 'package:qlct/models/merge_preview.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 
 class _FakeCategoryDataSource implements CategoryLocalDataSource {
@@ -10,6 +11,10 @@ class _FakeCategoryDataSource implements CategoryLocalDataSource {
   Category? lastUpserted;
   int upsertCalls = 0;
   final Set<String> _deletedIds = {};
+  // ADR-0038: track merge calls and allow tests to inject behavior.
+  final List<Map<String, String>> mergeCalls = [];
+  Map<String, String>? lastMerged;
+  Function(String, String)? mergeOverride;
 
   void seed(List<Category> categories) {
     for (final c in categories) {
@@ -88,6 +93,7 @@ class _FakeCategoryDataSource implements CategoryLocalDataSource {
 
   @override
   Future<void> restore(String id) async {
+    _restoreCalls++;
     final existing = _store[id];
     if (existing == null) return;
     _store[id] = existing.copyWith(
@@ -96,11 +102,48 @@ class _FakeCategoryDataSource implements CategoryLocalDataSource {
     );
   }
 
+  /// ADR-0038: count of restore calls. Tests inspect this to verify
+  /// the VM auto-restored a trashed target before merge.
+  int get restoreCalls => _restoreCalls;
+  int _restoreCalls = 0;
+
   @override
   Future<void> touchUpdatedAt(String id, DateTime updatedAt) async {
     final existing = _store[id];
     if (existing == null) return;
     _store[id] = existing.copyWith(updatedAt: updatedAt);
+  }
+
+  // ===== ADR-0038: Merge =====
+
+  @override
+  Future<MergePreview> getMergePreview(
+    String sourceId,
+    String targetId,
+  ) async {
+    if (sourceId == targetId) {
+      throw CategoryMergeCollision(
+          'sameCategory', 'Danh mục nguồn và đích phải khác nhau');
+    }
+    if (sourceId == 'other') {
+      throw CategoryMergeCollision(
+          'protectedSource', 'Không thể hợp nhất danh mục "Khác"');
+    }
+    return const MergePreview();
+  }
+
+  @override
+  Future<MergeResult> merge(String sourceId, String targetId) async {
+    if (mergeOverride != null) {
+      mergeOverride!(sourceId, targetId);
+    }
+    mergeCalls.add({'sourceId': sourceId, 'targetId': targetId});
+    lastMerged = {'sourceId': sourceId, 'targetId': targetId};
+    return MergeResult(
+      affected: const MergePreview(),
+      sourceId: sourceId,
+      targetId: targetId,
+    );
   }
 }
 
@@ -731,6 +774,103 @@ void main() {
       final ok = await vm2.deleteCategory('custom-used');
       expect(ok, false);
       expect(vm2.errorMessage, 'Danh mục đang được sử dụng. Hãy lưu trữ thay vì xoá.');
+    });
+  });
+
+  // ===== ADR-0038: Merge =====
+
+  Category _customCat({
+    required String id,
+    required String name,
+    DateTime? deletedAt,
+  }) {
+    final now = DateTime(2026, 6, 10, 12);
+    return Category(
+      id: id,
+      name: name,
+      normalizedName: name.toLowerCase(),
+      emoji: '🏷️',
+      kind: CategoryKind.spending,
+      budgetBehavior: BudgetBehavior.flexible,
+      quickAmountMin: 10000,
+      quickAmountDefault: 50000,
+      quickAmountMax: 200000,
+      voicePhrases: [],
+      sortOrder: 50,
+      isSystem: false,
+      isArchived: false,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: deletedAt,
+    );
+  }
+
+  group('CategoryViewModel.mergeCategories', () {
+    test('happy path: merges source into target, returns MergeResult', () async {
+      final source = _customCat(id: 'src', name: 'Cafe');
+      final target = _customCat(id: 'tgt', name: 'Cà phê');
+      final catDs = _FakeCategoryDataSource()..seed([_other(), source, target]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final result = await vm.mergeCategories('src', 'tgt');
+      expect(result, isNotNull);
+      expect(result!.sourceId, 'src');
+      expect(result.targetId, 'tgt');
+      expect(catDs.mergeCalls, hasLength(1));
+      expect(catDs.mergeCalls.first['sourceId'], 'src');
+      expect(catDs.mergeCalls.first['targetId'], 'tgt');
+      expect(vm.errorMessage, isNull);
+    });
+
+    test('budget collision: returns null and sets errorMessage', () async {
+      final source = _customCat(id: 'src', name: 'Cafe');
+      final target = _customCat(id: 'tgt', name: 'Cà phê');
+      final catDs = _FakeCategoryDataSource()..seed([_other(), source, target]);
+      catDs.mergeOverride = (s, t) {
+        throw CategoryMergeCollision(
+            'budgetExists', 'Danh mục đích đã có ngân sách — xoá ngân sách đích trước');
+      };
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final result = await vm.mergeCategories('src', 'tgt');
+      expect(result, isNull);
+      expect(vm.errorMessage, contains('ngân sách'));
+    });
+
+    test('same-id guard: returns null and sets errorMessage', () async {
+      final cat = _customCat(id: 'src', name: 'Cafe');
+      final catDs = _FakeCategoryDataSource()..seed([_other(), cat]);
+      catDs.mergeOverride = (s, t) {
+        throw CategoryMergeCollision(
+            'sameCategory', 'Danh mục nguồn và đích phải khác nhau');
+      };
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final result = await vm.mergeCategories('src', 'src');
+      expect(result, isNull);
+      expect(vm.errorMessage, contains('khác nhau'));
+    });
+
+    test('auto-restores target from trash before merge', () async {
+      final source = _customCat(id: 'src', name: 'Cafe');
+      final target = _customCat(
+          id: 'tgt', name: 'Cà phê', deletedAt: DateTime(2026, 6, 1));
+      final catDs = _FakeCategoryDataSource()..seed([_other(), source, target]);
+      final budgetDs = _FakeBudgetDataSource();
+      final vm = CategoryViewModel.seededWithDeps(catDs, budgetDs);
+      await waitForLoad(vm);
+
+      final result = await vm.mergeCategories('src', 'tgt');
+      expect(result, isNotNull);
+      // restoreCalls counter on fake DS: should be >= 1
+      expect(catDs.restoreCalls, greaterThanOrEqualTo(1));
+      expect(catDs.mergeCalls, hasLength(1));
     });
   });
 }

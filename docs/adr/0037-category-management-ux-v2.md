@@ -317,7 +317,6 @@ Manual smoke (release build):
 Generic out-of-scope items identified during implementation, không có concrete user request. Track low priority trong `CONTEXT.md` §Open Deferred Items nếu user phản hồi.
 
 - **Auto-purge trash sau N ngày** — trash hiện tại giữ vĩnh viễn cho đến khi user tự "Xoá vĩnh viễn" (per Q3 grill). Có thể add `purgeDeletedOlderThan(DateTime)` background job sau nếu data tích luỹ nhiều.
-- **Merge 2 categories** — vẫn open ở ADR-0034 §Deferred, separate ADR.
 - **Placeholder category cleanup workflow** — ADR-0034 chỉ cleanup hàng loạt từ migration; chưa có UI xoá 1 placeholder thủ công (dù có thể dùng `softDeleteCategory`).
 - **Re-order archived section** — archived = read-only, không cần DnD.
 - **Bulk-archive categories** — chưa cần multi-select.

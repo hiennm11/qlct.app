@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:qlct/models/category.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/views/category_management_screen.dart';
+import 'package:qlct/widgets/category_merge_sheet.dart';
 
 Category _coffee() {
   final now = DateTime(2026, 6, 10, 12);
@@ -106,6 +107,64 @@ void main() {
       expect(find.text('Số tiền nhanh'), findsOneWidget);
       expect(find.text('Cụm từ nhận diện giọng nói'), findsOneWidget);
       expect(find.text('Thứ tự hiển thị'), findsOneWidget);
+    });
+
+    // ===== ADR-0038: Merge sheet =====
+    testWidgets('AppBar merge icon shows merge sheet step 1', (tester) async {
+      final vm = CategoryViewModel.seeded([_coffee(), _archived()]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<CategoryViewModel>.value(
+            value: vm,
+            child: const CategoryManagementScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.merge_type));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Chọn danh mục cần hợp nhất'), findsOneWidget);
+      expect(find.text('Cà phê'), findsWidgets);
+    });
+
+    testWidgets('merge sheet step 1 → step 2 flow', (tester) async {
+      final vm = CategoryViewModel.seeded([_coffee(), _archived()]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<CategoryViewModel>.value(
+            value: vm,
+            child: const CategoryManagementScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.merge_type));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Tap the Cà phê row inside the sheet (not the management screen row).
+      final sheetCafe = find.descendant(
+        of: find.byType(CategoryMergeSheet),
+        matching: find.text('Cà phê'),
+      );
+      await tester.tap(sheetCafe);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Step 2 title
+      expect(find.text('Chọn danh mục đích'), findsOneWidget);
+      // Subtitle shows source name
+      expect(find.textContaining('Nguồn: Cà phê'), findsOneWidget);
+      // Target list shows other categories (Giải trí archived) — scope to sheet.
+      final sheetGiaitri = find.descendant(
+        of: find.byType(CategoryMergeSheet),
+        matching: find.text('Giải trí'),
+      );
+      expect(sheetGiaitri, findsOneWidget);
     });
   });
 }

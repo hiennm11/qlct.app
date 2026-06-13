@@ -101,8 +101,8 @@ Do not chase unrelated legacy/full-suite failures.
 
 ### Deferred
 
-- Merge categories. **Still open** — reassign all transactions từ cat A → cat B. Tracked in `CONTEXT.md` §Open Deferred Items.
+- ~~Merge categories.~~ **Closed by [ADR-0038](../adr/0038-merge-categories.md)** — `CategoryLocalDataSource.merge(sourceId, targetId)` cascade UPDATE 6 tables (`transactions`, `budgets`, `budget_snapshots`, `budget_plan_items`, `recurring_transactions`, `quick_templates`) trong 1 SQLite transaction, sau đó soft-delete source (reuses ADR-0037 trash flow). `MergePreview` dry-run counts per table. Collision handling: budget UNIQUE → block; snapshot/plan composite PK → LIMIT 1 win (target's row survives). `CategoryMergeCollision` exception với `kind` discriminator. Name snapshot columns (`category`, `category_name`) frozen — audit trail preserved. UI: AppBar `IconButton(Icons.merge_type)` trên `CategoryManagementScreen` mở 2-step bottom sheet (source picker → target picker + live preview). Undo qua "Thùng rác" restore path. No schema/backup bump (reuses v15/v9).
 - ~~Soft-delete recovery for custom categories.~~ **Closed by [ADR-0037](../adr/0037-category-management-ux-v2.md) §Feature 2** — `Category.deletedAt: DateTime?` (separate field per deviation rationale), `CategoryViewModel.softDeleteCategory`/`restoreCategory`/`purgeCategory`, "Thùng rác" section với "Khôi phục" + "Xoá vĩnh viễn" (có confirm) actions. SQLite v14→v15 + backup v8→v9.
 - ~~Monthly Review carry-out UI.~~ **Closed by [ADR-0035](../adr/0035-monthly-review-carry-out.md)** — `Còn dư chuyển tháng sau: +X ₫` display landed.
 
-> 1 item closed, 2 items still open (merge, soft-delete recovery). Audit 2026-06-13.
+> 3 items closed, 0 items still open. Audit 2026-06-13.

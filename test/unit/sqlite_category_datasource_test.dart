@@ -55,6 +55,107 @@ void main() {
     dataSource = SqliteCategoryDataSource(dbHelper);
   });
 
+  /// ADR-0038: helper that creates the 6 financial tables that reference
+  /// categories. Idempotent. Mirrors schemas in database_helper.dart
+  /// (transactions, budgets, budget_snapshots, budget_plans,
+  /// budget_plan_items, recurring_transactions, quick_templates).
+  Future<void> _createFinancialTables() async {
+    final db = await dbHelper.database;
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS transactions (
+        id                       TEXT PRIMARY KEY,
+        amount                   INTEGER NOT NULL,
+        category                 TEXT NOT NULL,
+        category_id              TEXT NOT NULL,
+        emoji                    TEXT NOT NULL DEFAULT '',
+        date                     TEXT NOT NULL,
+        note                     TEXT NOT NULL DEFAULT '',
+        source_recurring_id      TEXT,
+        created_at               INTEGER NOT NULL,
+        search_text_normalized   TEXT NOT NULL DEFAULT ''
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS budgets (
+        id              TEXT PRIMARY KEY,
+        category_name   TEXT NOT NULL,
+        category_id     TEXT NOT NULL,
+        monthly_limit   INTEGER NOT NULL,
+        alert_threshold INTEGER NOT NULL DEFAULT 80,
+        created_at      INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_budgets_category ON budgets(category_id)');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS budget_snapshots (
+        year_month      TEXT NOT NULL,
+        category_name   TEXT NOT NULL,
+        category_id     TEXT NOT NULL,
+        limit_amount    INTEGER NOT NULL,
+        alert_threshold INTEGER NOT NULL DEFAULT 80,
+        created_at      INTEGER NOT NULL,
+        carry_amount    INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (year_month, category_id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS budget_plans (
+        year_month            TEXT NOT NULL PRIMARY KEY,
+        planned_total_budget  INTEGER NOT NULL DEFAULT 0,
+        source                TEXT NOT NULL,
+        status                TEXT NOT NULL DEFAULT 'draft',
+        created_at            INTEGER NOT NULL,
+        updated_at            INTEGER NOT NULL,
+        applied_at            INTEGER
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS budget_plan_items (
+        year_month                   TEXT NOT NULL,
+        category_name                TEXT NOT NULL,
+        category_id                  TEXT NOT NULL,
+        planned_limit                INTEGER NOT NULL DEFAULT 0,
+        alert_threshold              INTEGER NOT NULL DEFAULT 80,
+        suggested_limit              INTEGER NOT NULL DEFAULT 0,
+        base_limit                   INTEGER NOT NULL DEFAULT 0,
+        last_month_spent             INTEGER NOT NULL DEFAULT 0,
+        was_over_budget_last_month   INTEGER NOT NULL DEFAULT 0,
+        recommendation               TEXT NOT NULL,
+        PRIMARY KEY (year_month, category_id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recurring_transactions (
+        id            TEXT PRIMARY KEY,
+        category_name TEXT NOT NULL,
+        category_id   TEXT NOT NULL,
+        amount        INTEGER NOT NULL,
+        note          TEXT NOT NULL DEFAULT '',
+        frequency     TEXT NOT NULL,
+        next_run_at   TEXT NOT NULL,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS quick_templates (
+        id              TEXT PRIMARY KEY,
+        title           TEXT NOT NULL,
+        amount          INTEGER NOT NULL,
+        category_name   TEXT NOT NULL,
+        category_id     TEXT NOT NULL,
+        note            TEXT NOT NULL DEFAULT '',
+        emoji           TEXT NOT NULL,
+        is_pinned       INTEGER NOT NULL DEFAULT 0,
+        usage_count     INTEGER NOT NULL DEFAULT 0,
+        last_used_at    TEXT,
+        created_at      TEXT NOT NULL,
+        updated_at      TEXT NOT NULL
+      )
+    ''');
+  }
+
   tearDown(() async {
     await dbHelper.close();
   });
@@ -315,6 +416,135 @@ void main() {
       await dataSource.upsert(makeCategory(id: 'c2', name: 'C2', normalizedName: 'c2'));
       final result = await dataSource.count();
       expect(result, 2);
+    });
+  });
+
+  // ===== ADR-0038: Merge =====
+
+  group('merge', () {
+    test('happy path: cascades 6 tables and soft-deletes source', () async {
+      await _createFinancialTables();
+      final source = makeCategory(id: 'src', name: 'Cafe', normalizedName: 'cafe');
+      final target = makeCategory(id: 'tgt', name: 'Ca phe', normalizedName: 'ca phe');
+      await dataSource.upsert(source);
+      await dataSource.upsert(target);
+      // Seed 1 row in each of the 6 tables pointing to source
+      final db = await dbHelper.database;
+      await db.insert('transactions', {
+        'id': 't1', 'amount': 100, 'category': 'Cafe', 'category_id': 'src',
+        'emoji': '', 'date': '2026-06-01', 'note': '', 'created_at': 1,
+        'search_text_normalized': '',
+      });
+      await db.insert('budgets', {
+        'id': 'b1', 'category_name': 'Cafe', 'category_id': 'src',
+        'monthly_limit': 1000, 'alert_threshold': 80, 'created_at': 1,
+      });
+      await db.insert('budget_snapshots', {
+        'year_month': '2026-05', 'category_name': 'Cafe', 'category_id': 'src',
+        'limit_amount': 1000, 'alert_threshold': 80, 'created_at': 1, 'carry_amount': 0,
+      });
+      await db.insert('budget_plan_items', {
+        'year_month': '2026-05', 'category_name': 'Cafe', 'category_id': 'src',
+        'planned_limit': 1000, 'alert_threshold': 80, 'suggested_limit': 0,
+        'base_limit': 0, 'last_month_spent': 0, 'was_over_budget_last_month': 0,
+        'recommendation': 'flat',
+      });
+      await db.insert('recurring_transactions', {
+        'id': 'r1', 'category_name': 'Cafe', 'category_id': 'src',
+        'amount': 50, 'note': '', 'frequency': 'monthly', 'next_run_at': '2026-07-01',
+        'is_active': 1, 'created_at': '2026-06-01T00:00:00Z',
+      });
+      await db.insert('quick_templates', {
+        'id': 'q1', 'title': 'Quick', 'amount': 25, 'category_name': 'Cafe',
+        'category_id': 'src', 'note': '', 'emoji': '☕', 'is_pinned': 0,
+        'usage_count': 0, 'last_used_at': null,
+        'created_at': '2026-06-01T00:00:00Z', 'updated_at': '2026-06-01T00:00:00Z',
+      });
+
+      final result = await dataSource.merge('src', 'tgt');
+      expect(result.sourceId, 'src');
+      expect(result.targetId, 'tgt');
+      expect(result.affected.transactions, 1);
+      expect(result.affected.budgets, 1);
+      expect(result.affected.snapshots, 1);
+      expect(result.affected.planItems, 1);
+      expect(result.affected.recurring, 1);
+      expect(result.affected.quickTemplates, 1);
+
+      // Verify category_id was UPDATED to target in all 6 tables
+      final txnRows = await db.query('transactions', where: 'category_id = ?', whereArgs: ['tgt']);
+      expect(txnRows, hasLength(1));
+      final budgetRows = await db.query('budgets', where: 'category_id = ?', whereArgs: ['tgt']);
+      expect(budgetRows, hasLength(1));
+      final snapRows = await db.query('budget_snapshots', where: 'category_id = ?', whereArgs: ['tgt']);
+      expect(snapRows, hasLength(1));
+      final planRows = await db.query('budget_plan_items', where: 'category_id = ?', whereArgs: ['tgt']);
+      expect(planRows, hasLength(1));
+      final recRows = await db.query('recurring_transactions', where: 'category_id = ?', whereArgs: ['tgt']);
+      expect(recRows, hasLength(1));
+      final qtRows = await db.query('quick_templates', where: 'category_id = ?', whereArgs: ['tgt']);
+      expect(qtRows, hasLength(1));
+
+      // Source category should be soft-deleted
+      final srcAfter = await dataSource.getById('src');
+      expect(srcAfter, isNotNull);
+      expect(srcAfter!.deletedAt, isNotNull);
+    });
+
+    test('budget collision: target has live budget → throws, no state change', () async {
+      await _createFinancialTables();
+      final source = makeCategory(id: 'src', name: 'Cafe', normalizedName: 'cafe');
+      final target = makeCategory(id: 'tgt', name: 'Ca phe', normalizedName: 'ca phe');
+      await dataSource.upsert(source);
+      await dataSource.upsert(target);
+      final db = await dbHelper.database;
+      // Pre-existing budget for target
+      await db.insert('budgets', {
+        'id': 'b-tgt', 'category_name': 'Ca phe', 'category_id': 'tgt',
+        'monthly_limit': 500, 'alert_threshold': 80, 'created_at': 1,
+      });
+      // Source transaction row that would normally be moved
+      await db.insert('transactions', {
+        'id': 't1', 'amount': 100, 'category': 'Cafe', 'category_id': 'src',
+        'emoji': '', 'date': '2026-06-01', 'note': '', 'created_at': 1,
+        'search_text_normalized': '',
+      });
+
+      expect(
+        () => dataSource.merge('src', 'tgt'),
+        throwsA(isA<CategoryMergeCollision>()
+            .having((e) => e.kind, 'kind', 'budgetExists')),
+      );
+      // Transaction row should still point to source (rollback)
+      final txnRows = await db.query('transactions', where: 'category_id = ?', whereArgs: ['src']);
+      expect(txnRows, hasLength(1));
+      // Source not soft-deleted
+      final srcAfter = await dataSource.getById('src');
+      expect(srcAfter!.deletedAt, isNull);
+    });
+
+    test('snapshot LIMIT 1: source row dropped when target has same year_month', () async {
+      await _createFinancialTables();
+      final source = makeCategory(id: 'src', name: 'Cafe', normalizedName: 'cafe');
+      final target = makeCategory(id: 'tgt', name: 'Ca phe', normalizedName: 'ca phe');
+      await dataSource.upsert(source);
+      await dataSource.upsert(target);
+      final db = await dbHelper.database;
+      // Both have snapshot for 2026-05
+      await db.insert('budget_snapshots', {
+        'year_month': '2026-05', 'category_name': 'Cafe', 'category_id': 'src',
+        'limit_amount': 100, 'alert_threshold': 80, 'created_at': 1, 'carry_amount': 0,
+      });
+      await db.insert('budget_snapshots', {
+        'year_month': '2026-05', 'category_name': 'Ca phe', 'category_id': 'tgt',
+        'limit_amount': 999, 'alert_threshold': 80, 'created_at': 2, 'carry_amount': 0,
+      });
+
+      await dataSource.merge('src', 'tgt');
+      // Only target's row should remain for 2026-05
+      final rows = await db.query('budget_snapshots', where: 'year_month = ?', whereArgs: ['2026-05']);
+      expect(rows, hasLength(1));
+      expect(rows.first['category_id'], 'tgt');
     });
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:qlct/models/category.dart';
+import 'package:qlct/models/merge_preview.dart';
 import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_plan_local_datasource.dart';
@@ -37,6 +38,12 @@ class _NullDataSource implements CategoryLocalDataSource {
   Future<void> restore(String id) async {}
   @override
   Future<void> touchUpdatedAt(String id, DateTime updatedAt) async {}
+  @override
+  Future<MergePreview> getMergePreview(String sourceId, String targetId) async =>
+      const MergePreview();
+  @override
+  Future<MergeResult> merge(String sourceId, String targetId) async =>
+      MergeResult(affected: const MergePreview(), sourceId: sourceId, targetId: targetId);
 }
 
 /// App-level category state (ADR-0027 Phase 2.5A).
@@ -702,6 +709,67 @@ class CategoryViewModel extends ChangeNotifier {
       _errorMessage = e.toString();
       notifyListeners();
       return false;
+    }
+  }
+
+  // ===== ADR-0038: Merge categories =====
+
+  /// ADR-0038: dry-run preview. Returns null + sets errorMessage on
+  /// blocking pre-flight collision.
+  Future<MergePreview?> getMergePreview(
+    String sourceId,
+    String targetId,
+  ) async {
+    try {
+      return await _dataSource.getMergePreview(sourceId, targetId);
+    } on CategoryMergeCollision catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// ADR-0038: cascade merge + soft-delete source. Auto-restores target
+  /// from trash if currently soft-deleted. Returns null + sets
+  /// errorMessage on collision; returns [MergeResult] on success.
+  Future<MergeResult?> mergeCategories(
+    String sourceId,
+    String targetId,
+  ) async {
+    // Lookup target (also check trashed so we can auto-restore it)
+    var target = categoryById(targetId);
+    target ??= await _dataSource.getById(targetId);
+    if (target == null) {
+      _errorMessage = 'Không tìm thấy danh mục đích';
+      notifyListeners();
+      return null;
+    }
+    // Auto-restore target from trash
+    if (target.deletedAt != null) {
+      try {
+        await _dataSource.restore(targetId);
+      } catch (e) {
+        _errorMessage = 'Không thể khôi phục danh mục đích: $e';
+        notifyListeners();
+        return null;
+      }
+    }
+    try {
+      final result = await _dataSource.merge(sourceId, targetId);
+      await reload();
+      return result;
+    } on CategoryMergeCollision catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return null;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return null;
     }
   }
 }
