@@ -125,3 +125,7 @@ debug_run.txt
 
 .agents/
 skills-lock.json
+
+# User backup JSON files accidentally dropped at repo root
+Sao lưu dữ liệu QLCT.json
+qlct-backup-*.json

@@ -179,7 +179,7 @@ class BudgetViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load all budgets from repository.
+  /// Load all budgets from datasource.
   ///
   /// ADR-0026 §9: rollover order
   /// 1. Load live budgets
