@@ -71,6 +71,44 @@ void main() {
                 'CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)');
             await db.execute(
                 'CREATE INDEX IF NOT EXISTS idx_transactions_source_recurring ON transactions(source_recurring_id)');
+            await db.execute('''
+              CREATE TABLE budgets (
+                id              TEXT PRIMARY KEY,
+                category_name   TEXT NOT NULL,
+                monthly_limit   INTEGER NOT NULL,
+                alert_threshold INTEGER NOT NULL DEFAULT 80,
+                created_at      INTEGER NOT NULL
+              )
+            ''');
+            await db.execute(
+                'CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+            await db.execute('''
+              CREATE TABLE recurring_transactions (
+                id            TEXT PRIMARY KEY,
+                category_name TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                note          TEXT NOT NULL DEFAULT '',
+                frequency     TEXT NOT NULL,
+                next_run_at   TEXT NOT NULL,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE quick_templates (
+                id              TEXT PRIMARY KEY,
+                title           TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                category_name   TEXT NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                emoji           TEXT NOT NULL,
+                is_pinned       INTEGER NOT NULL DEFAULT 0,
+                usage_count     INTEGER NOT NULL DEFAULT 0,
+                last_used_at    TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
+              )
+            ''');
           },
         ),
       );
@@ -171,6 +209,44 @@ void main() {
                 note                TEXT NOT NULL DEFAULT '',
                 source_recurring_id TEXT,
                 created_at          INTEGER NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE budgets (
+                id              TEXT PRIMARY KEY,
+                category_name   TEXT NOT NULL,
+                monthly_limit   INTEGER NOT NULL,
+                alert_threshold INTEGER NOT NULL DEFAULT 80,
+                created_at      INTEGER NOT NULL
+              )
+            ''');
+            await db.execute(
+                'CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+            await db.execute('''
+              CREATE TABLE recurring_transactions (
+                id            TEXT PRIMARY KEY,
+                category_name TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                note          TEXT NOT NULL DEFAULT '',
+                frequency     TEXT NOT NULL,
+                next_run_at   TEXT NOT NULL,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE quick_templates (
+                id              TEXT PRIMARY KEY,
+                title           TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                category_name   TEXT NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                emoji           TEXT NOT NULL,
+                is_pinned       INTEGER NOT NULL DEFAULT 0,
+                usage_count     INTEGER NOT NULL DEFAULT 0,
+                last_used_at    TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
               )
             ''');
           },

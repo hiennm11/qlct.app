@@ -238,8 +238,8 @@ void main() {
   });
 
   group('currentSchemaVersion', () {
-    test('currentSchemaVersion is 7', () {
-      expect(currentSchemaVersion, 7);
+    test('currentSchemaVersion is 9', () {
+      expect(currentSchemaVersion, 9);
     });
   });
 }

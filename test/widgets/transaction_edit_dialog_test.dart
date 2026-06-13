@@ -27,6 +27,7 @@ Transaction _tx({
   String id = 'tx-1',
   int amount = 50000,
   String category = 'Ăn ngoài',
+  String categoryId = 'food_out',
   String emoji = '🍕',
   String note = 'Test note',
   String? sourceRecurringId,
@@ -36,6 +37,7 @@ Transaction _tx({
     id: id,
     amount: amount,
     category: category,
+    categoryId: categoryId,
     emoji: emoji,
     note: note,
     date: date ?? DateTime(2026, 6, 5),
@@ -141,6 +143,7 @@ void main() {
         id: '0',
         amount: 0,
         category: '',
+        categoryId: '',
         emoji: '',
         date: DateTime.now(),
         note: '',
@@ -193,11 +196,12 @@ setUp(() {
 
     testWidgets('amount chip appears when history has matching transactions',
         (tester) async {
-      final txs = [
+      final txs = <Transaction>[
         Transaction(
           id: 'h1',
           amount: 50000,
           category: 'Ăn ngoài',
+          categoryId: 'food_out',
           emoji: '🍜',
           date: DateTime(2026, 6, 5),
           note: '',
@@ -211,11 +215,12 @@ setUp(() {
     });
 
     testWidgets('tapping amount chip overrides amount field', (tester) async {
-      final txs = [
+      final txs = <Transaction>[
         Transaction(
           id: 'h1',
           amount: 50000,
           category: 'Ăn ngoài',
+          categoryId: 'food_out',
           emoji: '🍜',
           date: DateTime(2026, 6, 5),
           note: '',
@@ -231,11 +236,12 @@ setUp(() {
 
     testWidgets('note chip appears when history has matching notes',
         (tester) async {
-      final txs = [
+      final txs = <Transaction>[
         Transaction(
           id: 'h1',
           amount: 50000,
           category: 'Cà phê',
+          categoryId: 'coffee',
           emoji: '☕',
           date: DateTime(2026, 6, 5),
           note: 'cf sáng',
@@ -247,11 +253,12 @@ setUp(() {
     });
 
     testWidgets('tapping note chip overrides note field', (tester) async {
-      final txs = [
+      final txs = <Transaction>[
         Transaction(
           id: 'h1',
           amount: 50000,
           category: 'Cà phê',
+          categoryId: 'coffee',
           emoji: '☕',
           date: DateTime(2026, 6, 5),
           note: 'cf sáng',
@@ -269,11 +276,12 @@ setUp(() {
         (tester) async {
       // Only the current transaction exists for this category.
       // It should NOT appear as a suggestion.
-      final txs = [
+      final txs = <Transaction>[
         Transaction(
           id: 'tx-1',
           amount: 50000,
           category: 'Ăn ngoài',
+          categoryId: 'food_out',
           emoji: '🍜',
           date: DateTime(2026, 6, 5),
           note: 'only this one',

@@ -131,6 +131,7 @@ void main() {
       final json = {
         'id': 'defaults-test',
         'categoryName': 'Cà phê',
+        'categoryId': 'coffee',
         'amount': 10000,
         'nextRunAt': '2026-06-01T00:00:00.000',
         'createdAt': '2026-06-01T00:00:00.000',

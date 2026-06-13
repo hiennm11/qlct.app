@@ -87,6 +87,33 @@ void main() {
                 PRIMARY KEY (year_month, category_name)
               )
             ''');
+            await db.execute('''
+              CREATE TABLE recurring_transactions (
+                id            TEXT PRIMARY KEY,
+                category_name TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                note          TEXT NOT NULL DEFAULT '',
+                frequency     TEXT NOT NULL,
+                next_run_at   TEXT NOT NULL,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE quick_templates (
+                id              TEXT PRIMARY KEY,
+                title           TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                category_name   TEXT NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                emoji           TEXT NOT NULL,
+                is_pinned       INTEGER NOT NULL DEFAULT 0,
+                usage_count     INTEGER NOT NULL DEFAULT 0,
+                last_used_at    TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
+              )
+            ''');
           },
         ),
       );
@@ -170,6 +197,33 @@ void main() {
                 PRIMARY KEY (year_month, category_name)
               )
             ''');
+            await db.execute('''
+              CREATE TABLE recurring_transactions (
+                id            TEXT PRIMARY KEY,
+                category_name TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                note          TEXT NOT NULL DEFAULT '',
+                frequency     TEXT NOT NULL,
+                next_run_at   TEXT NOT NULL,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE quick_templates (
+                id              TEXT PRIMARY KEY,
+                title           TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                category_name   TEXT NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                emoji           TEXT NOT NULL,
+                is_pinned       INTEGER NOT NULL DEFAULT 0,
+                usage_count     INTEGER NOT NULL DEFAULT 0,
+                last_used_at    TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
+              )
+            ''');
           },
         ),
       );
@@ -187,15 +241,15 @@ void main() {
 
       // Insert first item row
       await dbV11.execute('''
-        INSERT INTO budget_plan_items (year_month, category_name, planned_limit, alert_threshold, suggested_limit, base_limit, last_month_spent, was_over_budget_last_month, recommendation)
-        VALUES ('2026-07', 'Ăn ngoài', 3000000, 80, 3500000, 3000000, 3500000, 1, 'increase')
+        INSERT INTO budget_plan_items (year_month, category_name, category_id, planned_limit, alert_threshold, suggested_limit, base_limit, last_month_spent, was_over_budget_last_month, recommendation)
+        VALUES ('2026-07', 'Ăn ngoài', 'food_out', 3000000, 80, 3500000, 3000000, 3500000, 1, 'increase')
       ''');
 
       // Insert duplicate — should fail (UNIQUE constraint)
       try {
         await dbV11.execute('''
-          INSERT INTO budget_plan_items (year_month, category_name, planned_limit, alert_threshold, suggested_limit, base_limit, last_month_spent, was_over_budget_last_month, recommendation)
-          VALUES ('2026-07', 'Ăn ngoài', 9999999, 80, 3500000, 3000000, 3500000, 1, 'increase')
+          INSERT INTO budget_plan_items (year_month, category_name, category_id, planned_limit, alert_threshold, suggested_limit, base_limit, last_month_spent, was_over_budget_last_month, recommendation)
+          VALUES ('2026-07', 'Ăn ngoài', 'food_out', 9999999, 80, 3500000, 3000000, 3500000, 1, 'increase')
         ''');
         fail('Expected SQLiteException for duplicate composite key');
       } on DatabaseException catch (e) {
@@ -205,8 +259,8 @@ void main() {
 
       // INSERT OR IGNORE skips the duplicate
       await dbV11.execute('''
-        INSERT OR IGNORE INTO budget_plan_items (year_month, category_name, planned_limit, alert_threshold, suggested_limit, base_limit, last_month_spent, was_over_budget_last_month, recommendation)
-        VALUES ('2026-07', 'Ăn ngoài', 9999999, 80, 3500000, 3000000, 3500000, 1, 'increase')
+        INSERT OR IGNORE INTO budget_plan_items (year_month, category_name, category_id, planned_limit, alert_threshold, suggested_limit, base_limit, last_month_spent, was_over_budget_last_month, recommendation)
+        VALUES ('2026-07', 'Ăn ngoài', 'food_out', 9999999, 80, 3500000, 3000000, 3500000, 1, 'increase')
       ''');
       final remaining = await dbV11.rawQuery(
           'SELECT * FROM budget_plan_items WHERE year_month = ? AND category_name = ?',
@@ -263,6 +317,33 @@ void main() {
                 alert_threshold INTEGER NOT NULL DEFAULT 80,
                 created_at      INTEGER NOT NULL,
                 PRIMARY KEY (year_month, category_name)
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE recurring_transactions (
+                id            TEXT PRIMARY KEY,
+                category_name TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                note          TEXT NOT NULL DEFAULT '',
+                frequency     TEXT NOT NULL,
+                next_run_at   TEXT NOT NULL,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE quick_templates (
+                id              TEXT PRIMARY KEY,
+                title           TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                category_name   TEXT NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                emoji           TEXT NOT NULL,
+                is_pinned       INTEGER NOT NULL DEFAULT 0,
+                usage_count     INTEGER NOT NULL DEFAULT 0,
+                last_used_at    TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
               )
             ''');
           },

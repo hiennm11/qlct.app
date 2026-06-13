@@ -91,7 +91,7 @@ void main() {
       expect(row['category_name'], 'Ăn ngoài');
       expect(row['limit_amount'], 3000000);
       expect(row['alert_threshold'], 80);
-      expect(row['created_at'], DateTime(2026, 6, 1, 10, 0).millisecondsSinceEpoch);
+      expect(row['created_at'], DateTime(2026, 6, 1).millisecondsSinceEpoch);
     });
 
     test('fromRow produces correct snapshot', () {

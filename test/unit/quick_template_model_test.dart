@@ -69,6 +69,7 @@ void main() {
         'title': 'Tối thiểu',
         'amount': 10000,
         'categoryName': 'Khác',
+        'categoryId': 'other',
         'createdAt': created.toIso8601String(),
         'updatedAt': created.toIso8601String(),
       };

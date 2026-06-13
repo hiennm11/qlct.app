@@ -131,6 +131,7 @@ Transaction _makeTx(String id, {int amount = 10000, String category = 'Ăn ngoà
     id: id,
     amount: amount,
     category: category,
+    categoryId: 'food_out',
     emoji: '🍜',
     date: DateTime(2026, 6, 5),
     note: '',

@@ -76,6 +76,33 @@ void main() {
             ''');
             await db.execute(
                 'CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+            await db.execute('''
+              CREATE TABLE recurring_transactions (
+                id            TEXT PRIMARY KEY,
+                category_name TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                note          TEXT NOT NULL DEFAULT '',
+                frequency     TEXT NOT NULL,
+                next_run_at   TEXT NOT NULL,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE quick_templates (
+                id              TEXT PRIMARY KEY,
+                title           TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                category_name   TEXT NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                emoji           TEXT NOT NULL,
+                is_pinned       INTEGER NOT NULL DEFAULT 0,
+                usage_count     INTEGER NOT NULL DEFAULT 0,
+                last_used_at    TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
+              )
+            ''');
           },
         ),
       );
@@ -106,8 +133,8 @@ void main() {
       // Step 3: verify insert works
       final now = DateTime.now().millisecondsSinceEpoch;
       await dbV10.execute('''
-        INSERT INTO budget_snapshots (year_month, category_name, limit_amount, alert_threshold, created_at)
-        VALUES ('2026-05', 'Ăn ngoài', 3000000, 80, $now)
+        INSERT INTO budget_snapshots (year_month, category_name, category_id, limit_amount, alert_threshold, created_at)
+        VALUES ('2026-05', 'Ăn ngoài', 'food_out', 3000000, 80, $now)
       ''');
       final rows = await dbV10.rawQuery(
           'SELECT * FROM budget_snapshots WHERE year_month = ? AND category_name = ?',
@@ -143,6 +170,44 @@ void main() {
                 'CREATE INDEX IF NOT EXISTS idx_transactions_source_recurring ON transactions(source_recurring_id)');
             await db.execute(
                 'CREATE INDEX IF NOT EXISTS idx_transactions_search_text_normalized ON transactions(search_text_normalized)');
+            await db.execute('''
+              CREATE TABLE budgets (
+                id              TEXT PRIMARY KEY,
+                category_name   TEXT NOT NULL,
+                monthly_limit   INTEGER NOT NULL,
+                alert_threshold INTEGER NOT NULL DEFAULT 80,
+                created_at      INTEGER NOT NULL
+              )
+            ''');
+            await db.execute(
+                'CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+            await db.execute('''
+              CREATE TABLE recurring_transactions (
+                id            TEXT PRIMARY KEY,
+                category_name TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                note          TEXT NOT NULL DEFAULT '',
+                frequency     TEXT NOT NULL,
+                next_run_at   TEXT NOT NULL,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE quick_templates (
+                id              TEXT PRIMARY KEY,
+                title           TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                category_name   TEXT NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                emoji           TEXT NOT NULL,
+                is_pinned       INTEGER NOT NULL DEFAULT 0,
+                usage_count     INTEGER NOT NULL DEFAULT 0,
+                last_used_at    TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
+              )
+            ''');
           },
         ),
       );
@@ -156,15 +221,15 @@ void main() {
 
       // Insert first row
       await dbV10.execute('''
-        INSERT INTO budget_snapshots (year_month, category_name, limit_amount, alert_threshold, created_at)
-        VALUES ('2026-05', 'Ăn ngoài', 3000000, 80, $now)
+        INSERT INTO budget_snapshots (year_month, category_name, category_id, limit_amount, alert_threshold, created_at)
+        VALUES ('2026-05', 'Ăn ngoài', 'food_out', 3000000, 80, $now)
       ''');
 
       // Insert duplicate — should fail (UNIQUE constraint)
       try {
         await dbV10.execute('''
-          INSERT INTO budget_snapshots (year_month, category_name, limit_amount, alert_threshold, created_at)
-          VALUES ('2026-05', 'Ăn ngoài', 9999999, 80, $now)
+          INSERT INTO budget_snapshots (year_month, category_name, category_id, limit_amount, alert_threshold, created_at)
+          VALUES ('2026-05', 'Ăn ngoài', 'food_out', 9999999, 80, $now)
         ''');
         fail('Expected SQLiteException for duplicate composite key');
       } on DatabaseException catch (e) {
@@ -174,8 +239,8 @@ void main() {
 
       // INSERT OR IGNORE skips the duplicate
       await dbV10.execute('''
-        INSERT OR IGNORE INTO budget_snapshots (year_month, category_name, limit_amount, alert_threshold, created_at)
-        VALUES ('2026-05', 'Ăn ngoài', 9999999, 80, $now)
+        INSERT OR IGNORE INTO budget_snapshots (year_month, category_name, category_id, limit_amount, alert_threshold, created_at)
+        VALUES ('2026-05', 'Ăn ngoài', 'food_out', 9999999, 80, $now)
       ''');
       final rows = await dbV10.rawQuery(
           'SELECT * FROM budget_snapshots WHERE year_month = ? AND category_name = ?',
@@ -213,6 +278,44 @@ void main() {
                 'CREATE INDEX IF NOT EXISTS idx_transactions_source_recurring ON transactions(source_recurring_id)');
             await db.execute(
                 'CREATE INDEX IF NOT EXISTS idx_transactions_search_text_normalized ON transactions(search_text_normalized)');
+            await db.execute('''
+              CREATE TABLE budgets (
+                id              TEXT PRIMARY KEY,
+                category_name   TEXT NOT NULL,
+                monthly_limit   INTEGER NOT NULL,
+                alert_threshold INTEGER NOT NULL DEFAULT 80,
+                created_at      INTEGER NOT NULL
+              )
+            ''');
+            await db.execute(
+                'CREATE UNIQUE INDEX idx_budgets_category ON budgets(category_name)');
+            await db.execute('''
+              CREATE TABLE recurring_transactions (
+                id            TEXT PRIMARY KEY,
+                category_name TEXT NOT NULL,
+                amount        INTEGER NOT NULL,
+                note          TEXT NOT NULL DEFAULT '',
+                frequency     TEXT NOT NULL,
+                next_run_at   TEXT NOT NULL,
+                is_active     INTEGER NOT NULL DEFAULT 1,
+                created_at    TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE quick_templates (
+                id              TEXT PRIMARY KEY,
+                title           TEXT NOT NULL,
+                amount          INTEGER NOT NULL,
+                category_name   TEXT NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                emoji           TEXT NOT NULL,
+                is_pinned       INTEGER NOT NULL DEFAULT 0,
+                usage_count     INTEGER NOT NULL DEFAULT 0,
+                last_used_at    TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
+              )
+            ''');
           },
         ),
       );

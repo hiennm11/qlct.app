@@ -190,6 +190,7 @@ void main() {
         'id': '1749001234567',
         'amount': 50000,
         'category': 'Test',
+        'category_id': 'test_cat',
         'emoji': '🧪',
         'date': '2026-01-01T00:00:00.000',
         'note': '',
