@@ -37,14 +37,21 @@ import 'views/home_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ADR-0010: skip SentryFlutter.init hoàn toàn nếu DSN rỗng.
+  // Sentry SDK tự parse DSN → Uri trong SentryOptions.parsedDsn getter,
+  // chạy TRƯỚC options callback → Uri.parse('') throw FormatException.
+  // Early-return trong options callback quá muộn.
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+  if (sentryDsn.isEmpty) {
+    debugPrint('⚠️ SENTRY_DSN not set — crash reporting disabled');
+    await _initApp();
+    return;
+  }
+
   try {
     await SentryFlutter.init(
       (options) {
-        options.dsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: '');
-        if (options.dsn?.isEmpty ?? true) {
-          debugPrint('⚠️ SENTRY_DSN not set — crash reporting disabled');
-          return;
-        }
+        options.dsn = sentryDsn;
         options.tracesSampleRate = 0.1;
         options.attachScreenshot = false;
         options.sendDefaultPii = false;
