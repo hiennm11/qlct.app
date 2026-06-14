@@ -226,6 +226,57 @@ Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical ter
 
 ---
 
+## Verification Summary — P1 #4 test coverage financial (2026-06-14)
+
+### Build
+
+| Item | Value |
+|------|-------|
+| `version` | `1.7.0+2026061405` (P1 batch reinstall) |
+| `git SHA` | `698772c` (ADR-0040) → 4 gap commits (`727244a`/`ac93140`/`5183e20`/`af7826c`) |
+| `install command` | `flutter install -d 21091116C` (ADR-0024 addendum §1) |
+| `ADR` | `docs/adr/0040-p1-test-coverage-financial-2026-06-14.md` (contract-ref) |
+
+### Automated (done)
+
+| Item | Result |
+|------|--------|
+| `flutter test test/unit/sqlite_budget_snapshot_datasource_test.dart` | ✅ 17/17 pass (P1 #4.1) |
+| `flutter test test/unit/monthly_budget_plan_builder_internal_test.dart` | ✅ 25/25 pass (P1 #4.2) |
+| `flutter test test/unit/budget_viewmodel_test.dart` | ✅ 54/54 pass (51 cũ + 3 mới P1 #4.3) |
+| `flutter test test/unit/monthly_review_viewmodel_test.dart` | ✅ 18/18 pass (15 cũ + 3 mới P1 #4.4) |
+| `flutter analyze` (4 file) | ✅ 0 warnings, 5 info (underscore prefix on local helpers — project pattern) |
+| `flutter build apk --release` | ✅ Built `build/app/outputs/flutter-apk/app-release.apk` (58.4MB) |
+| `flutter install -d 21091116C` | ✅ 148.1s — test device install pass |
+
+### Test coverage delta (P1 #4)
+
+| File | Trước | Sau | Delta |
+|------|-------|-----|-------|
+| `sqlite_budget_snapshot_datasource_test.dart` | 0 | 17 | +17 (file mới) |
+| `monthly_budget_plan_builder_internal_test.dart` | 0 | 25 | +25 (file mới) |
+| `budget_viewmodel_test.dart` | 51 | 54 | +3 (extend) |
+| `monthly_review_viewmodel_test.dart` | 15 | 18 | +3 (extend) |
+| **Total** | **66** | **114** | **+48** |
+
+### Behavior pin (P1 #4.3 + #4.4)
+
+- **Plan apply không filter trash/archived** — `_isInvestmentCategory` chỉ check `kind == investment`. Trashed/archived category trong plan item vẫn được upsert live budget. Trade-off: nếu user restore → budget row ready; nếu user purge → row orphaned (accept cho single-user local app).
+- **Snapshot carry frozen** — `BudgetSnapshot` row là frozen record, không phụ thuộc category catalog state hiện tại. Monthly Review vẫn show carry line dù category archive/trash post-snapshot. Nếu filter state → review mất historical context.
+
+### RC release gate (per checklist §Device Promotion)
+
+- [ ] Run at least one migration hoặc restore smoke test trên test device (xem §Migration / §Backup & Restore)
+- [ ] Verify no data loss
+- [ ] Keep at least one known-good backup sample for rollback
+- [ ] Only install on main device sau khi release gate passes
+
+### P1 #2 (Category management flow polish) — chưa close
+
+4 gap còn: trash empty state hint, unarchive trực tiếp (không vào edit), merge sheet warning khi counts cao, trash filter/search. Chờ user grill phase mới.
+
+---
+
 ## Verification Summary — ADR-0037 hotfix (2026-06-14)
 
 ### Build
