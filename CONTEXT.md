@@ -242,6 +242,12 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 
 - **CHANGELOG.md có cần không?** — Verify pass, KHÔNG cần. Codebase đã có 3 lớp release info: (1) git log conventional commits filter `git log v1.7.0..HEAD --oneline` cho release notes, (2) `RELEASE_CHECKLIST.md` §Verification Summary sections aggregate per-batch (Tuần 4 P0, P1 #2, P1 #4, P2 đều có), (3) ADR-0024 chốt release policy + device promotion gate. Thêm `CHANGELOG.md` là lớp thứ 4 trùng lặp — YAGNI. Personal app, user = developer, không cần user-facing release notes. Nếu sau này cần public release notes (GitHub release page), CÓ THỂ add `tools/release-notes.sh` parse conventional commits. Hiện tại skip.
 
+### ✅ Closed by P2 micro-interactions polish (2026-06-14)
+
+- **P2.5 Loading skeleton** — 3 centered `CircularProgressIndicator` (Monthly Review `_LoadingView` line 174, Monthly Plan line 83, Budget Overview line 33) thay bằng `SkeletonBox` generic reusable widget (file mới `lib/widgets/skeleton_box.dart`). Add dependency `shimmer: ^3.0.0` (MIT, ~50KB compiled, 2+ years stable). Commit `b889fb6` ADR-0043 full ADR (vì dependency change).
+- **P2.6 Haptic irreversible confirm** — `HapticFeedback.heavyImpact()` ở 2 destructive không undo: "Xoá vĩnh viễn" (purge, `category_management_screen.dart:174`) + "Hợp nhất" (merge, `category_merge_sheet.dart:384`). Đúng Apple HIG/Material guideline: haptic chỉ ở irreversible action, không spam.
+- **Skipped (audit 2026-06-14)**: inline button spinner (2 vị trí) đã polish; `LinearProgressIndicator` có value (2 vị trí) không phải indeterminate; backup/restore progress đã có UI; haptic ở soft-delete/delete transaction (không irreversible, có undo/restore).
+
 ### ✅ Closed by ADR-0038 (audit 2026-06-13)
 
 - ~~**Merge categories**~~ — ADR-0034 §Deferred → ADR-0038. `CategoryLocalDataSource.merge(sourceId, targetId)` cascade UPDATE 6 tables trong 1 SQLite transaction + soft-delete source (reuses ADR-0037 trash). `CategoryMergeCollision` exception với budget/PK collision handling. UI: AppBar `IconButton(Icons.merge_type)` + 2-step `CategoryMergeSheet` (source → target + preview + confirm). Undo qua trash restore. No schema/backup bump.
