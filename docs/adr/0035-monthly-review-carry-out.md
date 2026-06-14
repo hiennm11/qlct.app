@@ -104,6 +104,8 @@ Run focused only:
 flutter test test/unit/monthly_review_builder_test.dart test/unit/monthly_review_viewmodel_test.dart --no-pub
 ```
 
+**Test coverage audit 2026-06-14 (Tuần 1 P0)**: carry-out display + `_loadCurrentMonth` build carry map đã cover bởi tests thuộc 3 file trên (audit thực tế qua `grep -lE "carryAmount|carryByCategoryId" test/`). Cộng thêm 2 carry idempotency tests ở `test/unit/budget_viewmodel_test.dart` (xem [ADR-0032 §Test coverage audit 2026-06-14](../adr/0032-monthly-budget-carry-over.md)). Verify pass confirmed trong Tuần 1 P0 audit loop.
+
 Targeted analyze for changed files.
 
 Do not chase unrelated legacy/full-suite failures.

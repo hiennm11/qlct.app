@@ -267,6 +267,19 @@ A v9 backup with soft-deleted categories round-trips correctly: the existing `IN
 
 - v9 backup with soft-deleted category imports correctly
 
+**Test coverage audit 2026-06-14 (Tuần 2 P0)**: G1+H1 audit 2 layer (DataSource + ViewModel) cho soft-delete/restore/purge:
+
+- `test/unit/sqlite_category_datasource_test.dart` — 3 tests trong group `softDelete/restore (ADR-0037 §Feature 2)`:
+  - `softDelete` sets `deleted_at` + filters from `getAll` + surfaces in `getDeleted`
+  - `restore` is idempotent (no-op if `deleted_at` is null, no `updated_at` bump)
+  - `getDeleted` orders by `deleted_at DESC`
+- `test/unit/category_viewmodel_mutation_test.dart` — 4 tests trong 3 groups:
+  - `softDeleteCategory` success path + guard (system/other/blocked-by-budget)
+  - `restoreCategory` idempotent (idempotent call không bump `updated_at`)
+  - `purgeCategory` guard (non-deleted → block, system/other → block)
+
+Closes test coverage gap cho soft-delete trash flow trước khi move sang release hardening (Tuần 3 P0).
+
 ## Consequences
 
 ### Positive

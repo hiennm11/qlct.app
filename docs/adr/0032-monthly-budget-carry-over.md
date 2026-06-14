@@ -248,6 +248,13 @@ budget_viewmodel_test.dart               → carry calculation positive-only and
 backup_data_test or backup_service test   → schema v8 defaults older carryAmount to 0
 ```
 
+**Test coverage audit 2026-06-14 (Tuần 1 P0)**: 2 tests trong `test/unit/budget_viewmodel_test.dart` group "carry idempotency — flag gate prevents double-apply" close the flag-gate gap noted trong §3:
+
+1. First load với `budget_carry_applied_YYYY-MM` flag null → `_calculateAndPersistCarryAmount` chạy carry upsert + set flag `true`
+2. Repeated load cùng tháng với flag `true` → skip carry upsert (verify flag gate, not mock stub)
+
+Closes test gap in `budget_viewmodel_test.dart` lines 1409-1412 (carry idempotency). Other entries (v14 migration, mapper, backup schema v8) đã cover từ trước.
+
 Do not chase unrelated legacy/full-suite failures.
 
 ## Consequences
