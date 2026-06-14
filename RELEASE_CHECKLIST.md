@@ -271,9 +271,35 @@ Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical ter
 - [ ] Keep at least one known-good backup sample for rollback
 - [ ] Only install on main device sau khi release gate passes
 
-### P1 #2 (Category management flow polish) — chưa close
+## Verification Summary — P2 polish (4 batch, 2026-06-14)
 
-4 gap còn: trash empty state hint, unarchive trực tiếp (không vào edit), merge sheet warning khi counts cao, trash filter/search. Chờ user grill phase mới.
+### Build
+
+| Item | Value |
+|------|-------|
+| `version` | `1.7.0+2026061406` (P2 batch reinstall) |
+| `git SHA` | `ddef329` (P2 batch 4 verify pass) → 4 sub-batch commits (`dc6ea2d`/`43191a9`/`b889fb6`/`ddef329`) |
+| `install command` | `flutter install -d 21091116C` (ADR-0024 addendum §1) |
+| `ADR` | `0042` (empty state) + `0043` (micro-interactions) + 2 verify pass (RC process, help text) |
+
+### Sub-batch delta (P2 polish)
+
+| Batch | Commit | Scope | ADR type |
+|-------|--------|-------|----------|
+| P2 #1 empty state | `dc6ea2d` | Monthly Review main + compare empty (2 gap) | contract-ref 0042 |
+| P2 #2 RC process | `43191a9` | Verify pass — CHANGELOG.md không cần | doc only |
+| P2 #3 micro-interactions | `b889fb6` | SkeletonBox + HapticFeedback (2 gap) | **full 0043** (dep change `shimmer ^3.0.0`) |
+| P2 #4 help text | `ddef329` | Quick amounts helperText (1 gap) | verify pass |
+
+### Skipped (audit 2026-06-14)
+
+- CHANGELOG.md (P2 #2 verify pass — 3 lớp release info đã đủ: git log + RELEASE_CHECKLIST §Verification Summary + ADR-0024, YAGNI)
+- InfoIcon widget (P2 #4 — `InputDecoration.helperText` đã là Flutter built-in, over-engineering)
+- Trash filter/search (defer 2026-06-14 — `canDeleteCategory` guard giới hạn trash size, YAGNI)
+
+### P1 #2 (Category management flow polish) ✅ done 2026-06-14
+
+3 gap close (`559ff54` + `440ac37` + ADR-0041 contract-ref): trash heading collapsed empty, archived quick unarchive, merge warning >50. Gap #4 trash filter/search defer. 6/6 widget + 6/6 unit test pass.
 
 ---
 
