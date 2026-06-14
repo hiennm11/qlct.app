@@ -616,4 +616,75 @@ void main() {
       expect(rows.first['category_id'], 'tgt');
     });
   });
+
+  // ===== ADR-0037 §Feature 2: Soft-delete trash (Tuần 2 P0) =====
+  // Closes test gap: getAll/getActive filter deleted_at, getDeleted surfaces
+  // trash, softDelete sets deletedAt, restore clears it. Core safety for the
+  // CategoryManagementScreen "Thùng rác" section + ADR-0038 merge auto-restore.
+
+  group('softDelete/restore (ADR-0037 §Feature 2)', () {
+    test('softDelete: sets deletedAt, filters from getAll, surfaces in getDeleted',
+        () async {
+      final custom = makeCategory(
+        id: 'custom1', name: 'Ăn vặt', normalizedName: 'an vat');
+      final system = makeCategory(
+        id: 'coffee', name: 'Cà phê', normalizedName: 'ca phe',
+        isSystem: true);
+      await dataSource.upsert(custom);
+      await dataSource.upsert(system);
+
+      await dataSource.softDelete('custom1', deletedAt: DateTime(2026, 6, 14));
+
+      // getAll filters deleted rows
+      final all = await dataSource.getAll();
+      expect(all.map((c) => c.id), ['coffee']);
+
+      // getDeleted returns only the trashed row
+      final deleted = await dataSource.getDeleted();
+      expect(deleted, hasLength(1));
+      expect(deleted.first.id, 'custom1');
+      expect(deleted.first.deletedAt, DateTime(2026, 6, 14));
+
+      // getById still returns the row (audit lookup)
+      final fetched = await dataSource.getById('custom1');
+      expect(fetched, isNotNull);
+      expect(fetched!.deletedAt, isNotNull);
+    });
+
+    test('restore: clears deletedAt, returns row to getAll, idempotent on call',
+        () async {
+      final custom = makeCategory(
+        id: 'custom1', name: 'Ăn vặt', normalizedName: 'an vat');
+      await dataSource.upsert(custom);
+      await dataSource.softDelete('custom1', deletedAt: DateTime(2026, 6, 14));
+      expect((await dataSource.getDeleted()), hasLength(1));
+
+      // Restore twice — second call should be a no-op, not throw.
+      await dataSource.restore('custom1');
+      await dataSource.restore('custom1');
+
+      final all = await dataSource.getAll();
+      expect(all.map((c) => c.id), ['custom1']);
+      final deleted = await dataSource.getDeleted();
+      expect(deleted, isEmpty);
+      final fetched = await dataSource.getById('custom1');
+      expect(fetched!.deletedAt, isNull);
+    });
+
+    test('getDeleted: orders by deletedAt DESC (newest trash first)', () async {
+      final a = makeCategory(id: 'a', name: 'A', normalizedName: 'a');
+      final b = makeCategory(id: 'b', name: 'B', normalizedName: 'b');
+      final c = makeCategory(id: 'c', name: 'C', normalizedName: 'c');
+      await dataSource.upsert(a);
+      await dataSource.upsert(b);
+      await dataSource.upsert(c);
+
+      await dataSource.softDelete('a', deletedAt: DateTime(2026, 6, 1));
+      await dataSource.softDelete('b', deletedAt: DateTime(2026, 6, 10));
+      await dataSource.softDelete('c', deletedAt: DateTime(2026, 6, 14));
+
+      final deleted = await dataSource.getDeleted();
+      expect(deleted.map((x) => x.id).toList(), ['c', 'b', 'a']);
+    });
+  });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qlct/core/vietnamese_text_normalizer.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
 import 'package:qlct/data/datasources/category_local_datasource.dart';
 import 'package:qlct/models/budget.dart';
@@ -245,6 +246,27 @@ Category _other() {
     voicePhrases: ['khác'],
     sortOrder: 9999,
     isSystem: true,
+    isArchived: false,
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
+Category _custom({String id = 'custom1', String name = 'Ăn vặt', int sortOrder = 100}) {
+  final now = DateTime(2026, 6, 10, 12);
+  return Category(
+    id: id,
+    name: name,
+    normalizedName: normalizeVietnameseSearchText(name),
+    emoji: '🍡',
+    kind: CategoryKind.spending,
+    budgetBehavior: BudgetBehavior.flexible,
+    quickAmountMin: 10000,
+    quickAmountDefault: 50000,
+    quickAmountMax: 500000,
+    voicePhrases: [name.toLowerCase()],
+    sortOrder: sortOrder,
+    isSystem: false,
     isArchived: false,
     createdAt: now,
     updatedAt: now,
@@ -882,6 +904,77 @@ void main() {
       // restoreCalls counter on fake DS: should be >= 1
       expect(catDs.restoreCalls, greaterThanOrEqualTo(1));
       expect(catDs.mergeCalls, hasLength(1));
+    });
+  });
+
+  // ===== ADR-0037 §Feature 2: Soft-delete trash VM layer (Tuần 2 P0) =====
+  // Closes test gap on CategoryViewModel.softDeleteCategory / restoreCategory
+  // / purgeCategory — all 3 had 0 unit coverage. Guards (canDeleteCategory,
+  // "chỉ purge khi trashed", idempotent restore) are core safety for the
+  // CategoryManagementScreen "Thùng rác" section.
+
+  group('CategoryViewModel softDeleteCategory (ADR-0037 §Feature 2)', () {
+    test('success: custom category moves to trash, removed from VM list',
+        () async {
+      final catDs = _FakeCategoryDataSource()
+        ..seed([_other(), _custom()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+      expect(vm.allCategories.map((c) => c.id), contains('custom1'));
+
+      final ok = await vm.softDeleteCategory('custom1');
+      expect(ok, isTrue);
+      expect(vm.errorMessage, isNull);
+      // After reload, custom1 is gone from allCategories (filtered as deleted)
+      expect(vm.allCategories.map((c) => c.id), isNot(contains('custom1')));
+      // But getDeleted surfaces it
+      final deleted = await catDs.getDeleted();
+      expect(deleted.map((c) => c.id), contains('custom1'));
+    });
+
+    test('guard: system category rejected, no state change', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_coffee()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      final ok = await vm.softDeleteCategory('coffee');
+      expect(ok, isFalse);
+      expect(vm.errorMessage, 'Không thể xoá danh mục mặc định.');
+      // Verify no softDelete wrote: coffee still active
+      final fetched = await catDs.getById('coffee');
+      expect(fetched!.deletedAt, isNull);
+    });
+  });
+
+  group('CategoryViewModel.restoreCategory (ADR-0037 §Feature 2)', () {
+    test('idempotent: returns true when category not in trash (no-op)',
+        () async {
+      final catDs = _FakeCategoryDataSource()..seed([_other(), _custom()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      // _custom is active (not in trash). restoreCategory should be a
+      // no-op returning true (line 685-686 of category_viewmodel.dart).
+      final ok = await vm.restoreCategory('custom1');
+      expect(ok, isTrue);
+      expect(vm.errorMessage, isNull);
+      // restoreCalls counter on fake DS should NOT have been incremented
+      expect(catDs.restoreCalls, 0);
+    });
+  });
+
+  group('CategoryViewModel.purgeCategory (ADR-0037 §Feature 2)', () {
+    test('guard: rejects active category, no hard delete happens', () async {
+      final catDs = _FakeCategoryDataSource()..seed([_other(), _custom()]);
+      final vm = CategoryViewModel.seededWithDeps(catDs, null);
+      await waitForLoad(vm);
+
+      // _custom is active (not trashed). purgeCategory should refuse.
+      final ok = await vm.purgeCategory('custom1');
+      expect(ok, isFalse);
+      expect(vm.errorMessage, contains('Chỉ có thể xoá vĩnh viễn'));
+      // Hard delete NOT executed
+      expect(catDs._deletedIds.contains('custom1'), isFalse);
     });
   });
 
