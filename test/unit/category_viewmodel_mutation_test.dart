@@ -925,9 +925,12 @@ void main() {
       final ok = await vm.softDeleteCategory('custom1');
       expect(ok, isTrue);
       expect(vm.errorMessage, isNull);
-      // After reload, custom1 is gone from allCategories (filtered as deleted)
-      expect(vm.allCategories.map((c) => c.id), isNot(contains('custom1')));
-      // But getDeleted surfaces it
+      // After reload (P3 #2 fix: reload() merges getAll + getDeleted to keep
+      // trash visible), custom1 stays in allCategories but is filtered out
+      // of activeCategories. So assert via activeCategories instead.
+      expect(vm.allCategories.map((c) => c.id), contains('custom1'));
+      expect(vm.activeCategories.map((c) => c.id), isNot(contains('custom1')));
+      // And getDeleted surfaces it
       final deleted = await catDs.getDeleted();
       expect(deleted.map((c) => c.id), contains('custom1'));
     });
