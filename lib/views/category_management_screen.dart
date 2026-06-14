@@ -45,7 +45,8 @@ class CategoryManagementScreen extends StatelessWidget {
     return '${(diff.inDays / 30).floor()} tháng trước';
   }
 
-  Widget _buildRow(BuildContext context, Category cat) {
+  /// Archived row: tap to edit, quick unarchive button trailing. ADR-0041.
+  Widget _buildArchivedRow(BuildContext context, CategoryViewModel vm, Category cat) {
     return ListTile(
       leading: Text(cat.emoji, style: const TextStyle(fontSize: 24)),
       title: Text(cat.name),
@@ -74,23 +75,37 @@ class CategoryManagementScreen extends StatelessWidget {
               style: const TextStyle(fontSize: 11),
             ),
           ),
-          if (cat.isArchived) ...[
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'Đã lưu trữ',
-                style: TextStyle(fontSize: 11, color: AppColors.warning),
-              ),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(4),
             ),
-          ],
+            child: const Text(
+              'Đã lưu trữ',
+              style: TextStyle(fontSize: 11, color: AppColors.warning),
+            ),
+          ),
         ],
       ),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: TextButton(
+        key: const Key('action-unarchive'),
+        onPressed: () async {
+          final ok = await vm.toggleArchive(cat.id);
+          if (!context.mounted) return;
+          if (!ok && vm.errorMessage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(vm.errorMessage!)),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Đã bỏ lưu trữ "${cat.name}"')),
+            );
+          }
+        },
+        child: const Text('Bỏ lưu trữ'),
+      ),
       onTap: () => CategoryEditSheet.show(context, cat),
     );
   }
@@ -312,20 +327,22 @@ class CategoryManagementScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-                ...archived.map((c) => _buildRow(context, c)),
+                ...archived.map((c) => _buildArchivedRow(context, vm, c)),
               ],
 
-              // Trash section (ADR-0037).
-              if (trash.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                  child: Text(
-                    'Thùng rác (${trash.length})',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+              // Trash section (ADR-0037 + ADR-0041).
+              // P1 #2 gap #1: always render heading, collapse body when empty.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+                child: Text(
+                  trash.isEmpty
+                      ? 'Thùng rác'
+                      : 'Thùng rác (${trash.length})',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
+              ),
+              if (trash.isNotEmpty)
                 ...trash.map((c) => _buildTrashRow(context, vm, c)),
-              ],
               ],
             ),
           );

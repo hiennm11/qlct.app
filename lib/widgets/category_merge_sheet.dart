@@ -331,16 +331,39 @@ class _CategoryMergeSheetState extends State<CategoryMergeSheet> {
     final tgt = _target;
     final p = _preview;
     if (src == null || tgt == null || p == null) return;
+    // ADR-0041: warn when high count (transactions + recurring > 50).
+    final totalImpact = p.transactions + p.recurring;
+    final showWarnBanner = totalImpact > 50;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xác nhận hợp nhất'),
-        content: Text(
-          'Hợp nhất ${p.transactions} giao dịch, ${p.budgets} ngân sách, '
-          '${p.snapshots} ảnh chụp, ${p.planItems} kế hoạch, '
-          '${p.recurring} định kỳ, ${p.quickTemplates} mẫu nhanh '
-          'từ "${src.name}" sang "${tgt.name}"?\n\n'
-          'Danh mục "${src.name}" sẽ chuyển vào thùng rác.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showWarnBanner)
+              Container(
+                key: const Key('state-merge-warn-banner'),
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '⚠️ Thao tác này sẽ ảnh hưởng $totalImpact bản ghi. Không thể hoàn tác.',
+                  style: const TextStyle(fontSize: 12, color: AppColors.warning),
+                ),
+              ),
+            Text(
+              'Hợp nhất ${p.transactions} giao dịch, ${p.budgets} ngân sách, '
+              '${p.snapshots} ảnh chụp, ${p.planItems} kế hoạch, '
+              '${p.recurring} định kỳ, ${p.quickTemplates} mẫu nhanh '
+              'từ "${src.name}" sang "${tgt.name}"?\n\n'
+              'Danh mục "${src.name}" sẽ chuyển vào thùng rác.',
+            ),
+          ],
         ),
         actions: [
           TextButton(
