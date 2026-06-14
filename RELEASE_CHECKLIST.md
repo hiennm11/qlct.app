@@ -1,6 +1,6 @@
 # Release Checklist — qlct.app
 
-**Last verified:** 2026-06-14 (P3 #4 Settings 1.7.0+2026061410)  
+**Last verified:** 2026-06-14 (P3 #4 hotfix 1.7.0+2026061411)  
 **Test count:** 862 pass, 1 pre-existing drift (housekeeping batch)  
 **APK size:** 22.2MB (arm64) / 58.5MB (all ABIs)
 **Release policy:** ADR-0024 (canonical install command: addendum 2026-06-14)  
@@ -431,6 +431,20 @@ Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical ter
 ### Known limitation (ADR-0047, audit 2026-06-14)
 
 `CategoryManagementScreen._loadAutoPurgePref()` chỉ chạy 1 lần ở `initState`. Nếu user toggle setting ở Settings → return về CategoryManagement mà screen vẫn mounted, warning banner không reflect cho đến rebuild (vm change khác). Acceptable cho P3 #4. P+ fix options: (a) `RouteAware` mixin + subscribe/unsubscribe, (b) expose `autoPurgeEnabled` qua `ChangeNotifierProvider` để rebuild reactive.
+
+### Hotfix — Bash $env: expansion trap (commit `1c9de3e`, 2026-06-14)
+
+**Root cause:** P3 #4 build (1.7.0+2026061410) gọi `flutter build apk --release --dart-define=SENTRY_DSN=$env:SENTRY_DSN` qua **Bash tool** (bash shell), không phải PowerShell. Bash không hiểu `$env:VAR` syntax → `$env` = empty var, `:SENTRY_DSN` = literal. Result: `--dart-define=SENTRY_DSN=:SENTRY_DSN` bakes vào AOT const, 16-char. Layer 1 guard `isEmpty` không trigger (16 chars ≠ empty), vào `SentryFlutter.init`, Sentry SDK parse `:SENTRY_DSN` → `FormatException: Invalid empty scheme (at character 1)`. Stack trace `main.dart:52` → `SentryFlutter.init` → `Sentry._setDefaultConfiguration` → `SentryOptions.parsedDsn` → `Uri.parse(':SENTRY_DSN')` → throw.
+
+**Fix:** `lib/main.dart` — thêm `_normalizeDsn` (Uri.tryParse + scheme/host check) làm layer-2 guard. Skip Sentry init khi DSN empty HOẶC malformed. Log distinguish "not set" vs "malformed". Same-day hotfix bump `1.7.0+2026061410 → 1.7.0+2026061411`. Cadence: same-day RC = +1 increment, không ghép suffix. See [[sentry-init-guard]] (updated with bash trap context).
+
+| Item | Result |
+|------|--------|
+| `flutter analyze lib/main.dart` | ✅ 0 issues |
+| `flutter build apk --release --dart-define=SENTRY_DSN=` (rebuild) | ✅ Built 58.5MB in 76.8s (clean, no Gradle cache) |
+| `flutter install -d 21091116C` (reinstall) | ✅ 7.7s (uninstall + fresh install) |
+| Device version verification (hotfix) | ✅ `versionCode=2026061411 versionName=1.7.0` (match pubspec) |
+| Logcat init sequence (post-hotfix) | ✅ `⚠️ SENTRY_DSN not set or malformed` → `🚀 Initializing app...` → `📦 SharedPreferences` → `✅ Database ready` → `💾 Category data source ready` → `💰 Budget data source ready` → `📸 Budget snapshot data source ready` → `📋 Budget plan data source ready` → `🔄 Recurring data source ready` → `⚡ Quick template data source ready` → `📦 Backup service ready` → `Starting app...` (no exception, layer-2 guard tripped before Sentry SDK parse) |
 
 ---
 
