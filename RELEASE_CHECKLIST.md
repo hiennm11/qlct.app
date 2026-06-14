@@ -1,8 +1,8 @@
 # Release Checklist — qlct.app
 
-**Last verified:** 2026-06-14 (hotfix 1.7.0+2026061403)  
-**Test count:** 861+ (all pass)  
-**APK size:** 22.2MB (arm64) / 56.8MB (all ABIs)  
+**Last verified:** 2026-06-14 (P3 #4 Settings 1.7.0+2026061410)  
+**Test count:** 862 pass, 1 pre-existing drift (housekeeping batch)  
+**APK size:** 22.2MB (arm64) / 58.5MB (all ABIs)
 **Release policy:** ADR-0024 (canonical install command: addendum 2026-06-14)  
 **Backup/restore contract:** ADR-0023  
 **Canonical install command:** `flutter install -d <serial>` (ADR-0024 addendum §1)  
@@ -377,6 +377,60 @@ Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical ter
 | Device version verification (hotfix) | ✅ `versionCode=2026061408 versionName=1.7.0` (match pubspec) |
 | Logcat init sequence (post-hotfix) | ✅ `⚠️ SENTRY_DSN not set` → `🚀 Initializing app...` → `📦 SharedPreferences` → `✅ Database ready` → ... → `Starting app...` (no exception) |
 | `flutter devices` verify | ✅ `21091116C (mobile) • cyqgeqsw696pivvo • android-arm64 • Android 12 (API 31)` |
+
+---
+
+## Verification Summary — P3 #4 Settings: Auto-purge (UI move, 2026-06-14)
+
+### Build
+
+| Item | Value |
+|------|-------|
+| `version` | `1.7.0+2026061410` |
+| `git SHA` | `7acf424` (atomic) → bump `83ac6e7` |
+| `device serial` | `21091116C` (test device) → adb ID `cyqgeqsw696pivvo` |
+| `install command` | `flutter install -d 21091116C` (ADR-0024 addendum §1) |
+| `install date` | 2026-06-14 |
+| `git tag` | `v1.7.0` (unchanged per ADR-0024 addendum §2) |
+| `ADR` | `0047` (Settings: Auto-purge) — contract-ref |
+
+### Scope delta
+
+| File | Change | Reason |
+|------|--------|--------|
+| `lib/views/settings_screen.dart` (NEW) | Full-screen Scaffold + AppBar "Cài đặt" + 1 section "Dữ liệu" + 1 SwitchListTile auto-purge | Reusable scaffold cho 6 P+ candidates (theme, currency, interval, voice lang, budget carry, clear all) |
+| `lib/views/category_management_screen.dart` | Drop inline `SwitchListTile` + `_setAutoPurgePref` (giữ `_loadAutoPurgePref` cho warning banner gate) | FAB `+` che switch → fix bug bằng cách move switch ra Settings |
+| `lib/views/home_screen.dart` | Thêm `PopupMenuItem(value: 'settings', Icons.settings)` giữa "Quản lý danh mục" và divider "Giới thiệu" | Entry point duy nhất cho Settings |
+| `docs/specs/p3-settings-auto-purge-contract.html` (NEW) | 5 sections (§1 entry, §2 layout, §3 default/behavior, §4 trash after, §5 out-of-scope) + Tailwind CDN + `data-*` machine-readable | Contract-ref artifact cho ADR-0047 |
+| `docs/adr/0047-p3-settings-auto-purge-2026-06-14.md` (NEW) | 5-15 dòng contract-ref pattern | UI move, no schema/dependency/release policy change → contract-ref, không full ADR |
+
+### Grill origin (1 gap, single grill session 2026-06-14)
+
+| Gap | Origin | Decision |
+|-----|--------|----------|
+| FAB `+` che auto-purge switch | `lib/views/category_management_screen.dart` line 651 SwitchListTile nằm dưới FAB bottom-right, user khó tap. Setting là global config, không nên nằm trong CategoryManagement | Move sang full-screen Settings riêng, entry từ Home PopupMenuButton. Trash section giữ warning banner (gated on setting) |
+
+### Skipped (audit 2026-06-14 — YAGNI per grill)
+
+- 6 P+ candidates (theme, currency, interval picker, voice lang, budget carry toggle, clear all) — không demand, defer
+- Interval picker (7/30/90 ngày) — 30 ngày đủ MVP
+- First-run prompt + migration — default ON, không cần
+- RouteAware hoặc Provider exposure cho reactive warning banner — acceptable limitation, reopen nếu user report
+
+### Automated (done 2026-06-14)
+
+| Item | Result |
+|------|--------|
+| `flutter analyze` (3 file: settings_screen, category_management_screen, home_screen) | ✅ 0 issues |
+| `flutter test test/unit/category_viewmodel_test.dart` | ✅ 8/8 pass (Test D soft-delete + reload fix, Test E system guard regression) |
+| `flutter test test/unit/` (full scope) | ⚠️ `+862 -1` — 1 pre-existing drift ở `category_viewmodel_mutation_test.dart:929` (test expect `not contains 'custom1'` ở `allCategories` — stale từ pre-P3 #2 fix; cần assert `activeCategories` thay vì `allCategories`). Batch housekeeping riêng per [[pre-existing-test-drift]] |
+| `flutter build apk --release` | ✅ Built 58.5MB in 102.6s |
+| `flutter install -d 21091116C` | ✅ 8.1s, streamed Install Success |
+| Device version verification | ✅ `versionCode=2026061410 versionName=1.7.0` (match pubspec) |
+
+### Known limitation (ADR-0047, audit 2026-06-14)
+
+`CategoryManagementScreen._loadAutoPurgePref()` chỉ chạy 1 lần ở `initState`. Nếu user toggle setting ở Settings → return về CategoryManagement mà screen vẫn mounted, warning banner không reflect cho đến rebuild (vm change khác). Acceptable cho P3 #4. P+ fix options: (a) `RouteAware` mixin + subscribe/unsubscribe, (b) expose `autoPurgeEnabled` qua `ChangeNotifierProvider` để rebuild reactive.
 
 ---
 
