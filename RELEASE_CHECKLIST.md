@@ -184,6 +184,48 @@ Release Allowed = Stable App + Migration Safe + Backup Safe + Restore Safe + Tes
 
 ---
 
+## Verification Summary — Tuần 4 P0 polish + RC build (2026-06-14)
+
+### Build
+
+| Item | Value |
+|------|-------|
+| `version` | `1.7.0+2026061403` (chưa bump — chờ main device promote) |
+| `git SHA` | `130a1c4` (Tuần 4 P0 commit) |
+| `install command` | `flutter install -d <serial>` (ADR-0024 addendum §1) |
+
+### Automated (done)
+
+| Item | Result |
+|------|--------|
+| `flutter analyze lib/views/monthly_plan_screen.dart` | ✅ 0 issues |
+| `flutter test test/widgets/monthly_plan_screen_test.dart` | ✅ 11/11 pass |
+| `flutter build apk --release` | ✅ Built `build/app/outputs/flutter-apk/app-release.apk` (58.4MB) — RC ready |
+
+### RC release gate (per checklist §Device Promotion)
+
+- [ ] Install RC on test device: `flutter install -d <serial>`
+- [ ] Run at least one migration hoặc restore smoke test trên test device (xem §Migration / §Backup & Restore)
+- [ ] Verify no data loss
+- [ ] Keep at least one known-good backup sample for rollback
+- [ ] Only install on main device sau khi release gate passes
+
+### UX wording + empty state audit (Tuần 4 P0)
+
+| Screen | Element | Status |
+|--------|---------|--------|
+| `budget_overview_widget.dart` | Entry "Lên kế hoạch tháng tới" | ✅ Đầy đủ |
+| `budget_overview_widget.dart` | Empty state `_EmptyState` | ✅ Icon + "Chưa có ngân sách" + button "Thiết lập ngân sách" |
+| `budget_overview_widget.dart` | Carry-in: "Chuyển từ tháng trước: +X" | ✅ Rõ (ADR-0032 §8) |
+| `monthly_plan_screen.dart` | Heading "Lưu plan cho X" + "Tự áp dụng khi sang X" | ✅ Rõ (ADR-0026) |
+| `monthly_plan_screen.dart` | Empty state `_PlanEmptyState` | ✅ **Polished Tuần 4 P0**: icon + heading + hint về auto-source |
+| `monthly_review_screen.dart` | Empty state `_EmptyStateView` | ✅ Icon + "Chưa có giao dịch trong tháng này" (ADR-0021) |
+| `monthly_review_screen.dart` | Carry-out: "Còn dư chuyển tháng sau: +X ₫" | ✅ Rõ (ADR-0035) |
+
+Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical terms ở code comment, user-facing copy dùng tiếng Việt tự nhiên.
+
+---
+
 ## Verification Summary — ADR-0037 hotfix (2026-06-14)
 
 ### Build
