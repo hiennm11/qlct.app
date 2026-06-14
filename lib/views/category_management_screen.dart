@@ -169,18 +169,64 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     if (confirmed != true) return;
     if (!mounted) return;
     _exitSelectionMode();
-    int success = 0;
+    // ADR-0044 follow-up: per-id soft-delete để capture distinct failure
+    // reasons (seed guard vs budget-referenced). Success mới cho undo;
+    // failures bị loại khỏi undo loop.
+    final succeeded = <String>[];
+    final failed = <String, String>{}; // id → error message
     for (final id in ids) {
       final ok = await vm.softDeleteCategory(id);
-      if (ok) success++;
+      if (ok) {
+        succeeded.add(id);
+      } else {
+        failed[id] = vm.errorMessage ?? 'Không thể xoá';
+        vm.clearError();
+      }
     }
     if (!mounted) return;
-    final undone = await _showUndoSnackbar('Đã chuyển $success vào thùng rác');
+    final message = _buildBulkDeleteMessage(
+      total: ids.length,
+      succeeded: succeeded.length,
+      failed: failed,
+    );
+    if (succeeded.isEmpty) {
+      // All failed — show error toast (no undo).
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+    final undone = await _showUndoSnackbar(message);
     if (undone == true) {
-      for (final id in ids) {
+      for (final id in succeeded) {
         await vm.restoreCategory(id);
       }
     }
+  }
+
+  /// Build user-facing message cho bulk delete result.
+  /// 0 success → toàn bộ fail (lý do distinct).
+  /// partial → "Đã chuyển X/N vào thùng rác. Y không thể: {lý do}."
+  /// full success → "Đã chuyển N vào thùng rác".
+  String _buildBulkDeleteMessage({
+    required int total,
+    required int succeeded,
+    required Map<String, String> failed,
+  }) {
+    if (succeeded == 0) {
+      // All failed — use first distinct reason.
+      final firstReason = failed.values.first;
+      return 'Không thể xoá: $firstReason';
+    }
+    if (succeeded == total) {
+      return 'Đã chuyển $succeeded vào thùng rác';
+    }
+    // Partial — surface first failure reason.
+    final firstReason = failed.values.first;
+    return 'Đã chuyển $succeeded/$total. $firstReason';
   }
 
   Future<void> _bulkMerge() async {

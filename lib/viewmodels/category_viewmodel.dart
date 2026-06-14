@@ -193,7 +193,12 @@ class CategoryViewModel extends ChangeNotifier {
     try {
       // Seed defaults if empty before loading.
       await _dataSource.seedDefaultsIfEmpty();
-      _allCategories = await _dataSource.getAll();
+      // ADR-0037: getAll() filters `deleted_at IS NULL`, so soft-deleted rows
+      // would be lost from state. Merge getAll() + getDeleted() to keep
+      // trash visible after softDeleteCategory.
+      final active = await _dataSource.getAll();
+      final deleted = await _dataSource.getDeleted();
+      _allCategories = [...active, ...deleted];
       _isLoading = false;
       notifyListeners();
     } catch (e) {

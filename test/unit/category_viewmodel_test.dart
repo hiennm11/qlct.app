@@ -160,4 +160,50 @@ void main() {
 
     expect(vm.categoryByName('unknown category'), isNull);
   });
+
+  // ===== Test D: soft-delete reload keeps trash visible (regression for P3 bug #2)
+  // Before fix: reload() called getAll() which filters `deleted_at IS NULL`,
+  // so soft-deleted rows disappeared from _allCategories → deletedCategories
+  // getter returned empty list even though DB had the row.
+
+  test('D: softDeleteCategory then reload exposes category in deletedCategories', () async {
+    final vm = CategoryViewModel(dataSource);
+    await waitForLoad(vm);
+
+    // All 11 seed categories are isSystem=true (ADR-0027). Add 1 custom to test.
+    await vm.createCategory(
+      name: 'Test Custom',
+      emoji: '🧪',
+      kind: CategoryKind.spending,
+      quickAmountMin: 1000,
+      quickAmountDefault: 5000,
+      quickAmountMax: 50000,
+      voicePhrases: const [],
+    );
+    final customId = vm.allCategories.firstWhere((c) => c.name == 'Test Custom').id;
+
+    final ok = await vm.softDeleteCategory(customId);
+    expect(ok, true, reason: 'softDeleteCategory should succeed for custom category');
+
+    // Before fix: deletedCategories was empty (reload() only loaded getAll()).
+    // After fix: reload() merges getAll() + getDeleted(), so deletedCategories has 1.
+    expect(vm.deletedCategories.length, 1);
+    expect(vm.deletedCategories.first.id, customId);
+    expect(vm.deletedCategories.first.deletedAt, isNotNull);
+  });
+
+  // ===== Test E: soft-delete system category fails (regression for P3 bug #1)
+  // Before fix: VM returned false silently. View layer counted success=0
+  // and showed "Đã chuyển 0 vào thùng rác" with no reason.
+
+  test('E: softDeleteCategory returns false for system category + sets errorMessage', () async {
+    final vm = CategoryViewModel(dataSource);
+    await waitForLoad(vm);
+
+    final systemCat = vm.activeCategories.firstWhere((c) => c.isSystem);
+    final ok = await vm.softDeleteCategory(systemCat.id);
+    expect(ok, false, reason: 'system category cannot be soft-deleted');
+    expect(vm.errorMessage, isNotNull);
+    expect(vm.errorMessage, contains('mặc định'));
+  });
 }
