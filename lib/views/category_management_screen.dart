@@ -33,7 +33,9 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
   bool _selectionMode = false;
   final Set<String> _selectedIds = <String>{};
 
-  // ADR-0045: auto-purge setting (loaded async in initState).
+  // ADR-0047: auto-purge setting đã chuyển sang SettingsScreen. Trash section
+  // vẫn đọc _autoPurgeEnabled để quyết định warning banner (banner tắt khi user
+  // off setting), nhưng không còn switch inline ở đây.
   bool _autoPurgeEnabled = true;
 
   void _enterSelectionMode(String id) {
@@ -71,14 +73,15 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     _loadAutoPurgePref();
   }
 
+  // ADR-0047: load setting ở mount để warning banner quyết định show/hide. User
+  // toggle setting ở SettingsScreen — khi return về đây cần refresh. Hiện tại
+  // load 1 lần ở initState. Known limitation: nếu user toggle setting rồi return
+  // mà screen vẫn mounted, warning banner chưa reflect cho đến khi screen
+  // rebuild (next vm change). Acceptable cho P3 #4; P+ sẽ dùng RouteAware hoặc
+  // expose setting qua Provider nếu user phàn nàn.
   Future<void> _loadAutoPurgePref() async {
     final enabled = await AutoPurgePrefs.isEnabled();
     if (mounted) setState(() => _autoPurgeEnabled = enabled);
-  }
-
-  Future<void> _setAutoPurgePref(bool value) async {
-    await AutoPurgePrefs.setEnabled(value);
-    setState(() => _autoPurgeEnabled = value);
   }
 
   Future<void> _bulkArchive(CategoryViewModel vm) async {
@@ -633,8 +636,11 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
                 ...archived.map((c) => _buildArchivedRow(context, vm, c)),
               ],
 
-              // Trash section (ADR-0037 + ADR-0041 + ADR-0045).
+              // Trash section (ADR-0037 + ADR-0041 + ADR-0047).
               // P1 #2 gap #1: always render heading, collapse body when empty.
+              // ADR-0047: SwitchListTile auto-purge đã move sang SettingsScreen.
+              // Trash section giữ warning banner (gated on _autoPurgeEnabled) để
+              // user vẫn thấy items sắp bị purge nếu setting ON.
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                 child: Text(
@@ -642,27 +648,6 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
                       ? 'Thùng rác'
                       : 'Thùng rác (${trash.length})',
                   style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              // ADR-0045: SwitchListTile setting inline (always render, even
-              // when trash empty — discoverable cho fresh install).
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: SwitchListTile(
-                  key: Key(
-                    _autoPurgeEnabled
-                        ? 'state-auto-purge-enabled'
-                        : 'state-auto-purge-disabled',
-                  ),
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  title: const Text('Tự động dọn sau 30 ngày'),
-                  subtitle: const Text(
-                    'Các danh mục trong thùng rác sẽ bị xoá vĩnh viễn sau 30 ngày.',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                  value: _autoPurgeEnabled,
-                  onChanged: _setAutoPurgePref,
                 ),
               ),
               // ADR-0045 §4: banner preview cho items sắp bị purge (25-30 ngày).

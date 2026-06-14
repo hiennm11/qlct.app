@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>P3 #4 — Settings: Auto-purge (contract)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">P3 #4 — Settings: Auto-purge</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Contract-ref artifact for ADR-0047. Move auto-purge switch từ
+    <code>CategoryManagementScreen</code> Trash section → <code>SettingsScreen</code> full-screen mới.
+    1 gap closed 2026-06-14: FAB <code>+</code> không còn che auto-purge switch; setting có
+    nơi riêng để user quản lý thay vì lẫn vào CategoryManagement.
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- ============================================================ -->
+<!-- §1 — Entry point: Home AppBar overflow menu                    -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§1 — Entry point (Home AppBar overflow)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Thêm 1 <code>PopupMenuItem</code> "Cài đặt" (icon <code>Icons.settings</code>) vào
+    <code>PopupMenuButton</code> trên <code>HomeScreen</code> AppBar, sau "Quản lý danh mục"
+    và trên divider "Giới thiệu". Tap → <code>Navigator.push(MaterialPageRoute(... SettingsScreen()))</code>.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="entry-point">
+    <div class="flex justify-end">
+      <button class="text-gray-600 hover:text-gray-900">⋮</button>
+    </div>
+    <ul class="bg-white border border-gray-200 rounded mt-2 w-56 ml-auto divide-y divide-gray-100">
+      <li class="px-4 py-2 text-sm hover:bg-gray-50">📤 Xuất CSV</li>
+      <li class="px-4 py-2 text-sm hover:bg-gray-50">📤 Xuất JSON</li>
+      <li class="border-t border-gray-200"></li>
+      <li class="px-4 py-2 text-sm hover:bg-gray-50">💾 Sao lưu &amp; Khôi phục</li>
+      <li class="px-4 py-2 text-sm hover:bg-gray-50">📁 Quản lý danh mục</li>
+      <li class="px-4 py-2 text-sm hover:bg-gray-50 bg-gray-50" data-state="settings-active">⚙️ Cài đặt</li>
+      <li class="border-t border-gray-200"></li>
+      <li class="px-4 py-2 text-sm hover:bg-gray-50">ℹ️ Giới thiệu</li>
+    </ul>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Key binding:</b> <code>data-state="settings-active"</code> (annotation cho menu item, không cần Flutter Key vì là stateless).
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §2 — Settings screen layout                                    -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§2 — Settings screen layout</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Full-screen <code>Scaffold</code> với AppBar title "Cài đặt". Body là <code>ListView</code>
+    với 1 section header "Dữ liệu" (icon <code>Icons.folder</code>) + 1 ListTile auto-purge.
+    Hiện tại chỉ 1 item — không phải scaffold lỏng, có thể mở rộng sau (P+).
+  </p>
+
+  <div class="bg-gray-100 border border-gray-300 rounded p-3 max-w-sm mx-auto" data-test="settings-screen">
+    <div class="bg-blue-700 text-white px-4 py-3 rounded-t flex items-center">
+      <button class="mr-3 text-white">←</button>
+      <span class="text-lg font-medium">Cài đặt</span>
+    </div>
+    <div class="bg-white">
+      <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">
+        📁 Dữ liệu
+      </div>
+      <ul class="divide-y divide-gray-100">
+        <li class="flex items-center justify-between px-4 py-3" data-state="auto-purge-enabled">
+          <div>
+            <div class="text-sm font-medium text-gray-900">Tự động dọn thùng rác</div>
+            <div class="text-xs text-gray-500">Các danh mục đã xoá sẽ tự động bị xoá vĩnh viễn sau 30 ngày.</div>
+          </div>
+          <div class="relative">
+            <div class="w-10 h-6 bg-blue-600 rounded-full"><div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Key binding:</b> <code>data-state="auto-purge-enabled"</code> khi switch ON,
+    <code>data-state="auto-purge-disabled"</code> khi OFF. Subtitle "30 ngày" hard-coded
+    (no interval picker per grill 2026-06-14).
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §3 — Switch default + behavior                                 -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§3 — Switch default + behavior</h2>
+
+  <ul class="list-disc pl-6 text-sm text-gray-700 space-y-1">
+    <li><b>Default:</b> ON. <code>AutoPurgePrefs.isEnabled()</code> returns <code>true</code> khi key chưa set.</li>
+    <li><b>On change:</b> <code>AutoPurgePrefs.setEnabled(value)</code> + <code>setState</code> để update key annotation.</li>
+    <li><b>First launch:</b> không có prompt. Setting tự load default ON.</li>
+    <li><b>No interval picker:</b> 30 ngày hard-coded trong subtitle. YAGNI per grill.</li>
+    <li><b>last_purge_date key:</b> defined trong <code>auto_purge_prefs.dart</code> nhưng chưa wire vào logic. Ngoài scope P3 #4.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<!-- §4 — Trash section sau khi move                                -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§4 — Trash section (CategoryManagement) sau khi move</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    <code>CategoryManagementScreen</code> trash section ẩn SwitchListTile auto-purge, giữ
+    heading "Thùng rác" + warning banner (nếu có items sắp purge). Bug FAB <code>+</code>
+    che switch tự giải quyết vì switch đã chuyển đi.
+  </p>
+
+  <div class="bg-gray-100 border border-gray-300 rounded p-3 max-w-sm mx-auto" data-test="trash-section-after">
+    <div class="bg-white rounded">
+      <div class="px-4 py-2 text-sm font-semibold text-gray-700">🗑️ Thùng rác (1)</div>
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 px-3 py-2 mx-2 mb-2 text-xs">
+        ⚠️ "Ăn ngoài" sẽ bị xoá vĩnh viễn sau 5 ngày nữa.
+      </div>
+      <ul>
+        <li class="flex items-center justify-between px-3 py-2 border-t border-gray-100">
+          <div>
+            <div class="text-sm">🍜 Ăn ngoài</div>
+            <div class="text-xs text-gray-500">Đã xoá 2 giờ trước</div>
+          </div>
+          <div class="text-xs space-x-2">
+            <button class="text-blue-600">Khôi phục</button>
+            <button class="text-red-600">Xoá vĩnh viễn</button>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Bug #1 fix kèm:</b> FAB <code>+</code> ở bottom-right CategoryManagement không còn che switch
+    (switch đã chuyển sang Settings). Trash section giữ warning banner để user vẫn biết items sắp purge
+    nếu có.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §5 — Out of scope                                              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§5 — Out of scope (P+ candidates)</h2>
+
+  <p class="text-sm text-gray-700 mb-2">
+    Audit codebase 2026-06-14 — 6 domain areas user-configurable chưa có UI. Tất cả để P+:
+  </p>
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-1">
+    <li>Theme (light only hiện tại, chưa có <code>ThemeMode.dark</code>)</li>
+    <li>Currency (hardcoded VND, <code>CurrencyFormatter</code> chưa wire multi-locale)</li>
+    <li>Auto-purge interval picker (7/30/90 ngày)</li>
+    <li>Voice recognition language (hardcoded <code>vi_VN</code> trong <code>voice_input_service.dart:48</code>)</li>
+    <li>Budget carry-over toggle (auto, no opt-out hiện tại)</li>
+    <li>Clear all data (chỉ available qua restore flow)</li>
+  </ol>
+
+  <p class="text-xs text-gray-500 mt-2">
+    YAGNI per grill 2026-06-14: "Chỉ 1 item: Auto-purge (Recommended)". Settings screen là
+    scaffold 1-section; mỗi item mới thêm vào P+ tương ứng cần grill + contract + ADR riêng.
+  </p>
+</section>
+
+</main>
+</body>
+</html>

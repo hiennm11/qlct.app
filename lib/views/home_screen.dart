@@ -16,6 +16,7 @@ import '../core/theme.dart';
 import 'backup_restore_screen.dart';
 import 'monthly_review_screen.dart';
 import 'category_management_screen.dart';
+import 'settings_screen.dart';
 
 /// Main home screen for the expense tracking app
 class HomeScreen extends StatefulWidget {
@@ -175,6 +176,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 case 'category_management':
                   CategoryManagementScreen.navigateTo(context);
                   break;
+                case 'settings':
+                  SettingsScreen.navigateTo(context);
+                  break;
                 case 'about':
                   _showAboutDialog();
                   break;
@@ -221,6 +225,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListTile(
                     leading: Icon(Icons.category),
                     title: Text('Quản lý danh mục'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                // ADR-0047 (P3 #4): Settings screen entry. Move auto-purge
+                // switch từ CategoryManagement sang đây (FAB + bug fix kèm).
+                const PopupMenuItem(
+                  value: 'settings',
+                  child: ListTile(
+                    leading: Icon(Icons.settings),
+                    title: Text('Cài đặt'),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
