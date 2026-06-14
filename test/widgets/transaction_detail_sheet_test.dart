@@ -16,6 +16,7 @@ Transaction _tx({
     id: id ?? 'tx-1',
     amount: amount,
     category: category,
+    categoryId: 'food',
     emoji: emoji,
     note: note,
     date: date ?? DateTime(2026, 6, 5),

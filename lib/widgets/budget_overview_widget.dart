@@ -57,9 +57,14 @@ class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            // SingleChildScrollView để tránh RenderFlex overflow khi user
+            // có nhiều budget cards + total budget bar + entry point button.
+            // Trước đây Column thẳng, budget thứ 4+ bị cắt khỏi viewport
+            // (post-budget 4, overflow 86px ở test viewport 560px).
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 SectionHeader(
                   emoji: '💼',
                   title: 'Ngân sách tháng',
@@ -82,7 +87,8 @@ class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (viewModel.totalBudget != null) ...[
+                if (viewModel.totalBudget != null &&
+                    viewModel.totalBudgetStatus != null) ...[
                   _TotalBudgetBar(status: viewModel.totalBudgetStatus!),
                   const SizedBox(height: 16),
                 ],
@@ -121,6 +127,7 @@ class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
                         )),
                 ],
               ],
+              ),
             ),
           ),
         );

@@ -35,6 +35,7 @@ void main() {
     registerFallbackValue(RecurringTransaction(
       id: 'fb',
       categoryName: 'Cà phê',
+      categoryId: 'coffee',
       amount: 10000,
       nextRunAt: DateTime(2026, 6, 1),
       createdAt: DateTime(2026, 6, 1),

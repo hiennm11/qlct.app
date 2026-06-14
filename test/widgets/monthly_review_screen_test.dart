@@ -109,9 +109,9 @@ void main() {
     testWidgets('renders review sections when data available', (tester) async {
       final now = DateTime.now();
       final txs = [
-        Transaction(id: '1', amount: 50000, category: 'Ăn ngoài', emoji: '🍜',
+        Transaction(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'eating-out', emoji: '🍜',
             date: DateTime(now.year, now.month, 1), note: ''),
-        Transaction(id: '2', amount: 30000, category: 'Cà phê', emoji: '☕',
+        Transaction(id: '2', amount: 30000, category: 'Cà phê', categoryId: 'coffee', emoji: '☕',
             date: DateTime(now.year, now.month, 2), note: ''),
       ];
       when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => txs);

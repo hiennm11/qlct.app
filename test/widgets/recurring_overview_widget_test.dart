@@ -35,6 +35,7 @@ void main() {
     registerFallbackValue(RecurringTransaction(
       id: 'fb',
       categoryName: 'Cà phê',
+      categoryId: 'coffee',
       amount: 10000,
       nextRunAt: DateTime(2026, 6, 1),
       createdAt: DateTime(2026, 6, 1),
@@ -113,6 +114,7 @@ void main() {
     final sampleRule1 = RecurringTransaction(
       id: 'rule-1',
       categoryName: 'Cà phê',
+      categoryId: 'coffee',
       amount: 20000,
       frequency: 'daily',
       nextRunAt: DateTime(2026, 6, 4),
@@ -121,6 +123,7 @@ void main() {
     final sampleRule2 = RecurringTransaction(
       id: 'rule-2',
       categoryName: 'Ăn ngoài',
+      categoryId: 'eating-out',
       amount: 50000,
       frequency: 'weekly',
       nextRunAt: DateTime(2026, 6, 5),
@@ -181,17 +184,18 @@ void main() {
     });
 
     testWidgets('limits display to maxDisplay (5) items', (tester) async {
-      final rules = List.generate(
-        7,
-        (i) => RecurringTransaction(
-          id: 'rule-$i',
-          categoryName: 'Cà phê',
-          amount: 20000,
-          frequency: 'daily',
-          nextRunAt: DateTime(2026, 6, 4),
-          createdAt: DateTime(2026, 6, 1),
-        ),
-      );
+      final rules = <RecurringTransaction>[
+        for (var i = 0; i < 7; i++)
+          RecurringTransaction(
+            id: 'rule-$i',
+            categoryName: 'Cà phê',
+            categoryId: 'coffee',
+            amount: 20000,
+            frequency: 'daily',
+            nextRunAt: DateTime(2026, 6, 4),
+            createdAt: DateTime(2026, 6, 1),
+          ),
+      ];
       when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => rules);
       vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
 
@@ -220,6 +224,7 @@ void main() {
       final rule = RecurringTransaction(
         id: 'edit-rule',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),
@@ -264,6 +269,7 @@ void main() {
       final rule = RecurringTransaction(
         id: 'switch-rule',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),
@@ -288,6 +294,7 @@ void main() {
       final rule = RecurringTransaction(
         id: 'delete-rule',
         categoryName: 'Cà phê',
+        categoryId: 'coffee',
         amount: 20000,
         frequency: 'daily',
         nextRunAt: DateTime(2026, 6, 4),

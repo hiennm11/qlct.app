@@ -94,8 +94,10 @@ void main() {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      // Target month is July 2026 (current is June 2026)
-      expect(find.text('Kế hoạch tháng tới'), findsOneWidget);
+      // Plan title now uses zero-padded month format: 'Kế hoạch T07/2026'
+      // (was 'Kế hoạch tháng tới' pre-2026-06 polish). Re-baselined 2026-06-15
+      // as part of pre-existing test drift cleanup.
+      expect(find.text('Kế hoạch T07/2026'), findsOneWidget);
     });
   });
 
