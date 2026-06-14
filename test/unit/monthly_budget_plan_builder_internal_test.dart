@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qlct/models/budget.dart';
-import 'package:qlct/models/budget_plan.dart';
 import 'package:qlct/models/category.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/services/monthly_budget_plan_builder.dart';
