@@ -248,12 +248,12 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 ### Pre-existing issues (không phải deferred nhưng vẫn open)
 
 - **`budget_overview_widget_test.dart` execution hang** — `pumpAndSettle` timeout 10 phút. Pre-existing widget test infrastructure issue, ngoài scope ADR-0037. Cần address riêng nếu muốn CI chạy file này.
-- **Pre-ADR-0037 test fixture drifts** (audit 2026-06-13): `backup_service_atomic_test`, `database_migration_v9/v10/v11_test`, `database_migration_v13_backup_test` (asserts v7 thay vì v9), `migration_service_test`, `quick_template_model_test`, `recurring_transaction_model_test` — tất cả 27 failures pre-existing, không liên quan ADR-0037. Cần batch fixup riêng.
+- ~~**Pre-ADR-0037 test fixture drifts**~~ — Closed by Tuần 3 P0 housekeeping 2026-06-14. Audit 2026-06-14 (Tuần 3 P0 loop) thực tế chỉ còn **4 failures** ở `backup_service_test.dart` (line 640, 685, 723, 924: `expect(backup.schemaVersion, 7)` — schema đã bump 7→9 từ ADR-0037). Fix: 4 dòng `7→9`. 6 file kia trong audit 2026-06-13 đã pass nhờ ADR-0037/0038 (audit count đã stale). Commit Tuần 3 P0.
 
 ### Recommended next
 
-- **Audit remaining "Acknowledged" items** (#3) — ExportService test file là gap còn lại. Add `test/unit/export_service_test.dart` cover CSV escaping + JSON format + empty/date-filter paths (~50 lines, 1-day effort).
-- **Cleanup**: Pre-ADR-0037 test fixture drift (~27 failures, nhiều cái chỉ là 1-line schema version bump). Nên batch trong 1 commit housekeeping.
+- ~~**Audit remaining "Acknowledged" items** (#3)~~ — Closed 2026-06-14 (audit Tuần 3 P0): `test/unit/export_service_test.dart` đã có sẵn (Tuần 1 audit verify), cover CSV escaping + JSON format + empty/date-filter paths. Stale entry — xoá khỏi "Recommended next" (ADR-0039 đã close planning, file đã ship).
+- ~~**Cleanup**: Pre-ADR-0037 test fixture drift~~ — Closed bởi Tuần 3 P0 housekeeping 2026-06-14 (commit Tuần 3 P0). 4 fail `7→9` đã fix, 29/29 backup_service_test pass.
 - **Audit ADR-0037 generic out-of-scope list** (auto-purge, placeholder cleanup, re-order archived, bulk-archive) — xem user còn cần approach nào trong số này không.
 
 ## Dependencies

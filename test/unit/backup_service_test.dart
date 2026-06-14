@@ -637,7 +637,7 @@ void main() {
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 7);
+      expect(backup.schemaVersion, 9);
       expect(backup.appId, 'qlct.app');
       expect(backup.transactions.length, 1);
       expect(backup.budgets.length, 1);
@@ -682,7 +682,7 @@ void main() {
     test('creates non-empty backup with expected structure', () async {
       final backup = await service.generateSampleData();
 
-      expect(backup.schemaVersion, 7);
+      expect(backup.schemaVersion, 9);
       expect(backup.transactions.length, 20);
       expect(backup.budgets.length, 3);
       expect(backup.recurringTransactions.length, 2);
@@ -720,7 +720,7 @@ void main() {
       final backup = await service.createBackup();
 
       expect(backup.appId, 'qlct.app');
-      expect(backup.schemaVersion, 7);
+      expect(backup.schemaVersion, 9);
     });
 
     test('includes non-empty budget plans and items from datasources',
@@ -921,7 +921,7 @@ void main() {
 
       final backup = await service.createBackup();
 
-      expect(backup.schemaVersion, 7);
+      expect(backup.schemaVersion, 9);
       expect(backup.categories.length, 2);
       expect(
           backup.categories.map((c) => c.id).toList(), ['food_out', 'coffee']);

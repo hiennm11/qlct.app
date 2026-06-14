@@ -224,8 +224,9 @@ Release Allowed = Stable App + Migration Safe + Backup Safe + Restore Safe + Tes
 
 ### Deferred (track)
 
-- **Pre-ADR-0037 test fixture drift** (~27 failures, audit 2026-06-13) — chưa batch fixup. Tách khỏi hotfix scope.
-- **ExportService dedicated test file** (audit 2026-06-13, acknowledged #3) — chưa thêm.
+- ~~**Pre-ADR-0037 test fixture drift**~~ — Closed by Tuần 3 P0 housekeeping 2026-06-14. Audit 2026-06-14 thực tế chỉ 4 failures ở `backup_service_test.dart` (asserts `schemaVersion, 7` đã bump 7→9 từ ADR-0037). Fix: 4 dòng `7→9`. 29/29 pass.
+- ~~**ExportService dedicated test file**~~ — Closed 2026-06-14 (audit Tuần 1 verify): file `test/unit/export_service_test.dart` đã có sẵn, cover CSV escaping + JSON format + empty/date-filter paths. Stale entry — xoá khỏi checklist.
+- **`budget_overview_widget_test.dart` hang** — `pumpAndSettle` timeout. Pre-existing widget test infrastructure issue, ngoài scope Tuần 3. Cần address riêng nếu muốn CI chạy file này.
 
 ---
 
