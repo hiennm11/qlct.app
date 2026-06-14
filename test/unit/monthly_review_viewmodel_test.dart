@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:qlct/models/transaction.dart';
 import 'package:qlct/models/budget.dart';
 import 'package:qlct/models/budget_snapshot.dart';
+import 'package:qlct/models/category.dart';
 import 'package:qlct/models/recurring_transaction.dart';
 import 'package:qlct/data/datasources/transaction_local_datasource.dart';
 import 'package:qlct/data/datasources/budget_local_datasource.dart';
@@ -332,6 +333,135 @@ void main() {
       final anNgoai = highlights.where((h) => h.categoryName == 'Ăn ngoài').firstOrNull;
       expect(anNgoai, isNotNull, reason: '500k spent vs 400k limit → exceeded');
       expect(anNgoai!.carryAmount, 200000);
+    });
+
+    // ─── P1 #4 gap #4 (2026-06-14): snapshot carry survives category
+    // archive/trash. Snapshot là frozen record (year_month, category_id,
+    // limit_amount, carry_amount) — không phụ thuộc category catalog state
+    // hiện tại. Monthly Review vẫn show carry line khi load past month
+    // dù category đã archive hoặc bị soft-delete sau khi snapshot tạo.
+    test('P1 #4 gap #4: snapshot carryAmount still shows when category is archived post-snapshot', () async {
+      // Snapshot was taken in May when category was active.
+      // Now (June review) category is archived but snapshot row still exists.
+      // Setup: spent > limit so highlight is exceeded (≥100%) — guarantees
+      // carry line appears (warning/exceeded trigger highlight in builder).
+      final pastSnapshot = BudgetSnapshot(
+        yearMonth: '2026-05',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
+        limitAmount: 1000000,
+        alertThreshold: 80,
+        carryAmount: 300000,
+        createdAt: DateTime(2026, 6, 1),
+      );
+      when(() => mockTxDS.getByDateRange(any(), any()))
+          .thenAnswer((_) async => [
+                Transaction(
+                  id: 't1', category: 'Ăn ngoài', categoryId: 'food_out',
+                  emoji: '🍜', amount: 1100000, note: '',
+                  date: DateTime(2026, 5, 15),
+                ),
+              ]);
+      when(() => mockSnapshotDS.getByYearMonth('2026-05'))
+          .thenAnswer((_) async => [pastSnapshot]);
+      // Category is archived NOW (in current catalog) but snapshot
+      // pre-dates archive.
+      when(() => mockCategoryDS.getAll()).thenAnswer((_) async => [
+            Category(
+              id: 'food_out', name: 'Ăn ngoài',
+              normalizedName: 'an_ngoai', emoji: '🍜',
+              kind: CategoryKind.spending, budgetBehavior: BudgetBehavior.flexible,
+              quickAmountMin: 10000, quickAmountDefault: 50000, quickAmountMax: 200000,
+              voicePhrases: const [], sortOrder: 10,
+              isArchived: true, // archived AFTER snapshot
+              createdAt: DateTime(2026, 1, 1), updatedAt: DateTime(2026, 5, 20),
+            ),
+          ]);
+
+      final vm = makeVm();
+      await vm.selectMonth(DateTime(2026, 5, 1));
+
+      expect(vm.data, isNotNull);
+      final highlights = vm.data!.budgetHighlights;
+      final anNgoai = highlights.where((h) => h.categoryName == 'Ăn ngoài').firstOrNull;
+      expect(anNgoai, isNotNull, reason: 'snapshot row still drives highlight even when category archived');
+      expect(anNgoai!.carryAmount, 300000,
+          reason: 'carry frozen in snapshot — not invalidated by category state change');
+    });
+
+    test('P1 #4 gap #4: snapshot carryAmount still shows when category is in trash post-snapshot', () async {
+      // Same as above but category is soft-deleted (trash) after snapshot.
+      final pastSnapshot = BudgetSnapshot(
+        yearMonth: '2026-05',
+        categoryName: 'Cà phê', categoryId: 'coffee',
+        limitAmount: 500000,
+        alertThreshold: 80,
+        carryAmount: 100000,
+        createdAt: DateTime(2026, 6, 1),
+      );
+      when(() => mockTxDS.getByDateRange(any(), any()))
+          .thenAnswer((_) async => [
+                Transaction(
+                  id: 't1', category: 'Cà phê', categoryId: 'coffee',
+                  emoji: '☕', amount: 400000, note: '',
+                  date: DateTime(2026, 5, 15),
+                ),
+              ]);
+      when(() => mockSnapshotDS.getByYearMonth('2026-05'))
+          .thenAnswer((_) async => [pastSnapshot]);
+      when(() => mockCategoryDS.getAll()).thenAnswer((_) async => [
+            Category(
+              id: 'coffee', name: 'Cà phê',
+              normalizedName: 'ca_phe', emoji: '☕',
+              kind: CategoryKind.spending, budgetBehavior: BudgetBehavior.flexible,
+              quickAmountMin: 10000, quickAmountDefault: 50000, quickAmountMax: 200000,
+              voicePhrases: const [], sortOrder: 20,
+              deletedAt: DateTime(2026, 5, 25), // in trash post-snapshot
+              createdAt: DateTime(2026, 1, 1), updatedAt: DateTime(2026, 5, 25),
+            ),
+          ]);
+
+      final vm = makeVm();
+      await vm.selectMonth(DateTime(2026, 5, 1));
+
+      expect(vm.data, isNotNull);
+      final highlights = vm.data!.budgetHighlights;
+      final coffee = highlights.where((h) => h.categoryName == 'Cà phê').firstOrNull;
+      expect(coffee, isNotNull);
+      expect(coffee!.carryAmount, 100000,
+          reason: 'carry frozen in snapshot survives category trash');
+    });
+
+    test('P1 #4 gap #4: snapshot with carryAmount=0 still shows category highlight without carry line', () async {
+      // Edge case: snapshot exists, carryAmount=0 (no leftover). Highlight
+      // should still appear when spent exceeds limit (exceeded trigger),
+      // but carryAmount=0 → no "Còn dư chuyển tháng sau" line.
+      final pastSnapshot = BudgetSnapshot(
+        yearMonth: '2026-05',
+        categoryName: 'Ăn ngoài', categoryId: 'food_out',
+        limitAmount: 1000000,
+        alertThreshold: 80,
+        carryAmount: 0, // no leftover → no carry
+        createdAt: DateTime(2026, 6, 1),
+      );
+      when(() => mockTxDS.getByDateRange(any(), any()))
+          .thenAnswer((_) async => [
+                Transaction(
+                  id: 't1', category: 'Ăn ngoài', categoryId: 'food_out',
+                  emoji: '🍜', amount: 1200000, note: '',
+                  date: DateTime(2026, 5, 15),
+                ),
+              ]);
+      when(() => mockSnapshotDS.getByYearMonth('2026-05'))
+          .thenAnswer((_) async => [pastSnapshot]);
+
+      final vm = makeVm();
+      await vm.selectMonth(DateTime(2026, 5, 1));
+
+      expect(vm.data, isNotNull);
+      final highlights = vm.data!.budgetHighlights;
+      final anNgoai = highlights.where((h) => h.categoryName == 'Ăn ngoài').firstOrNull;
+      expect(anNgoai, isNotNull);
+      expect(anNgoai!.carryAmount, 0);
     });
   });
 }
