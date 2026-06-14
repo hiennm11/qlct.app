@@ -12,7 +12,12 @@ import 'package:qlct/viewmodels/category_viewmodel.dart';
 /// Step 2: pick target category. Shows live preview of affected rows.
 ///         Auto-restores target from trash if currently soft-deleted.
 class CategoryMergeSheet extends StatefulWidget {
-  const CategoryMergeSheet({super.key});
+  const CategoryMergeSheet({super.key, this.preSelectedIds});
+
+  /// ADR-0044 (P3 #1): optional 2 IDs to pre-select (from bulk-merge action).
+  /// When set, [CategoryMergeSheet] skips step 1 and starts at step 2 with
+  /// source = first id, target = second id. Triggers preview automatically.
+  final List<String>? preSelectedIds;
 
   /// Opens the sheet. Uses [Builder] to ensure the inner context still has
   /// access to the [CategoryViewModel] provider from the parent route.
@@ -42,6 +47,34 @@ class _CategoryMergeSheetState extends State<CategoryMergeSheet> {
 
   String _kindLabel(CategoryKind kind) =>
       kind == CategoryKind.spending ? 'Chi tiêu' : 'Đầu tư';
+
+  @override
+  void initState() {
+    super.initState();
+    // ADR-0044: bulk-merge pre-select. Defer to post-frame để context.read VM available.
+    final ids = widget.preSelectedIds;
+    if (ids != null && ids.length == 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final vm = context.read<CategoryViewModel>();
+        final source = vm.allCategories.where((c) => c.id == ids[0]).firstOrNull;
+        final target = vm.allCategories.where((c) => c.id == ids[1]).firstOrNull;
+        if (source == null || target == null) return;
+        setState(() {
+          _source = source;
+          _target = target;
+          _step = 2;
+          _busy = true;
+        });
+        final preview = await vm.getMergePreview(source.id, target.id);
+        if (!mounted) return;
+        setState(() {
+          _preview = preview;
+          _busy = false;
+        });
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

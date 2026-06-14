@@ -12,6 +12,9 @@ import '../data/mappers/budget_snapshot_row_mapper.dart';
 import '../services/storage_service.dart';
 import '../services/monthly_budget_plan_builder.dart';
 
+/// ADR-0046: cap planning horizon = 12 tháng tới.
+const kMaxPlanningMonthsAhead = 12;
+
 /// ViewModel for monthly budget planning screen.
 ///
 /// ADR-0026: Monthly Budget Planning
@@ -34,7 +37,8 @@ class MonthlyPlanViewModel extends ChangeNotifier {
   final MonthlyBudgetPlanBuilder _builder;
   final DateTime _now;
 
-  final DateTime _targetMonth;
+  // ADR-0046: mutable để user có thể change target month via AppBar nav.
+  DateTime _targetMonth;
   MonthlyBudgetPlanData? _data;
   bool _isLoading = false;
   bool _isSaving = false;
@@ -58,6 +62,7 @@ class MonthlyPlanViewModel extends ChangeNotifier {
         _storageService = storageService,
         _builder = builder,
         _now = now,
+        // ADR-0046: mutable so user can change via setTargetMonth.
         _targetMonth = _computeTargetMonth(now) {
     Future.microtask(() => load());
   }
@@ -65,6 +70,36 @@ class MonthlyPlanViewModel extends ChangeNotifier {
   // ─── Getters ───────────────────────────────────────────────────────────────
 
   DateTime get targetMonth => _targetMonth;
+  DateTime get currentMonth => DateTime(_now.year, _now.month, 1);
+
+  /// ADR-0046: minimum target = currentMonth + 1.
+  DateTime get minTargetMonth {
+    final c = currentMonth;
+    return DateTime(c.year, c.month + 1, 1);
+  }
+
+  /// ADR-0046: maximum target = currentMonth + 12.
+  DateTime get maxTargetMonth {
+    final c = currentMonth;
+    return DateTime(c.year, c.month + kMaxPlanningMonthsAhead, 1);
+  }
+
+  /// True if [month] is allowed target (= currentMonth+1..currentMonth+12).
+  bool isValidTarget(DateTime month) {
+    final m = DateTime(month.year, month.month, 1);
+    return !m.isBefore(minTargetMonth) && !m.isAfter(maxTargetMonth);
+  }
+
+  /// ADR-0046: change target month. Reloads draft for new month.
+  Future<void> setTargetMonth(DateTime month) async {
+    final m = DateTime(month.year, month.month, 1);
+    if (m == _targetMonth) return;
+    if (!isValidTarget(m)) return;
+    _targetMonth = m;
+    notifyListeners();
+    await load();
+  }
+
 
   MonthlyBudgetPlanData? get data => _data;
 

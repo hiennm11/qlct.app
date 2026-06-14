@@ -782,4 +782,48 @@ class CategoryViewModel extends ChangeNotifier {
       return null;
     }
   }
+
+  // ===== ADR-0045: Auto-purge trash =====
+
+  /// Permanently delete trash items older than [retentionDays].
+  /// Returns list of purged category IDs (for undo preview).
+  /// Sets errorMessage on failure. Pure: không touch live categories.
+  Future<List<String>> purgeOldTrash(int retentionDays) async {
+    final cutoff = DateTime.now().subtract(Duration(days: retentionDays));
+    final toPurge = deletedCategories
+        .where((c) => c.deletedAt != null && c.deletedAt!.isBefore(cutoff))
+        .map((c) => c.id)
+        .toList();
+    if (toPurge.isEmpty) return const [];
+    final purged = <String>[];
+    for (final id in toPurge) {
+      try {
+        await _dataSource.delete(id);
+        purged.add(id);
+      } catch (e) {
+        _errorMessage = e.toString();
+        notifyListeners();
+      }
+    }
+    if (purged.isNotEmpty) await reload();
+    return purged;
+  }
+
+  /// Items approaching purge (between [warningStartDays] and [retentionDays]).
+  /// Used for banner preview. Returns list of (id, name, daysOld) tuples.
+  List<({String id, String name, int daysOld})> itemsApproachingPurge({
+    int retentionDays = 30,
+    int warningStartDays = 25,
+  }) {
+    final now = DateTime.now();
+    return deletedCategories
+        .where((c) => c.deletedAt != null)
+        .map((c) {
+          final days = now.difference(c.deletedAt!).inDays;
+          return (id: c.id, name: c.name, daysOld: days);
+        })
+        .where((t) =>
+            t.daysOld >= warningStartDays && t.daysOld < retentionDays)
+        .toList();
+  }
 }

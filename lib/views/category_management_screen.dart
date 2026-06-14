@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/category.dart';
+import 'package:qlct/services/auto_purge_prefs.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/category_create_sheet.dart';
 import 'package:qlct/widgets/category_edit_sheet.dart';
@@ -11,7 +12,9 @@ import 'package:qlct/widgets/category_merge_sheet.dart';
 /// ADR-0028 §3 + ADR-0037: Full-screen category management page.
 /// 3 sections: Active (drag-and-drop reorder), Archived, Trash (soft-delete recovery).
 /// Tap a row to open the edit bottom sheet.
-class CategoryManagementScreen extends StatelessWidget {
+/// ADR-0044 (P3 #1): Multi-select via long press → enter selection mode → tap toggle.
+/// 3 actions: Lưu trữ / Xoá / Hợp nhất. Confirm + undo 5s pattern (ADR-0008).
+class CategoryManagementScreen extends StatefulWidget {
   const CategoryManagementScreen({super.key});
 
   static void navigateTo(BuildContext context) {
@@ -19,6 +22,194 @@ class CategoryManagementScreen extends StatelessWidget {
       context,
       MaterialPageRoute(builder: (_) => const CategoryManagementScreen()),
     );
+  }
+
+  @override
+  State<CategoryManagementScreen> createState() => _CategoryManagementScreenState();
+}
+
+class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
+  // ADR-0044: multi-select state.
+  bool _selectionMode = false;
+  final Set<String> _selectedIds = <String>{};
+
+  // ADR-0045: auto-purge setting (loaded async in initState).
+  bool _autoPurgeEnabled = true;
+
+  void _enterSelectionMode(String id) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _selectionMode = true;
+      _selectedIds.add(id);
+    });
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+      // Auto-exit when 0 selected (ADR-0044 §4).
+      if (_selectedIds.isEmpty) {
+        _selectionMode = false;
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAutoPurgePref();
+  }
+
+  Future<void> _loadAutoPurgePref() async {
+    final enabled = await AutoPurgePrefs.isEnabled();
+    if (mounted) setState(() => _autoPurgeEnabled = enabled);
+  }
+
+  Future<void> _setAutoPurgePref(bool value) async {
+    await AutoPurgePrefs.setEnabled(value);
+    setState(() => _autoPurgeEnabled = value);
+  }
+
+  Future<void> _bulkArchive(CategoryViewModel vm) async {
+    final ids = _selectedIds.toList();
+    final categories = ids
+        .map((id) => vm.allCategories.firstWhere(
+              (c) => c.id == id,
+              orElse: () => Category(
+                id: '',
+                name: '',
+                normalizedName: '',
+                emoji: '',
+                kind: CategoryKind.spending,
+                budgetBehavior: BudgetBehavior.flexible,
+                quickAmountMin: 0,
+                quickAmountDefault: 0,
+                quickAmountMax: 0,
+                voicePhrases: const [],
+                sortOrder: 0,
+                isSystem: false,
+                isArchived: false,
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              ),
+            ))
+        .where((c) => c.id.isNotEmpty)
+        .toList();
+    final names = categories.map((c) => '"${c.name}"').join(', ');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Lưu trữ ${ids.length} danh mục?'),
+        content: Text('$names\n\nCác danh mục sẽ chuyển sang mục "Đã lưu trữ".'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Huỷ'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Lưu trữ'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
+    _exitSelectionMode();
+    int success = 0;
+    for (final id in ids) {
+      final ok = await vm.toggleArchive(id);
+      if (ok) success++;
+    }
+    if (!mounted) return;
+    final undone = await _showUndoSnackbar('Đã lưu trữ $success danh mục');
+    if (undone == true) {
+      for (final id in ids) {
+        await vm.toggleArchive(id);
+      }
+    }
+  }
+
+  Future<void> _bulkDelete(CategoryViewModel vm) async {
+    final ids = _selectedIds.toList();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Xoá ${ids.length} danh mục?'),
+        content: const Text(
+          'Các danh mục sẽ chuyển vào thùng rác. Có thể khôi phục trong 30 ngày.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Huỷ'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            onPressed: () {
+              HapticFeedback.heavyImpact(); // ADR-0043 irreversible (soft-delete is recoverable but destructive intent)
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Xoá'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
+    _exitSelectionMode();
+    int success = 0;
+    for (final id in ids) {
+      final ok = await vm.softDeleteCategory(id);
+      if (ok) success++;
+    }
+    if (!mounted) return;
+    final undone = await _showUndoSnackbar('Đã chuyển $success vào thùng rác');
+    if (undone == true) {
+      for (final id in ids) {
+        await vm.restoreCategory(id);
+      }
+    }
+  }
+
+  Future<void> _bulkMerge() async {
+    if (_selectedIds.length != 2) return;
+    final ids = _selectedIds.toList();
+    _exitSelectionMode();
+    // Pass selected IDs to merge sheet via constructor parameter.
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => ChangeNotifierProvider<CategoryViewModel>.value(
+        value: context.read<CategoryViewModel>(),
+        child: CategoryMergeSheet(preSelectedIds: ids),
+      ),
+    );
+  }
+
+  Future<bool?> _showUndoSnackbar(String message) async {
+    return ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(label: 'Hoàn tác', onPressed: () {}),
+      ),
+    ).closed.then((reason) {
+      // Action tapped → reason = SnackBarClosedReason.action.
+      return reason == SnackBarClosedReason.action;
+    });
   }
 
   String _kindLabel(CategoryKind kind) {
@@ -46,11 +237,87 @@ class CategoryManagementScreen extends StatelessWidget {
     return '${(diff.inDays / 30).floor()} tháng trước';
   }
 
-  /// Archived row: tap to edit, quick unarchive button trailing. ADR-0041.
-  Widget _buildArchivedRow(BuildContext context, CategoryViewModel vm, Category cat) {
+  /// ADR-0044: Active row with multi-select + drag handle (hidden in selection mode).
+  Widget _buildActiveRow(BuildContext context, CategoryViewModel vm, Category cat, int index) {
+    final isSelected = _selectedIds.contains(cat.id);
     return ListTile(
-      leading: Text(cat.emoji, style: const TextStyle(fontSize: 24)),
-      title: Text(cat.name),
+      key: ValueKey(cat.id),
+      leading: _selectionMode
+          ? Icon(
+              isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            )
+          : Text(cat.emoji, style: const TextStyle(fontSize: 24)),
+      title: Text(
+        cat.name,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+      subtitle: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.gray100,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              _kindLabel(cat.kind),
+              style: const TextStyle(fontSize: 11),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.gray100,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              _behaviorLabel(cat.budgetBehavior),
+              style: const TextStyle(fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+      trailing: _selectionMode
+          ? null
+          : ReorderableDragStartListener(
+              index: index,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(Icons.drag_handle),
+              ),
+            ),
+      onTap: () {
+        if (_selectionMode) {
+          _toggleSelection(cat.id);
+        } else {
+          CategoryEditSheet.show(context, cat);
+        }
+      },
+      onLongPress: _selectionMode ? null : () => _enterSelectionMode(cat.id),
+    );
+  }
+
+  /// Archived row: tap to edit, quick unarchive button trailing. ADR-0041.
+  /// ADR-0044: also support multi-select (no drag handle in archived).
+  Widget _buildArchivedRow(BuildContext context, CategoryViewModel vm, Category cat) {
+    final isSelected = _selectedIds.contains(cat.id);
+    return ListTile(
+      leading: _selectionMode
+          ? Icon(
+              isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            )
+          : Text(cat.emoji, style: const TextStyle(fontSize: 24)),
+      title: Text(
+        cat.name,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
       subtitle: Row(
         children: [
           Container(
@@ -90,28 +357,38 @@ class CategoryManagementScreen extends StatelessWidget {
           ),
         ],
       ),
-      trailing: TextButton(
-        key: const Key('action-unarchive'),
-        onPressed: () async {
-          final ok = await vm.toggleArchive(cat.id);
-          if (!context.mounted) return;
-          if (!ok && vm.errorMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(vm.errorMessage!)),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Đã bỏ lưu trữ "${cat.name}"')),
-            );
-          }
-        },
-        child: const Text('Bỏ lưu trữ'),
-      ),
-      onTap: () => CategoryEditSheet.show(context, cat),
+      trailing: _selectionMode
+          ? null
+          : TextButton(
+              key: const Key('action-unarchive'),
+              onPressed: () async {
+                final ok = await vm.toggleArchive(cat.id);
+                if (!context.mounted) return;
+                if (!ok && vm.errorMessage != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(vm.errorMessage!)),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Đã bỏ lưu trữ "${cat.name}"')),
+                  );
+                }
+              },
+              child: const Text('Bỏ lưu trữ'),
+            ),
+      onTap: () {
+        if (_selectionMode) {
+          _toggleSelection(cat.id);
+        } else {
+          CategoryEditSheet.show(context, cat);
+        }
+      },
+      onLongPress: _selectionMode ? null : () => _enterSelectionMode(cat.id),
     );
   }
 
   /// Trash row: read-only, 2 actions (Khôi phục, Xoá vĩnh viễn). ADR-0037.
+  /// ADR-0044: not in selection mode scope (Trash excluded per grill session).
   Widget _buildTrashRow(BuildContext context, CategoryViewModel vm, Category cat) {
     return ListTile(
       leading: Text(cat.emoji, style: const TextStyle(fontSize: 24)),
@@ -192,20 +469,35 @@ class CategoryManagementScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Quản lý danh mục'),
+        title: _selectionMode
+            ? Text('${_selectedIds.length} đã chọn')
+            : const Text('Quản lý danh mục'),
+        leading: _selectionMode
+            ? IconButton(
+                key: const Key('action-bulk-exit'),
+                icon: const Icon(Icons.close),
+                onPressed: _exitSelectionMode,
+              )
+            : null,
         actions: [
-          IconButton(
-            tooltip: 'Hợp nhất danh mục',
-            icon: const Icon(Icons.merge_type),
-            onPressed: () => CategoryMergeSheet.show(context),
-          ),
+          if (!_selectionMode)
+            IconButton(
+              tooltip: 'Hợp nhất danh mục',
+              icon: const Icon(Icons.merge_type),
+              onPressed: () => CategoryMergeSheet.show(context),
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Tạo danh mục mới',
-        onPressed: () => CategoryCreateSheet.show(context),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _selectionMode
+          ? null
+          : FloatingActionButton(
+              tooltip: 'Tạo danh mục mới',
+              onPressed: () => CategoryCreateSheet.show(context),
+              child: const Icon(Icons.add),
+            ),
+      bottomNavigationBar: _selectionMode && _selectedIds.isNotEmpty
+          ? _buildActionBar(context)
+          : null,
       body: Consumer<CategoryViewModel>(
         builder: (context, vm, _) {
           if (vm.isLoading && vm.allCategories.isEmpty) {
@@ -258,7 +550,9 @@ class CategoryManagementScreen extends StatelessWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   buildDefaultDragHandles: false,
                   itemCount: active.length,
-                  onReorder: (oldIndex, newIndex) async {
+                  onReorder: _selectionMode
+                      ? (oldIndex, newIndex) {}
+                      : (oldIndex, newIndex) async {
                     // ReorderableListView quirk: when moving down, newIndex
                     // is one past the target slot.
                     final adjusted = newIndex > oldIndex
@@ -277,48 +571,7 @@ class CategoryManagementScreen extends StatelessWidget {
                   },
                   itemBuilder: (context, i) {
                     final c = active[i];
-                    return ListTile(
-                      key: ValueKey(c.id),
-                      leading: Text(c.emoji, style: const TextStyle(fontSize: 24)),
-                      title: Text(c.name),
-                      subtitle: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.gray100,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              _kindLabel(c.kind),
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.gray100,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              _behaviorLabel(c.budgetBehavior),
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ),
-                        ],
-                      ),
-                      trailing: ReorderableDragStartListener(
-                        index: i,
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Icon(Icons.drag_handle),
-                        ),
-                      ),
-                      onTap: () => CategoryEditSheet.show(context, c),
-                    );
+                    return _buildActiveRow(context, vm, c, i);
                   },
                 ),
 
@@ -334,7 +587,7 @@ class CategoryManagementScreen extends StatelessWidget {
                 ...archived.map((c) => _buildArchivedRow(context, vm, c)),
               ],
 
-              // Trash section (ADR-0037 + ADR-0041).
+              // Trash section (ADR-0037 + ADR-0041 + ADR-0045).
               // P1 #2 gap #1: always render heading, collapse body when empty.
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
@@ -345,12 +598,132 @@ class CategoryManagementScreen extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
+              // ADR-0045: SwitchListTile setting inline (always render, even
+              // when trash empty — discoverable cho fresh install).
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: SwitchListTile(
+                  key: Key(
+                    _autoPurgeEnabled
+                        ? 'state-auto-purge-enabled'
+                        : 'state-auto-purge-disabled',
+                  ),
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  title: const Text('Tự động dọn sau 30 ngày'),
+                  subtitle: const Text(
+                    'Các danh mục trong thùng rác sẽ bị xoá vĩnh viễn sau 30 ngày.',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: _autoPurgeEnabled,
+                  onChanged: _setAutoPurgePref,
+                ),
+              ),
+              // ADR-0045 §4: banner preview cho items sắp bị purge (25-30 ngày).
+              ..._buildTrashWarningBanner(vm),
               if (trash.isNotEmpty)
                 ...trash.map((c) => _buildTrashRow(context, vm, c)),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// ADR-0045 §4: banner warning khi có items sắp bị purge (25-30 ngày).
+  /// Returns list of widgets (1 hoặc 0) để spread trong Column.
+  List<Widget> _buildTrashWarningBanner(CategoryViewModel vm) {
+    if (!_autoPurgeEnabled) return const [];
+    final approaching = vm.itemsApproachingPurge();
+    if (approaching.isEmpty) return const [];
+    final minDays = approaching.map((t) => t.daysOld).reduce((a, b) => a < b ? a : b);
+    final daysLeft = 30 - minDays;
+    return [
+      Container(
+        key: const Key('state-trash-purge-warning'),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '⚠️ ${approaching.length} danh mục sẽ bị xoá sau $daysLeft ngày',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.warning,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              approaching.map((t) => '"${t.name}"').join(' · '),
+              style: const TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    for (final t in approaching) {
+                      vm.restoreCategory(t.id);
+                    }
+                  },
+                  child: const Text('Khôi phục tất cả'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  /// Bottom action bar: 3 actions (Archive / Delete / Merge). ADR-0044 §2.
+  Widget _buildActionBar(BuildContext context) {
+    final vm = context.read<CategoryViewModel>();
+    final canMerge = _selectedIds.length == 2;
+    return Material(
+      key: const Key('state-category-action-bar'),
+      color: Theme.of(context).scaffoldBackgroundColor,
+      elevation: 8,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Text(
+                '${_selectedIds.length} đã chọn',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                key: const Key('action-bulk-archive'),
+                icon: const Icon(Icons.archive_outlined, size: 18),
+                label: const Text('Lưu trữ'),
+                onPressed: () => _bulkArchive(vm),
+              ),
+              TextButton.icon(
+                key: const Key('action-bulk-delete'),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Xoá'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                onPressed: () => _bulkDelete(vm),
+              ),
+              TextButton.icon(
+                key: const Key('action-bulk-merge'),
+                icon: const Icon(Icons.merge_type, size: 18),
+                label: const Text('Hợp nhất'),
+                onPressed: canMerge ? _bulkMerge : null,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

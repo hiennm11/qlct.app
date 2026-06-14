@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>P3 #3 — Month Picker for Future Planning (contract)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">P3 #3 — Month Picker for Future Planning</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Contract-ref artifact for ADR-0046. Mở rộng <code>MonthlyPlanScreen</code> cho
+    phép plan từ currentMonth+1 đến currentMonth+12. AppBar có ◀ Tháng MM/YYYY ▶.
+    1 gap closed 2026-06-14: lên kế hoạch xa hơn 1 tháng (ADR-0026 deferred năm 2026).
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- ============================================================ -->
+<!-- §1 — AppBar nav: ◀ Tháng MM/YYYY ▶                              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§1 — AppBar nav (◀ Tháng MM/YYYY ▶)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Codebase: <code>lib/views/monthly_plan_screen.dart</code>. Hiện tại target month
+    = <code>currentMonth + 1</code> hard-code (line 379-381 <code>monthly_plan_viewmodel.dart</code>).
+    Thêm AppBar action: row ngang "◀ Tháng MM/YYYY ▶" cho phép navigate.
+  </p>
+
+  <!-- Behavioral matrix -->
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">State</th><th class="p-2 text-left">Behavior</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2 font-mono">target = currentMonth + 1</td>
+        <td class="p-2">◀ bị disable (không cho lùi về currentMonth — không plan cho tháng hiện tại đã qua)</td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">target = currentMonth + 2..11</td>
+        <td class="p-2">Cả ◀ và ▶ đều enabled. User có thể di chuyển tự do.</td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">target = currentMonth + 12</td>
+        <td class="p-2">▶ bị disable (cap 12 tháng tới).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="bg-white border border-gray-200 rounded p-3 mb-3">
+    <p class="text-xs text-gray-600 mb-1">Key binding:</p>
+    <table class="text-xs w-full">
+      <tr><td class="font-mono pr-3">month nav container</td><td><code>Key('state-month-picker-nav')</code></td></tr>
+      <tr><td class="font-mono pr-3">prev month (disabled)</td><td><code>Key('state-month-picker-prev-disabled')</code></td></tr>
+      <tr><td class="font-mono pr-3">prev month (enabled)</td><td><code>Key('state-month-picker-prev-enabled')</code></td></tr>
+      <tr><td class="font-mono pr-3">next month (disabled)</td><td><code>Key('state-month-picker-next-disabled')</code></td></tr>
+      <tr><td class="font-mono pr-3">next month (enabled)</td><td><code>Key('state-month-picker-next-enabled')</code></td></tr>
+      <tr><td class="font-mono pr-3">current month label</td><td><code>Key('state-month-picker-label')</code></td></tr>
+    </table>
+  </div>
+
+  <!-- Visual mockup -->
+  <div class="border border-gray-300 rounded p-4 bg-white">
+    <p class="text-xs text-gray-500 mb-2">AppBar với month nav (target = Tháng 8/2026):</p>
+    <div class="border-b border-gray-200 pb-2 flex items-center justify-between text-sm">
+      <button class="text-gray-400 cursor-not-allowed" disabled>◀</button>
+      <span class="font-semibold">Tháng 08/2026</span>
+      <button>▶</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §2 — Range limit: cap 12 tháng tới                              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§2 — Range limit (cap 12 tháng tới)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Maximum target month = <code>currentMonth + 12</code>. Không cho plan xa hơn 1 năm.
+    Lý do: balance giữa flexibility (plan dài hạn) và predictability (tránh user
+    tạo plan cực xa không bao giờ apply).
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-3 mb-3">
+    <p class="text-xs text-gray-600 mb-1">Constant:</p>
+    <pre class="text-xs bg-gray-50 p-2 rounded"><code>const kMaxPlanningMonthsAhead = 12;</code></pre>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §3 — Empty state: copy từ currentBudget                          -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§3 — Empty state (copy từ currentBudget)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Khi user pick tháng X trong 1-12 tháng tới, plan draft cho tháng X = copy
+    từ <code>currentBudget</code> (live budgets hiện tại). Reuse
+    <code>MonthlyBudgetPlanBuilder.buildDraft</code> với
+    <code>source = kBudgetPlanSourceCurrentBudget</code>.
+  </p>
+
+  <p class="text-sm text-gray-700 mb-3">
+    User edit số sau. Predictable: tháng tới plan thường giống tháng này (n+1 carry).
+    Tháng xa plan = baseline budget hiện tại, user adjust tăng/giảm tuỳ ngữ cảnh
+    (Tết, hè, v.v.).
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-3 mb-3">
+    <p class="text-xs text-gray-600 mb-1">Key binding (nếu cần):</p>
+    <table class="text-xs w-full">
+      <tr><td class="font-mono pr-3">empty state container</td><td><code>Key('state-monthly-plan-draft-empty')</code></td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §4 — Snapshot: mỗi tháng 1 plan độc lập                          -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§4 — Snapshot (mỗi tháng 1 plan độc lập)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Audit <code>sqlite_budget_plan_datasource.dart</code>: <code>yearMonth</code>
+    là primary key, <code>ConflictAlgorithm.replace</code> ở line 89 + 133. Mỗi
+    tháng chỉ 1 plan draft. Plans cho tháng 8 và tháng 9 là độc lập trong DB.
+  </p>
+
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">User action</th><th class="p-2 text-left">Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2">Pick tháng 8 → save plan</td>
+        <td class="p-2">DB có 1 plan row cho 2026-08.</td>
+      </tr>
+      <tr>
+        <td class="p-2">Pick tháng 9 → save plan</td>
+        <td class="p-2">DB có 2 plan rows (2026-08 + 2026-09).</td>
+      </tr>
+      <tr>
+        <td class="p-2">Pick tháng 9 lần nữa → edit → save</td>
+        <td class="p-2">Plan 2026-09 bị replace. Plan 2026-08 giữ nguyên.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="text-xs text-gray-500">
+    AppBar header luôn hiển thị tháng hiện tại của target (single source of truth).
+    Không cần list tất cả plans trong UI này (xem §5).
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §5 — Optional: list all plans (defer)                           -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§5 — Optional: list all plans (defer)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Nếu user pick tháng 8 → save → pick tháng 9 → save, làm sao user thấy lại
+    plan tháng 8? Hiện tại: chỉ cần ◀ về tháng 8 trong month nav. UX đơn giản,
+    không cần bottom sheet list tất cả plans.
+  </p>
+  <p class="text-sm text-gray-700 mb-3">
+    YAGNI: Bottom sheet "Tất cả plans" chỉ thêm nếu user feedback "khó nhớ đã
+    plan tháng nào". Defer.
+  </p>
+</section>
+
+</main>
+
+<footer class="bg-white border-t border-gray-200 p-6 text-xs text-gray-500">
+  <p>Contract-ref for ADR-0046 (P3 #3 — Month Picker for Future Planning, 2026-06-14).</p>
+  <p>Pattern reuse: <code>MonthlyBudgetPlanBuilder</code> + <code>sqlite_budget_plan_datasource</code> (ADR-0026).</p>
+  <p>Đặc tả UI/logic thuần. Không schema/dependency/release policy change → contract-ref ADR.</p>
+</footer>
+</body>
+</html>

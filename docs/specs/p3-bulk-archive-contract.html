@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>P3 #1 — Bulk-archive Categories (contract)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">P3 #1 — Bulk-archive Categories</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Contract-ref artifact for ADR-0044. Multi-select ở Active + Archived sections
+    của <code>CategoryManagementScreen</code>. Reuse multi-select pattern từ
+    <code>TransactionListWidget</code> (ADR-0009) — long press enter selection mode,
+    tap toggle. 1 gap closed 2026-06-14: bulk archive/xoá/hợp nhất N categories 1 lần.
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- ============================================================ -->
+<!-- §1 — Multi-select entry: long press                            -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§1 — Multi-select entry (long press)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Codebase: <code>lib/views/category_management_screen.dart</code> line 278-321
+    (Active section) + line 326-335 (Archived section).
+    Hiện tại: tap row → open <code>CategoryEditSheet</code>. Không có long press handler.
+    Reuse pattern từ <code>lib/widgets/transaction_list_widget.dart:36</code>:
+    long press 1 row → set <code>_selectionMode = true</code>.
+  </p>
+
+  <!-- Behavioral matrix -->
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">State</th><th class="p-2 text-left">Gesture</th><th class="p-2 text-left">Render</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2 font-mono">selection=false</td>
+        <td class="p-2">tap row</td>
+        <td class="p-2">Mở <code>CategoryEditSheet</code></td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">selection=false</td>
+        <td class="p-2">long press row</td>
+        <td class="p-2">Enter selection mode, row đó selected</td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">selection=true</td>
+        <td class="p-2">tap row</td>
+        <td class="p-2">Toggle selected (không mở edit sheet)</td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">selection=true</td>
+        <td class="p-2">tap "X" ở action bar</td>
+        <td class="p-2">Exit selection mode (clear all selected)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Key binding -->
+  <div class="bg-white border border-gray-200 rounded p-3 mb-3">
+    <p class="text-xs text-gray-600 mb-1">Key binding (per CLAUDE.md):</p>
+    <table class="text-xs w-full">
+      <tr><td class="font-mono pr-3">selection mode active</td><td><code>Key('state-category-selection-mode')</code></td></tr>
+      <tr><td class="font-mono pr-3">row selected</td><td><code>Key('state-category-row-selected')</code></td></tr>
+    </table>
+  </div>
+
+  <!-- Visual mockup -->
+  <div class="border border-gray-300 rounded p-4 bg-white">
+    <p class="text-xs text-gray-500 mb-2">Active section — selection mode active, 2 rows selected:</p>
+    <div class="border border-blue-200 bg-blue-50 rounded p-2 mb-2 text-sm flex items-center">
+      <input type="checkbox" checked class="mr-3"> <span class="mr-2">🍜</span> Ăn ngoài <span class="ml-auto text-xs text-gray-500">[Chi tiêu · Linh hoạt]</span>
+    </div>
+    <div class="border border-blue-200 bg-blue-50 rounded p-2 mb-2 text-sm flex items-center">
+      <input type="checkbox" checked class="mr-3"> <span class="mr-2">☕</span> Cà phê <span class="ml-auto text-xs text-gray-500">[Chi tiêu · Linh hoạt]</span>
+    </div>
+    <div class="border border-gray-200 rounded p-2 text-sm flex items-center">
+      <input type="checkbox" class="mr-3"> <span class="mr-2">🛒</span> Đi chợ <span class="ml-auto text-xs text-gray-500">[Chi tiêu · Linh hoạt]</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §2 — Action bar: Archive + Xoá + Hợp nhất                       -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§2 — Action bar (3 actions)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Khi <code>_selectionMode = true</code> và <code>_selectedIds.isNotEmpty</code>,
+    hiển thị bottom action bar với count + 3 buttons. Reuse pattern
+    <code>TransactionSelectionActionBar</code> (line 172-177 của transaction_list_widget.dart).
+  </p>
+
+  <!-- Behavioral matrix -->
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Action</th><th class="p-2 text-left">Behavior</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2 font-mono">Lưu trữ (N)</td>
+        <td class="p-2">Confirm dialog "Lưu trữ N danh mục?" → list tên → tap confirm → <code>toggleArchive</code> cho từng id. Snackbar "Đã lưu trữ N danh mục. Hoàn tác" 5s.</td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">Xoá (N)</td>
+        <td class="p-2">Confirm dialog "Xoá N danh mục?" → tap confirm → <code>softDeleteCategory</code> cho từng id. Snackbar "Đã chuyển N vào thùng rác. Hoàn tác" 5s.</td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">Hợp nhất (2)</td>
+        <td class="p-2">Chỉ enabled khi <code>_selectedIds.length == 2</code>. Tap → mở <code>CategoryMergeSheet</code> pre-select source = first selected, target = second selected. Snackbar undo per §3.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="bg-white border border-gray-200 rounded p-3 mb-3">
+    <p class="text-xs text-gray-600 mb-1">Key binding:</p>
+    <table class="text-xs w-full">
+      <tr><td class="font-mono pr-3">action bar</td><td><code>Key('state-category-action-bar')</code></td></tr>
+      <tr><td class="font-mono pr-3">archive button</td><td><code>Key('action-bulk-archive')</code></td></tr>
+      <tr><td class="font-mono pr-3">delete button</td><td><code>Key('action-bulk-delete')</code></td></tr>
+      <tr><td class="font-mono pr-3">merge button (2-selected only)</td><td><code>Key('action-bulk-merge')</code></td></tr>
+    </table>
+  </div>
+
+  <!-- Visual mockup -->
+  <div class="border border-gray-300 rounded p-4 bg-white">
+    <p class="text-xs text-gray-500 mb-2">Bottom action bar (3 selected):</p>
+    <div class="border-t-2 border-gray-300 pt-2 flex items-center justify-between text-sm">
+      <span class="font-medium">3 đã chọn</span>
+      <div class="flex gap-2">
+        <button class="px-3 py-1 bg-gray-200 rounded text-gray-800">Lưu trữ</button>
+        <button class="px-3 py-1 bg-red-100 text-red-700 rounded">Xoá</button>
+        <button class="px-3 py-1 bg-gray-100 text-gray-400 rounded cursor-not-allowed" disabled>Hợp nhất</button>
+      </div>
+      <button class="text-gray-400 text-lg leading-none">✕</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §3 — Undo path (5s snackbar)                                   -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§3 — Undo path (Snackbar 5s)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Reuse pattern ADR-0008 (CONTEXT §Known Issues line 336-337): "Hoàn tác" SnackBar 5 giây
+    cho destructive actions. Apply cho archive batch + delete batch.
+  </p>
+
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Action gốc</th><th class="p-2 text-left">Undo behavior</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2 font-mono">Lưu trữ (N)</td>
+        <td class="p-2">Tap "Hoàn tác" → <code>toggleArchive</code> cho N id trở lại false. Snackbar ẩn.</td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">Xoá (N)</td>
+        <td class="p-2">Tap "Hoàn tác" → <code>restoreCategory</code> cho N id (clear <code>deletedAt</code>). Snackbar ẩn.</td>
+      </tr>
+      <tr>
+        <td class="p-2 font-mono">Hợp nhất (2)</td>
+        <td class="p-2">Không undo trong snackbar (đã có trash restore path per ADR-0038). User restore source từ trash nếu cần rollback.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- §4 — Auto-exit when 0 selected                                  -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§4 — Auto-exit khi 0 selected</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Edge case: user enter selection mode, toggle off tất cả selected rows.
+    Behavior: <code>_selectedIds.isEmpty</code> trigger <code>_selectionMode = false</code> + clear state.
+    Action bar ẩn ngay lập tức. Reuse pattern từ <code>transaction_list_widget.dart:53</code>.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-3 mb-3">
+    <p class="text-xs text-gray-600 mb-1">Key binding:</p>
+    <table class="text-xs w-full">
+      <tr><td class="font-mono pr-3">action bar hidden (0 selected)</td><td><code>Key('state-category-action-bar-hidden')</code></td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §5 — Drag handle interaction                                    -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§5 — Drag handle interaction (no conflict)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Active section có <code>ReorderableDragStartListener</code> ở trailing (line 313-319)
+    cho drag-and-drop reorder. Trong selection mode, drag handle ẩn để tránh conflict
+    với selection toggle tap area. Khi exit selection mode, drag handle render lại.
+  </p>
+  <p class="text-xs text-gray-500">
+    Implication: state <code>_selectionMode</code> thêm vào <code>CategoryManagementScreen</code>
+    (hiện là <code>StatelessWidget</code>). Cần convert sang <code>StatefulWidget</code>
+    hoặc dùng provider pattern.
+  </p>
+</section>
+
+</main>
+
+<footer class="bg-white border-t border-gray-200 p-6 text-xs text-gray-500">
+  <p>Contract-ref for ADR-0044 (P3 #1 — Bulk-archive Categories, 2026-06-14).</p>
+  <p>Pattern reuse: ADR-0009 multi-select (<code>TransactionListWidget</code>).</p>
+  <p>Đặc tả UI/logic thuần. Không schema/dependency/release policy change → contract-ref ADR.</p>
+</footer>
+</body>
+</html>

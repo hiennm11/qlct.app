@@ -76,7 +76,47 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kế hoạch tháng tới'),
+        title: Consumer<MonthlyPlanViewModel>(
+          builder: (context, vm, _) {
+            final t = vm.targetMonth;
+            final label = 'Kế hoạch T${t.month.toString().padLeft(2, '0')}/${t.year}';
+            return Text(label);
+          },
+        ),
+        // ADR-0046: AppBar nav ◀ Tháng MM/YYYY ▶. Cap 12 tháng tới.
+        actions: [
+          Consumer<MonthlyPlanViewModel>(
+            builder: (context, vm, _) {
+              final canPrev = vm.targetMonth.isAfter(vm.minTargetMonth);
+              final canNext = vm.targetMonth.isBefore(vm.maxTargetMonth);
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    key: const Key('state-month-picker-prev'),
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: canPrev
+                        ? () {
+                            final t = vm.targetMonth;
+                            vm.setTargetMonth(DateTime(t.year, t.month - 1, 1));
+                          }
+                        : null,
+                  ),
+                  IconButton(
+                    key: const Key('state-month-picker-next'),
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: canNext
+                        ? () {
+                            final t = vm.targetMonth;
+                            vm.setTargetMonth(DateTime(t.year, t.month + 1, 1));
+                          }
+                        : null,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
       body: Consumer<MonthlyPlanViewModel>(
         builder: (context, vm, _) {
