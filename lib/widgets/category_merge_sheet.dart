@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/category.dart';
@@ -371,7 +372,10 @@ class _CategoryMergeSheetState extends State<CategoryMergeSheet> {
             child: const Text('Huỷ'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () {
+              HapticFeedback.heavyImpact(); // ADR-0043 irreversible confirm
+              Navigator.pop(ctx, true);
+            },
             child: const Text('Hợp nhất'),
           ),
         ],

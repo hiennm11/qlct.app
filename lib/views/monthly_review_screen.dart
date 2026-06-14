@@ -6,6 +6,7 @@ import '../viewmodels/expense_viewmodel.dart';
 import '../core/theme.dart';
 import '../core/formatters.dart';
 import '../models/monthly_review_data.dart';
+import '../widgets/skeleton_box.dart';
 
 /// Static Vietnamese month names — no locale-data dependency.
 const _viMonthNames = [
@@ -171,7 +172,25 @@ class _LoadingView extends StatelessWidget {
   const _LoadingView();
   @override
   Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
+    return Center(
+      key: const Key('state-monthly-review-loading'),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            SkeletonBox(width: 200, height: 20),
+            SizedBox(height: 16),
+            SkeletonBox(height: 14),
+            SizedBox(height: 8),
+            SkeletonBox(height: 14),
+            SizedBox(height: 8),
+            SkeletonBox(width: 180, height: 14),
+          ],
+        ),
+      ),
+    );
   }
 }
 

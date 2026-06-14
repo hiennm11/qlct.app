@@ -6,6 +6,7 @@ import 'package:qlct/models/category.dart';
 import 'package:qlct/services/monthly_budget_plan_builder.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/viewmodels/monthly_plan_viewmodel.dart';
+import 'package:qlct/widgets/skeleton_box.dart';
 
 /// Full-screen Monthly Budget Planning screen.
 /// Opens from BudgetOverviewWidget entry point "Lên kế hoạch tháng tới".
@@ -80,7 +81,23 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
       body: Consumer<MonthlyPlanViewModel>(
         builder: (context, vm, _) {
           if (vm.isLoading && vm.data == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              key: Key('state-monthly-plan-loading'),
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(width: 180, height: 20),
+                    SizedBox(height: 16),
+                    SkeletonBox(height: 14),
+                    SizedBox(height: 8),
+                    SkeletonBox(width: 220, height: 14),
+                  ],
+                ),
+              ),
+            );
           }
           if (vm.errorMessage != null) {
             return _ErrorView(

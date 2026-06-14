@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import 'budget_edit_dialog.dart';
 import 'budget_bulk_edit_dialog.dart';
 import 'section_header.dart';
+import 'skeleton_box.dart';
 import '../views/monthly_plan_screen.dart';
 
 /// Widget displaying budget overview with cards
@@ -30,7 +31,17 @@ class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
+              child: Column(
+                key: Key('state-budget-overview-loading'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonBox(width: 120, height: 16),
+                  SizedBox(height: 12),
+                  SkeletonBox(height: 8),
+                  SizedBox(height: 8),
+                  SkeletonBox(width: 200, height: 8),
+                ],
+              ),
             ),
           );
         }

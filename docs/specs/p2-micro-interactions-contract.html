@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>P2 batch 3 — Micro-interactions polish (contract)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">P2 batch 3 — Micro-interactions polish</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Full ADR-0043 artifact (vì có dependency change: <code>shimmer: ^3.0.0</code>).
+    2 gaps closed 2026-06-14:
+    <span class="font-mono">loading-skeleton-box</span>,
+    <span class="font-mono">haptic-irreversible-confirm</span>.
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- ============================================================ -->
+<!-- §1 — P2.5 Loading skeleton box                              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§1 — Loading skeleton box (P2.5)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    3 centered <code>CircularProgressIndicator</code> thay bằng
+    <code>SkeletonBox</code> reusable widget. Add dependency
+    <code>shimmer: ^3.0.0</code> (well-maintained, MIT, không breaking change risk).
+  </p>
+
+  <h3 class="text-base font-semibold mt-4 mb-2">Widget spec</h3>
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Field</th><th class="p-2 text-left">Spec</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2">Class</td>
+        <td class="p-2"><code>SkeletonBox</code> extends <code>StatelessWidget</code></td>
+      </tr>
+      <tr>
+        <td class="p-2">Props</td>
+        <td class="p-2">
+          <code>width: double?</code> (null = match parent),<br>
+          <code>height: double</code> (required),<br>
+          <code>borderRadius: BorderRadiusGeometry</code> (default 4)
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">Implementation</td>
+        <td class="p-2">
+          Wrap <code>Container</code> trong <code>Shimmer.fromColors</code>
+          (baseColor: <code>AppColors.gray200</code>, highlightColor: <code>AppColors.gray100</code>)
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">Usage sites</td>
+        <td class="p-2">
+          <code>monthly_review_screen.dart:174</code> _LoadingView (full area),<br>
+          <code>monthly_plan_screen.dart:83</code> inline,<br>
+          <code>budget_overview_widget.dart:33</code> widget (compact)
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 class="text-base font-semibold mt-4 mb-2">Visual mockup</h3>
+  <div class="border border-gray-300 rounded p-4 bg-white">
+    <p class="text-xs text-gray-500 mb-2">Monthly Review loading (sau polish):</p>
+    <div data-state="monthly-review-loading" class="space-y-3">
+      <div class="flex items-center gap-3">
+        <div data-skeleton-box="circle" class="w-12 h-12 rounded-full bg-gray-200 animate-pulse"></div>
+        <div class="flex-1 space-y-2">
+          <div data-skeleton-box="line" class="h-4 w-1/3 bg-gray-200 rounded animate-pulse"></div>
+          <div data-skeleton-box="line" class="h-3 w-1/2 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+      </div>
+      <div class="space-y-2">
+        <div data-skeleton-box="line" class="h-3 w-full bg-gray-200 rounded animate-pulse"></div>
+        <div data-skeleton-box="line" class="h-3 w-5/6 bg-gray-200 rounded animate-pulse"></div>
+        <div data-skeleton-box="line" class="h-3 w-4/6 bg-gray-200 rounded animate-pulse"></div>
+      </div>
+    </div>
+    <p class="text-xs text-gray-500 mt-3">(Tailwind animate-pulse thay cho shimmer cho visual demo; production dùng <code>Shimmer.fromColors</code>.)</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §2 — P2.6 Haptic irreversible confirm                       -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§2 — Haptic irreversible confirm (P2.6)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Add <code>HapticFeedback.heavyImpact()</code> ở 2 irreversible confirm action.
+    Apple HIG + Material Design guideline: haptic chỉ ở destructive irreversible
+    action, không spam.
+  </p>
+
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">File:line</th><th class="p-2 text-left">Action</th><th class="p-2 text-left">Intensity</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2"><code>category_management_screen.dart:174</code></td>
+        <td class="p-2">"Xoá vĩnh viễn" trong <code>_confirmPurge</code> dialog</td>
+        <td class="p-2"><code>HapticFeedback.heavyImpact()</code></td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>category_merge_sheet.dart:384</code></td>
+        <td class="p-2">"Hợp nhất" trong confirm dialog _onConfirm</td>
+        <td class="p-2"><code>HapticFeedback.heavyImpact()</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="border border-gray-300 rounded p-4 bg-white">
+    <p class="text-xs text-gray-500 mb-2">Code snippet (purge confirm):</p>
+    <pre class="bg-gray-100 rounded p-3 text-xs overflow-x-auto"><code>// Before
+TextButton(
+  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  onPressed: () =&gt; Navigator.pop(ctx, true),
+  child: const Text('Xoá vĩnh viễn'),
+),
+
+// After (ADR-0043)
+TextButton(
+  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+  onPressed: () {
+    HapticFeedback.heavyImpact();
+    Navigator.pop(ctx, true);
+  },
+  child: const Text('Xoá vĩnh viễn'),
+),</code></pre>
+  </div>
+
+  <h3 class="text-base font-semibold mt-4 mb-2">Skip rationale</h3>
+  <ul class="text-sm list-disc pl-5 space-y-1">
+    <li><code>softDeleteCategory</code> — có thể restore từ trash, không irreversible.</li>
+    <li><code>deleteTransaction</code> — có undo snackbar, không irreversible.</li>
+    <li><code>bulk delete transactions</code> — có undo snackbar, không irreversible.</li>
+    <li><code>toggleArchive</code> — không destructive, chỉ ẩn/hiện.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<!-- §3 — Dependency & ADR rationale                             -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§3 — Dependency & ADR rationale</h2>
+  <div class="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
+    <p>
+      <strong>Add dependency</strong>: <code>shimmer: ^3.0.0</code> (pub.dev,
+      MIT license, 200+ likes, last published 2024-Q1). Stable API, không có
+      breaking change trong 2 năm. Kích thước: ~50KB compiled.
+    </p>
+    <p class="mt-2">
+      <strong>Why full ADR không contract-ref</strong>: theo CLAUDE.md
+      <code>/write-adr</code> self-detection rule, "Có thay đổi dependency" →
+      full ADR. Contract-ref chỉ dành cho UX/UI polish không có schema/dependency/
+      release policy change. Add <code>shimmer</code> là dependency change.
+    </p>
+    <p class="mt-2">
+      <strong>Alternatives considered</strong>: (1) Build skeleton tay với
+      <code>AnimatedBuilder</code> + <code>LinearGradient</code> → ~80 dòng code,
+      reinvent wheel. (2) Dùng <code>skeletonizer</code> package (alternative)
+      — nặng hơn, API khó hơn. <code>shimmer</code> là lightweight, đủ dùng
+      cho 1 SkeletonBox widget.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §4 — Flutter Key binding                                      -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§4 — Flutter Key binding</h2>
+  <table class="text-sm w-full border border-gray-200">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">HTML</th><th class="p-2 text-left">Flutter</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2"><code>data-skeleton-box="circle"</code></td>
+        <td class="p-2"><code>SkeletonBox(width: 48, height: 48, borderRadius: BorderRadius.circular(24))</code></td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>data-skeleton-box="line"</code></td>
+        <td class="p-2"><code>SkeletonBox(width: ..., height: 12)</code> per usage</td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>data-state="monthly-review-loading"</code></td>
+        <td class="p-2"><code>Key('state-monthly-review-loading')</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="text-xs text-gray-500 mt-2">
+    Haptic feedback không có visual key — verify qua manual test (device rung khi tap).
+  </p>
+</section>
+
+</main>
+
+<footer class="border-t border-gray-200 bg-white p-6 mt-12 text-xs text-gray-500">
+  <p>P2 batch 3 micro-interactions polish. Full ADR-0043 (vì dependency change).</p>
+  <p>Glossary: "skeleton" = loading placeholder, "haptic" = physical feedback rung. Không thêm term mới.</p>
+</footer>
+
+</body>
+</html>

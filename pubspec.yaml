@@ -60,6 +60,9 @@ dependencies:
   # Crash reporting
   sentry_flutter: ^8.13.0
 
+  # Loading skeleton (ADR-0043 P2 micro-interactions)
+  shimmer: ^3.0.0
+
 # Immutable models
   freezed_annotation: ^2.4.1
   json_annotation: ^4.8.1
