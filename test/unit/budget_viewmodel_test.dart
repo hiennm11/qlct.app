@@ -1614,6 +1614,215 @@ void main() {
       verifyNever(() => mockStorage.saveValue(flagKey, true));
     });
   });
+
+  // ─── P1 #4 gap #3: plan apply edge case với category in trash/archived ──
+  // Documents actual behavior of _applyCurrentMonthDraftPlan when
+  // _isInvestmentCategory(categoryId) is the only filter — không check
+  // deletedAt hay isArchived. Test sẽ pin behavior này để future change
+  // phải update test cùng code (không silent regression).
+
+  group('rollover auto-apply — category in trash/archived', () {
+    const currentYMs = '2026-06';
+
+    Category _cat({
+      required String id,
+      required String name,
+      CategoryKind kind = CategoryKind.spending,
+      DateTime? deletedAt,
+      bool isArchived = false,
+    }) {
+      return Category(
+        id: id,
+        name: name,
+        normalizedName: name.toLowerCase().replaceAll(' ', '_'),
+        emoji: '📌',
+        kind: kind,
+        budgetBehavior: BudgetBehavior.flexible,
+        quickAmountMin: 10000,
+        quickAmountDefault: 50000,
+        quickAmountMax: 200000,
+        voicePhrases: const [],
+        sortOrder: 10,
+        isArchived: isArchived,
+        deletedAt: deletedAt,
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+    }
+
+    test('plan item for category in trash (deletedAt != null) is still upserted to live budget', () async {
+      // Documents behavior: _isInvestmentCategory does NOT check deletedAt,
+      // so plan apply treats trashed category as normal spending → upsert.
+      // Trade-off: if user restores category, budget row ready; if user
+      // purges, row orphaned (no FK). For now: behavior is "upsert regardless".
+      final trashedCat = _cat(
+        id: 'trashed_cat',
+        name: 'Trashed',
+        deletedAt: DateTime(2026, 5, 10),
+      );
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 1_000_000,
+        source: 'previousMonth',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(
+          yearMonth: currentYMs,
+          categoryName: 'Trashed',
+          categoryId: 'trashed_cat',
+          plannedLimit: 500_000,
+          alertThreshold: 80,
+          suggestedLimit: 400_000,
+          baseLimit: 0,
+          lastMonthSpent: 0,
+          wasOverBudgetLastMonth: false,
+          recommendation: 'increase',
+        ),
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getPlan(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async {});
+
+      // Category catalog includes trashed category
+      when(() => mockCategoryDS.getAll()).thenAnswer((_) async => [trashedCat]);
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      // Behavior pin: trashed category plan item DOES get upserted (no
+      // deletedAt check in _isInvestmentCategory). If we ever add a trash
+      // filter, this test will fail and force explicit decision.
+      final captured = verify(() => mockRepo.upsert(captureAny())).captured;
+      expect(captured, hasLength(1));
+      final upserted = captured.first as Budget;
+      expect(upserted.categoryId, 'trashed_cat');
+      expect(upserted.monthlyLimit, 500_000);
+      verify(() => mockPlanRepo.markApplied(currentYMs, any())).called(1);
+    });
+
+    test('plan item for archived category (isArchived=true) is still upserted', () async {
+      // Same behavior pin as trash: isArchived does NOT block plan apply.
+      // Archive ≠ trash per ADR-0028 — archived category vẫn valid cho
+      // budget, just hidden from new-entry flow.
+      final archivedCat = _cat(
+        id: 'archived_cat',
+        name: 'Archived',
+        isArchived: true,
+      );
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 800_000,
+        source: 'currentBudget',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(
+          yearMonth: currentYMs,
+          categoryName: 'Archived',
+          categoryId: 'archived_cat',
+          plannedLimit: 400_000,
+          alertThreshold: 80,
+          suggestedLimit: 300_000,
+          baseLimit: 500_000,
+          lastMonthSpent: 0,
+          wasOverBudgetLastMonth: false,
+          recommendation: 'decrease',
+        ),
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getPlan(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async {});
+
+      when(() => mockCategoryDS.getAll()).thenAnswer((_) async => [archivedCat]);
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      final captured = verify(() => mockRepo.upsert(captureAny())).captured;
+      expect(captured, hasLength(1));
+      final upserted = captured.first as Budget;
+      expect(upserted.categoryId, 'archived_cat');
+      expect(upserted.monthlyLimit, 400_000);
+    });
+
+    test('mixed plan: 1 valid + 1 trashed category → both upserted (no partial gate)', () async {
+      // Behavior pin: không có partial apply. Either all non-investment items
+      // get upserted, or none. Trashed item được treat như valid spending
+      // per gap #3 test ở trên.
+      final validCat = _cat(id: 'valid_cat', name: 'Valid');
+      final trashedCat = _cat(
+        id: 'trashed_cat',
+        name: 'Trashed',
+        deletedAt: DateTime(2026, 5, 10),
+      );
+
+      final draftPlan = BudgetPlan(
+        yearMonth: currentYMs,
+        plannedTotalBudget: 1_500_000,
+        source: 'empty',
+        status: 'draft',
+        createdAt: DateTime(2026, 5, 1),
+        updatedAt: DateTime(2026, 5, 1),
+      );
+      final draftItems = [
+        BudgetPlanItem(
+          yearMonth: currentYMs, categoryName: 'Valid', categoryId: 'valid_cat',
+          plannedLimit: 1_000_000, alertThreshold: 80,
+          suggestedLimit: 800_000, baseLimit: 0, lastMonthSpent: 0,
+          wasOverBudgetLastMonth: false, recommendation: 'increase',
+        ),
+        BudgetPlanItem(
+          yearMonth: currentYMs, categoryName: 'Trashed', categoryId: 'trashed_cat',
+          plannedLimit: 500_000, alertThreshold: 80,
+          suggestedLimit: 400_000, baseLimit: 0, lastMonthSpent: 0,
+          wasOverBudgetLastMonth: false, recommendation: 'increase',
+        ),
+      ];
+
+      when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
+      when(() => mockRepo.getAll()).thenAnswer((_) async => []);
+      when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getPlan(currentYMs)).thenAnswer((_) async => draftPlan);
+      when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
+      when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async {});
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
+      when(() => mockStorage.saveValue('total_budget', any())).thenAnswer((_) async {});
+
+      when(() => mockCategoryDS.getAll()).thenAnswer((_) async => [validCat, trashedCat]);
+
+      viewModel = BudgetViewModel(mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage);
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+
+      final captured = verify(() => mockRepo.upsert(captureAny())).captured;
+      expect(captured, hasLength(2),
+          reason: 'both valid and trashed items upserted — no partial gate');
+      final ids = captured.map((b) => (b as Budget).categoryId).toSet();
+      expect(ids, containsAll(['valid_cat', 'trashed_cat']));
+      verify(() => mockPlanRepo.markApplied(currentYMs, any())).called(1);
+    });
+  });
 }
 
 /// Fixed clock used across the test suite for deterministic yearMonth.
