@@ -51,6 +51,7 @@ class SqliteBudgetDataSource implements BudgetLocalDataSource {
   }
 
   @override
+  @Deprecated('Use getByCategoryId per ADR-0030; name-based lookup will be removed in next release')
   Future<Budget?> getByCategory(String categoryName) async {
     final db = await _dbHelper.database;
     final maps = await db.query(

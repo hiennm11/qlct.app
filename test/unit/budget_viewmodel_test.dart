@@ -868,8 +868,6 @@ void main() {
       when(() => mockSnapshotRepo.getByYearMonth(prevYMs)).thenAnswer((_) async => []);
       // getAll returns appliedBudgets (non-empty to allow snapshot creation)
       when(() => mockRepo.getAll()).thenAnswer((_) async => appliedBudgets);
-      // getByCategory returns null (no existing budget to preserve)
-      when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
       when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
       when(() => mockPlanRepo.getPlan(currentYMs)).thenAnswer((_) async => draftPlan);
       when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
@@ -999,7 +997,6 @@ void main() {
 
       when(() => mockSnapshotRepo.getByYearMonth(any())).thenAnswer((_) async => []);
       when(() => mockRepo.getAll()).thenAnswer((_) async => liveBudgets);
-      when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
       when(() => mockPlanRepo.getDraft(currentYMs)).thenAnswer((_) async => draftPlan);
       when(() => mockPlanRepo.getItems(currentYMs)).thenAnswer((_) async => draftItems);
       when(() => mockPlanRepo.markApplied(currentYMs, any())).thenAnswer((_) async => {});
@@ -1530,6 +1527,91 @@ void main() {
       final upsertedBudget = upsertCaptured.last as Budget;
       expect(upsertedBudget.monthlyLimit, 1300000,
           reason: 'existing 1000000 + carry 300000 = 1300000');
+    });
+  });
+
+  // ─── ADR-0032 §3: Carry-over idempotency (Tuần 1 P0) ──────────────────────────
+  // Flag key `budget_carry_applied_YYYY-MM` is the only gate preventing
+  // double-apply when _loadBudgets runs more than once in a month.
+  // These tests close the test gap noted in the carry group comment
+  // (lines 1409-1412) by stubbing the flag per-test.
+
+  group('carry idempotency — flag gate prevents double-apply', () {
+    const flagKey = 'budget_carry_applied_2026-05';
+
+    Future<void> setupCarryFixtures({
+      required bool? alreadyApplied,
+    }) async {
+      final prevSnap = BudgetSnapshot(
+        yearMonth: '2026-05',
+        categoryName: 'Ăn ngoài',
+        categoryId: 'food_out',
+        limitAmount: 1000000,
+        alertThreshold: 80,
+        createdAt: DateTime(2026, 6, 1),
+      );
+
+      final prevTxns = [
+        Transaction(
+          id: 'tx-1', amount: 700000, category: 'Ăn ngoài',
+          categoryId: 'food_out', emoji: '🍜', date: DateTime(2026, 5, 15),
+        ),
+      ];
+
+      final existingBudget = Budget(
+        id: 'b1', categoryName: 'Ăn ngoài', categoryId: 'food_out',
+        monthlyLimit: 1000000, alertThreshold: 80, createdAt: DateTime(2026, 6, 1),
+      );
+
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [existingBudget]);
+      when(() => mockSnapshotRepo.getByYearMonth('2026-05'))
+          .thenAnswer((_) async => [prevSnap]);
+      when(() => mockPlanRepo.getDraft(any())).thenAnswer((_) async => null);
+      when(() => mockPlanRepo.getPlan(any())).thenAnswer((_) async => null);
+      when(() => mockRepo.getByCategoryId('food_out'))
+          .thenAnswer((_) async => existingBudget);
+      when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
+
+      final mockTxDS = MockTransactionLocalDataSource();
+      when(() => mockTxDS.getByDateRange(any(), any()))
+          .thenAnswer((_) async => prevTxns);
+
+      // Idempotency flag stub: null = first apply, true = already applied.
+      when(() => mockStorage.loadValue<bool>(flagKey)).thenReturn(alreadyApplied);
+
+      viewModel = BudgetViewModel(
+        mockRepo, mockSnapshotRepo, mockPlanRepo, mockCategoryDS, mockStorage,
+        transactionDataSource: mockTxDS,
+        now: () => _testNow,
+      );
+      // Two microtasks: _loadBudgets impl awaits inside Future.microtask.
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+    }
+
+    test('first load: flag null → carry upsert happens + flag persisted true',
+        () async {
+      await setupCarryFixtures(alreadyApplied: null);
+
+      // Carry applied: live budget upserted with +carryAmount
+      final upsertCaptured =
+          verify(() => mockRepo.upsert(captureAny())).captured;
+      final upsertedBudget = upsertCaptured.last as Budget;
+      expect(upsertedBudget.monthlyLimit, 1300000,
+          reason: '1000000 + carry 300000 = 1300000');
+
+      // Flag persisted for next month
+      verify(() => mockStorage.saveValue(flagKey, true)).called(1);
+    });
+
+    test('repeated load: flag true → carry upsert NOT called, flag not re-saved',
+        () async {
+      await setupCarryFixtures(alreadyApplied: true);
+
+      // Gate fired before any upsert: no carry write this run.
+      verifyNever(() => mockRepo.upsert(any()));
+      // Flag stays true (no redundant save).
+      verifyNever(() => mockStorage.saveValue(flagKey, true));
     });
   });
 }

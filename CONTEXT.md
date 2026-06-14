@@ -208,6 +208,11 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 
 *(Trống — audit 2026-06-13 sau khi ADR-0038 close: tất cả "open concrete" deferred items đã có ADR close.)*
 
+### ✅ Closed by Tuần 1 P0 audit (2026-06-14)
+
+- ~~**Budget lookup `getByCategory(String name)` enforcement gap**~~ — ADR-0030 §Negative debt ("code temporarily has both `getByCategory` and `getByCategoryId`"). 2026-06-14: `BudgetLocalDataSource.getByCategory(String)` và `TransactionLocalDataSource.getByCategory(String)` soft-deprecated qua `@Deprecated` annotation. Zero production caller trong `lib/`. Hard removal target next release. Update ADR-0030 §Negative.
+- ~~**Carry-over idempotency test gap**~~ — `BudgetViewModel._calculateAndPersistCarryAmount` check flag `budget_carry_applied_YYYY-MM` (line 447-449) là single gate chống double-apply, nhưng 0 test coverage. 2026-06-14: thêm 2 test trong `test/unit/budget_viewmodel_test.dart` group "carry idempotency — flag gate prevents double-apply" — (1) first load: flag null → carry upsert + flag set, (2) repeated load: flag true → no upsert. Closes gap noted ở line 1409-1412 của file đó.
+
 ### ✅ Closed by ADR-0038 (audit 2026-06-13)
 
 - ~~**Merge categories**~~ — ADR-0034 §Deferred → ADR-0038. `CategoryLocalDataSource.merge(sourceId, targetId)` cascade UPDATE 6 tables trong 1 SQLite transaction + soft-delete source (reuses ADR-0037 trash). `CategoryMergeCollision` exception với budget/PK collision handling. UI: AppBar `IconButton(Icons.merge_type)` + 2-step `CategoryMergeSheet` (source → target + preview + confirm). Undo qua trash restore. No schema/backup bump.

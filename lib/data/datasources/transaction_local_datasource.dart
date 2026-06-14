@@ -7,6 +7,12 @@ abstract class TransactionLocalDataSource {
   Future<void> delete(String id);
   Future<void> clearAll();
   Future<List<Transaction>> getByDate(DateTime date);
+
+  /// Name-based transaction filter lookup. Not currently used by
+  /// production code (ExpenseViewModel filters in-memory via
+  /// `Transaction.category` snapshot, ADR-0029). Kept temporarily
+  /// for migration/legacy callers; hard removal targeted next release.
+  @Deprecated('No production caller in lib/; use in-memory filter on Transaction.category (snapshot) per ADR-0029. Will be removed in next release.')
   Future<List<Transaction>> getByCategory(String category);
   Future<List<Transaction>> getByDateRange(DateTime start, DateTime end);
 
