@@ -37,13 +37,19 @@ import 'views/home_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ADR-0010: skip SentryFlutter.init hoàn toàn nếu DSN rỗng.
-  // Sentry SDK tự parse DSN → Uri trong SentryOptions.parsedDsn getter,
-  // chạy TRƯỚC options callback → Uri.parse('') throw FormatException.
-  // Early-return trong options callback quá muộn.
-  const sentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
-  if (sentryDsn.isEmpty) {
-    debugPrint('⚠️ SENTRY_DSN not set — crash reporting disabled');
+  // ADR-0010 + sentry-init-guard: skip SentryFlutter.init entirely khi DSN
+  // rỗng HOẶC malformed. Sentry SDK tự parse DSN → Uri trong
+  // SentryOptions.parsedDsn getter, chạy TRƯỚC options callback.
+  //
+  // 2 lớp guard:
+  // 1. Empty string check (compile-time const rỗng).
+  // 2. Uri.tryParse validation — chống case DSN = ':SENTRY_DSN' (bash expansion
+  //    của `$env:SENTRY_DSN` không thấy PowerShell env var, sinh ra string
+  //    ':SENTRY_DSN' với empty scheme). Uri.tryParse bắt được và skip init.
+  const sentryDsnRaw = String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+  final sentryDsn = _normalizeDsn(sentryDsnRaw);
+  if (sentryDsn == null) {
+    debugPrint('⚠️ SENTRY_DSN not set or malformed — crash reporting disabled');
     await _initApp();
     return;
   }
@@ -66,6 +72,19 @@ Future<void> main() async {
     debugPrint('📍 Stack trace: $stackTrace');
     runApp(_buildErrorApp());
   }
+}
+
+/// Returns a valid Sentry DSN string or null if input is empty/malformed.
+/// DSN format: `https://<key>@<host>/<project>` — must parse as Uri with
+/// non-empty scheme + host. Catches: empty string, `:SENTRY_DSN` (bash
+/// expansion of `$env:SENTRY_DSN` literal), and other malformed inputs.
+String? _normalizeDsn(String raw) {
+  if (raw.isEmpty) return null;
+  final uri = Uri.tryParse(raw);
+  if (uri == null) return null;
+  if (uri.scheme.isEmpty) return null;
+  if (uri.host.isEmpty) return null;
+  return raw;
 }
 
 Future<void> _initApp() async {
