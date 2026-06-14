@@ -279,7 +279,10 @@ Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical ter
 |------|-------|
 | `version` | `1.7.0+2026061406` (P2 batch reinstall) |
 | `git SHA` | `ddef329` (P2 batch 4 verify pass) → 4 sub-batch commits (`dc6ea2d`/`43191a9`/`b889fb6`/`ddef329`) |
+| `device serial` | `21091116C` (test device) → adb ID `cyqgeqsw696pivvo` |
 | `install command` | `flutter install -d 21091116C` (ADR-0024 addendum §1) |
+| `install date` | 2026-06-14 |
+| `git tag` | `v1.7.0` (unchanged per ADR-0024 addendum §2) |
 | `ADR` | `0042` (empty state) + `0043` (micro-interactions) + 2 verify pass (RC process, help text) |
 
 ### Sub-batch delta (P2 polish)
@@ -296,6 +299,17 @@ Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical ter
 - CHANGELOG.md (P2 #2 verify pass — 3 lớp release info đã đủ: git log + RELEASE_CHECKLIST §Verification Summary + ADR-0024, YAGNI)
 - InfoIcon widget (P2 #4 — `InputDecoration.helperText` đã là Flutter built-in, over-engineering)
 - Trash filter/search (defer 2026-06-14 — `canDeleteCategory` guard giới hạn trash size, YAGNI)
+
+### Automated (done)
+
+| Item | Result |
+|------|--------|
+| `flutter analyze` (3 file thay đổi production: monthly_review_screen, monthly_plan_screen, budget_overview_widget, category_edit_sheet) | ✅ 0 issues |
+| `flutter test test/unit/voice_transcript_parser_test.dart` (riêng file) | ✅ 26/26 pass |
+| `flutter test test/unit/ test/widget/` (batch) | ✅ exit 0, `+861 -1` summary (1 fail pre-existing, không liên quan P2) |
+| `flutter build apk --release` | ✅ Built `build/app/outputs/flutter-apk/app-release.apk` (58.4MB) in 112.2s |
+| `flutter install -d 21091116C` | ✅ Streamed Install Success, 7.8s |
+| Device version verification (`adb dumpsys package com.qlctapp`) | ✅ `versionCode=2026061406 versionName=1.7.0` |
 
 ### P1 #2 (Category management flow polish) ✅ done 2026-06-14
 
