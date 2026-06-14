@@ -90,7 +90,7 @@ class _MonthlyPlanScreenState extends State<MonthlyPlanScreen> {
           }
           final data = vm.data;
           if (data == null) {
-            return const Center(child: Text('Không có dữ liệu'));
+            return const _PlanEmptyState();
           }
 
           // Sync total controller if not focused
@@ -536,6 +536,37 @@ class _ErrorView extends StatelessWidget {
             ElevatedButton(
               onPressed: onRetry,
               child: const Text('Thử lại'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanEmptyState extends StatelessWidget {
+  const _PlanEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.event_note_outlined, size: 48, color: AppColors.textSecondary),
+            const SizedBox(height: 16),
+            const Text(
+              'Chưa có kế hoạch cho tháng tới',
+              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Kế hoạch sẽ được tạo từ snapshot tháng trước hoặc budget hiện tại khi bạn mở màn này lần đầu.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
