@@ -248,6 +248,14 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 - **P2.6 Haptic irreversible confirm** — `HapticFeedback.heavyImpact()` ở 2 destructive không undo: "Xoá vĩnh viễn" (purge, `category_management_screen.dart:174`) + "Hợp nhất" (merge, `category_merge_sheet.dart:384`). Đúng Apple HIG/Material guideline: haptic chỉ ở irreversible action, không spam.
 - **Skipped (audit 2026-06-14)**: inline button spinner (2 vị trí) đã polish; `LinearProgressIndicator` có value (2 vị trí) không phải indeterminate; backup/restore progress đã có UI; haptic ở soft-delete/delete transaction (không irreversible, có undo/restore).
 
+### ✅ Verify pass: help text / explainer tooltip (audit 2026-06-14)
+
+- **Audit result**: codebase đã có `helperText` built-in cho 4/5 technical fields trong `category_edit_sheet.dart`: Kind (line 435, "Chi tiêu → ... Đầu tư → ..."), BudgetBehavior (line 464-468, "Linh hoạt/Cố định/Loại trừ" + ý nghĩa), Voice phrases (line 575, "Các cụm từ cách nhau bằng dấu phẩy"), Sort order (line 588, "Danh mục 'Khác' luôn ở cuối (9999)"). Verify pass = 0 gap cho 4 field này.
+- **1 gap thật duy nhất**: Quick amounts (Min/Default/Max ở line 525-565) chỉ có label "Số tiền nhanh" + 3 label ô. Jargon "Tối thiểu / Mặc định / Tối đa" chưa giải thích 3 ô là khoảng gợi ý cho slider thêm nhanh (3 ô là range bounds cho `QuickInputWidget` slider line 338-339: min/max là slider endpoints, default là snap point). Validation `min ≤ default ≤ max` đã enforce ở `models/category.dart:71-80`.
+- **Fix**: append 1 `Text` widget dưới Row 3 TextField ở `lib/widgets/category_edit_sheet.dart:567-573` với copy "Khoảng gợi ý khi thêm nhanh: tối thiểu ≤ mặc định ≤ tối đa." Pattern: `SizedBox(height: 4) + Text(fontSize: 12, color: AppColors.textSecondary)` — match `helperText` Flutter style nhưng render thành widget riêng (vì 3 ô share 1 Row, không có single InputDecoration để gắn helperText). Không thêm Key binding (UI hint only, dynamic — không test qua Key theo CLAUDE.md).
+- **Skip ADR/contract**: 1 dòng helperText quá nhỏ để warrant contract HTML + ADR. YAGNI. Document ở §Verify pass này. P2 polish kết thúc tại đây.
+- **Skipped (audit 2026-06-14)**: InfoIcon widget (Option C gốc) — không cần vì `InputDecoration.helperText` đã là Flutter built-in pattern, build thêm InfoIcon là over-engineering. Emoji field (line 510-519) chỉ có hint "VD: 🍜" là đủ — user nhập emoji thì không cần giải thích. Sort order helperText ở line 588 cũng vừa đủ.
+
 ### ✅ Closed by ADR-0038 (audit 2026-06-13)
 
 - ~~**Merge categories**~~ — ADR-0034 §Deferred → ADR-0038. `CategoryLocalDataSource.merge(sourceId, targetId)` cascade UPDATE 6 tables trong 1 SQLite transaction + soft-delete source (reuses ADR-0037 trash). `CategoryMergeCollision` exception với budget/PK collision handling. UI: AppBar `IconButton(Icons.merge_type)` + 2-step `CategoryMergeSheet` (source → target + preview + confirm). Undo qua trash restore. No schema/backup bump.

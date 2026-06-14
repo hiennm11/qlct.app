@@ -564,6 +564,13 @@ class _CategoryEditSheetState extends State<CategoryEditSheet> {
                       ),
                     ],
                   ),
+                  // P2 batch 4 verify pass: helperText giải thích 3 ô Min/Default/Max
+                  // là khoảng gợi ý cho slider thêm nhanh + constraint ngầm.
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Khoảng gợi ý khi thêm nhanh: tối thiểu ≤ mặc định ≤ tối đa.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
                   const SizedBox(height: 12),
 
                   // Voice phrases
