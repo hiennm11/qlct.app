@@ -1,7 +1,7 @@
 # Release Checklist — qlct.app
 
 **Last verified:** 2026-06-14 (hotfix 1.7.0+2026061403)  
-**Test count:** 758+ (all pass)  
+**Test count:** 861+ (all pass)  
 **APK size:** 22.2MB (arm64) / 56.8MB (all ABIs)  
 **Release policy:** ADR-0024 (canonical install command: addendum 2026-06-14)  
 **Backup/restore contract:** ADR-0023  
@@ -314,6 +314,54 @@ Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical ter
 ### P1 #2 (Category management flow polish) ✅ done 2026-06-14
 
 3 gap close (`559ff54` + `440ac37` + ADR-0041 contract-ref): trash heading collapsed empty, archived quick unarchive, merge warning >50. Gap #4 trash filter/search defer. 6/6 widget + 6/6 unit test pass.
+
+---
+
+## Verification Summary — P3 polish (3 feature, 2026-06-14)
+
+### Build
+
+| Item | Value |
+|------|-------|
+| `version` | `1.7.0+2026061407` (P3 batch reinstall) |
+| `git SHA` | `2cdc7cf` (P3 batch atomic) → bump commit `e16cb6a` |
+| `device serial` | `21091116C` (test device) → adb ID `cyqgeqsw696pivvo` |
+| `install command` | `flutter install -d 21091116C` (ADR-0024 addendum §1) |
+| `install date` | 2026-06-14 (deferred — device offline, awaiting reconnect) |
+| `git tag` | `v1.7.0` (unchanged per ADR-0024 addendum §2) |
+| `ADR` | `0044` (bulk-archive) + `0045` (auto-purge) + `0046` (month picker) — 3 contract-ref |
+
+### Sub-batch delta (P3 polish, 1 atomic commit per ADR-0037 batch pattern)
+
+| Batch | Commit | Scope | ADR type |
+|-------|--------|-------|----------|
+| P3 #1 bulk-archive | `2cdc7cf` (atomic gộp cả 3) | Multi-select long-press, action bar (Archive/Delete/Merge), undo snackbar, preSelectedIds | contract-ref 0044 |
+| P3 #2 auto-purge 30d | `2cdc7cf` (atomic gộp cả 3) | `AutoPurgePrefs` SharedPreferences, `purgeOldTrash`, SwitchListTile inline, warning banner | contract-ref 0045 |
+| P3 #3 month picker | `2cdc7cf` (atomic gộp cả 3) | mutable `targetMonth`, `kMaxPlanningMonthsAhead=12`, AppBar ◀ TMM/YYYY ▶ | contract-ref 0046 |
+| Version bump | `e16cb6a` | `1.7.0+2026061406` → `1.7.0+2026061407` | chore release |
+
+### Grill origin (3 gap, single grill session 2026-06-14)
+
+| Gap | Origin | Decision |
+|-----|--------|----------|
+| Bulk-archive | Audit `lib/views/category_management_screen.dart` — 1-tap operations chỉ cho 1 row, batch missing | Long-press enter, action bar 3 action, confirm + undo |
+| Auto-purge | Trash section header — không có retention SLA UI, user không biết khi nào item biến mất | 30 ngày retention, default ON, inline switch + warning banner |
+| Month picker | MonthlyPlan screen AppBar — title cứng "Kế hoạch tháng tới", user không thể browse future | AppBar nav ◀ TMM/YYYY ▶, cap 12 tháng tới |
+
+### Skipped (audit 2026-06-14)
+
+- YAGNI mass-action on transactions (out-of-scope: chỉ category trong P3)
+- YAGNI custom purge interval selector (30 ngày đủ cho MVP, có thể thêm sau nếu có demand)
+
+### Automated (done 2026-06-14)
+
+| Item | Result |
+|------|--------|
+| `flutter analyze` (6 file thay đổi production: category_management_screen, monthly_plan_screen, category_merge_sheet, category_viewmodel, monthly_plan_viewmodel, auto_purge_prefs) | ✅ 0 issues |
+| `flutter test test/unit/ test/widget/` (batch) | ✅ `+861 -1` (1 fail pre-existing drift, không liên quan P3) |
+| `flutter build apk --release` | ✅ Built (chưa log, pending install) |
+| `flutter install -d 21091116C` | ⏸ Deferred — device offline tại `flutter devices` thời điểm này, retry khi reconnect |
+| Device version verification (`adb dumpsys package com.qlctapp`) | ⏸ Pending install |
 
 ---
 
