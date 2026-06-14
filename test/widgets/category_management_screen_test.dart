@@ -202,5 +202,30 @@ void main() {
       // Verify screen still renders.
       expect(find.text('Cà phê'), findsOneWidget);
     });
+
+    // ===== ADR-0048: Trash empty state hint =====
+    testWidgets('shows trash empty state when no soft-deleted categories', (tester) async {
+      final vm = CategoryViewModel.seeded([_coffee()]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<CategoryViewModel>.value(
+            value: vm,
+            child: const CategoryManagementScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Empty state widget rendered
+      expect(find.byKey(const Key('state-trash-empty')), findsOneWidget);
+      // Hint text rendered
+      expect(find.byKey(const Key('state-trash-empty-hint')), findsOneWidget);
+      expect(
+        find.text('Các danh mục đã xoá sẽ xuất hiện ở đây trong 30 ngày trước khi bị xoá vĩnh viễn.'),
+        findsOneWidget,
+      );
+      // Heading rendered
+      expect(find.text('Thùng rác trống'), findsOneWidget);
+    });
   });
 }

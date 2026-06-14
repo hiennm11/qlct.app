@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>P1 #2 — Trash empty state hint (contract)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">P1 #2 — Trash empty state hint</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Contract-ref artifact cho ADR-0048. 1 gap đóng 2026-06-14:
+    <span class="font-mono">trash-empty</span>. Mirror pattern
+    <code>_PlanEmptyState</code> đã approve ở Tuần 4 P0 + P2 empty state polish.
+    Gap #2/#3 đã có sẵn, gap #4 YAGNI — xem §5 Verify pass.
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- ============================================================ -->
+<!-- §1 — Context: code audit                                      -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§1 — Context (audit 2026-06-14)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Codebase: <code>lib/views/category_management_screen.dart</code>.
+  </p>
+  <table class="text-sm w-full border border-gray-200">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Line</th><th class="p-2 text-left">Hiện trạng</th><th class="p-2 text-left">Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2">644-652</td>
+        <td class="p-2">Trash section heading "Thùng rác" / "Thùng rác (N)" — luôn render</td>
+        <td class="p-2">✅ Đã có (ADR-0047)</td>
+      </tr>
+      <tr>
+        <td class="p-2">654</td>
+        <td class="p-2">Warning banner khi có items sắp bị purge (ADR-0045 §4)</td>
+        <td class="p-2">✅ Đã có</td>
+      </tr>
+      <tr>
+        <td class="p-2">655-656</td>
+        <td class="p-2">
+          <code>if (trash.isNotEmpty) ...trash.map(...)</code> — body collapse khi rỗng,
+          <strong>không có empty hint</strong>
+        </td>
+        <td class="p-2">⚠️ GAP — cần polish</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- §2 — Decision: trash empty state widget                       -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§2 — Decision: empty state widget</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Render 1 empty state card trong Trash section khi <code>trash.isEmpty</code>,
+    đặt <strong>sau heading và warning banner</strong>, <strong>thay vì collapse body</strong>.
+    Match MonthlyPlan <code>_PlanEmptyState</code> pattern (Tuần 4 P0): icon + heading + hint.
+  </p>
+
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Field</th><th class="p-2 text-left">Spec</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2">Trigger</td>
+        <td class="p-2"><code>trash.isEmpty</code> (VM.deletedCategories rỗng)</td>
+      </tr>
+      <tr>
+        <td class="p-2">Position</td>
+        <td class="p-2">
+          Sau Trash heading (line 644-652) + warning banner (line 654),
+          thay vì đoạn <code>if (trash.isNotEmpty) ...trash.map</code> (line 655-656)
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">Layout</td>
+        <td class="p-2">
+          Center → Padding 16 horizontal, 24 vertical → Column [
+          Icon 48 grey, gap 12, Text 16 semibold grey, gap 4, Text 13 secondary
+          ]
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">Icon</td>
+        <td class="p-2">
+          <code>Icons.delete_outline</code>, 48px, <code>AppColors.textSecondary</code>
+          (match <code>Colors.grey.shade600</code> tone với MonthlyPlan)
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">Heading</td>
+        <td class="p-2">
+          "Thùng rác trống" — 16px, <code>FontWeight.w600</code>, màu
+          <code>AppColors.textPrimary</code>, center
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">Hint</td>
+        <td class="p-2">
+          "Các danh mục đã xoá sẽ xuất hiện ở đây trong 30 ngày trước khi bị xoá vĩnh viễn."
+          — 13px, <code>AppColors.textSecondary</code>, center, max-width ~280 để wrap đẹp
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">Self-link</td>
+        <td class="p-2">Không (YAGNI — user đã ở trong screen)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="border border-gray-300 rounded p-4 bg-white">
+    <p class="text-xs text-gray-500 mb-2">Sau polish (mock — mở Category Management khi trash rỗng):</p>
+    <div data-state="trash-section" data-trash-count="0">
+      <div class="px-4 pt-6 pb-2">
+        <p class="text-base font-medium text-gray-900">Thùng rác</p>
+      </div>
+      <div
+        data-state="trash-empty"
+        class="flex flex-col items-center gap-3 px-4 py-12 text-center"
+      >
+        <span class="text-5xl text-gray-400">🗑️</span>
+        <p class="text-base font-semibold text-gray-700">Thùng rác trống</p>
+        <p data-state="trash-empty-hint" class="text-sm text-gray-500 max-w-xs">
+          Các danh mục đã xoá sẽ xuất hiện ở đây trong 30 ngày trước khi bị xoá vĩnh viễn.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §3 — Out of scope                                             -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§3 — Out of scope (P+ candidates)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    YAGNI. Document để review lại khi có signal demand thật từ user.
+  </p>
+  <table class="text-sm w-full border border-gray-200">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Candidate</th><th class="p-2 text-left">Lý do skip</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2">Trash search/filter theo name hoặc date range</td>
+        <td class="p-2">
+          Trash auto-purge sau 30 ngày → realistic cap &lt; 30-50 rows. Search overkill.
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">"Khôi phục gần đây" deep-link từ empty state</td>
+        <td class="p-2">
+          User đã ở trong Trash section — self-link thừa. P+ nếu user vào Category
+          Management từ 1 entry point khác (e.g. quick action) mà trash context chưa rõ.
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">Animation icon (lottie / Rive)</td>
+        <td class="p-2">
+          Không có ảnh hưởng UX đo lường được. +1 dependency. Skip.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- §4 — Flutter Key binding                                      -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§4 — Flutter Key binding</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Theo CLAUDE.md <code>/implement</code> rule: HTML <code>data-*</code> encode enum/boolean,
+    map sang Flutter <code>Key</code>.
+  </p>
+  <table class="text-sm w-full border border-gray-200">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">HTML</th><th class="p-2 text-left">Flutter</th><th class="p-2 text-left">Test</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2"><code>data-state="trash-empty"</code></td>
+        <td class="p-2"><code>Key('state-trash-empty')</code></td>
+        <td class="p-2">
+          <code>find.byKey(Key('state-trash-empty'))</code> → <code>findsOneWidget</code>
+          khi trash rỗng; <code>findsNothing</code> khi có rows
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>data-state="trash-empty-hint"</code></td>
+        <td class="p-2"><code>Key('state-trash-empty-hint')</code></td>
+        <td class="p-2">
+          <code>find.byKey(Key('state-trash-empty-hint'))</code> → verify hint text rendered
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>data-trash-count="0"</code></td>
+        <td class="p-2">n/a (dynamic count)</td>
+        <td class="p-2">
+          Assert qua <code>vm.deletedCategories.length == 0</code> — không qua Key
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- §5 — Verify pass (gap #2/#3/#4)                               -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§5 — Verify pass (gap #2/#3/#4)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Audit 4 gap roadmap P1 #2 → 1 GAP THẬT (§2), 3 verify pass:
+  </p>
+  <table class="text-sm w-full border border-gray-200">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Gap</th><th class="p-2 text-left">File:line</th><th class="p-2 text-left">Verdict</th><th class="p-2 text-left">Evidence</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2">#2 — Unarchive trực tiếp</td>
+        <td class="p-2">
+          <code>category_management_screen.dart:409-427</code>
+        </td>
+        <td class="p-2">✅ Already implemented</td>
+        <td class="p-2">
+          Archived row trailing = <code>TextButton(key: 'action-unarchive')</code> →
+          <code>vm.toggleArchive(cat.id)</code>. 1-tap unarchive. Roadmap assumption "user
+          phải edit mới unarchive" sai.
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">#3 — Merge sheet warning khi count cao</td>
+        <td class="p-2">
+          <code>category_merge_sheet.dart:368-392</code>
+        </td>
+        <td class="p-2">✅ Already implemented</td>
+        <td class="p-2">
+          <code>showWarnBanner = (transactions + recurring) &gt; 50</code>, banner ⚠️
+          với <code>Key('state-merge-warn-banner')</code>. ADR-0041 đã document.
+        </td>
+      </tr>
+      <tr>
+        <td class="p-2">#4 — Trash filter/search</td>
+        <td class="p-2">n/a</td>
+        <td class="p-2">⏭️ YAGNI</td>
+        <td class="p-2">
+          Trash auto-purge 30 ngày → cap &lt; 30-50 rows. Chưa có signal demand.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer class="border-t border-gray-200 bg-white p-6 mt-12 text-xs text-gray-500">
+  <p>P1 #2 trash empty state hint contract-ref artifact. Linked by ADR-0048 (5-15 dòng).</p>
+  <p>Glossary: "thùng rác" = trash, "danh mục" = category. Không thêm term mới.</p>
+</footer>
+
+</body>
+</html>

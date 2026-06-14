@@ -652,12 +652,52 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               ),
               // ADR-0045 §4: banner preview cho items sắp bị purge (25-30 ngày).
               ..._buildTrashWarningBanner(vm),
+              // ADR-0048: empty state hint khi trash rỗng — body collapse trước đây
+              // không giải thích feature tồn tại. Render card icon + heading + hint
+              // mirror MonthlyPlan _PlanEmptyState pattern (Tuần 4 P0).
+              if (trash.isEmpty) _buildTrashEmptyState(),
               if (trash.isNotEmpty)
                 ...trash.map((c) => _buildTrashRow(context, vm, c)),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// ADR-0048: empty state card khi Trash rỗng. Mirror pattern MonthlyPlan
+  /// _PlanEmptyState (Tuần 4 P0) — icon + heading + hint, center, padding 24 vertical.
+  /// Key binding theo contract §4: state-trash-empty (root) + state-trash-empty-hint.
+  Widget _buildTrashEmptyState() {
+    return Padding(
+      key: const Key('state-trash-empty'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.delete_outline,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Thùng rác trống',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Các danh mục đã xoá sẽ xuất hiện ở đây trong 30 ngày trước khi bị xoá vĩnh viễn.',
+            key: Key('state-trash-empty-hint'),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+        ],
       ),
     );
   }
