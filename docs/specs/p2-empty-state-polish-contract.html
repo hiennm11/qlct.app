@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>P2 — Monthly Review empty state polish (contract)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">P2 — Monthly Review empty state polish</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Contract-ref artifact for ADR-0042. 2 gaps closed 2026-06-14:
+    <span class="font-mono">monthly-review-main-empty</span>,
+    <span class="font-mono">monthly-review-compare-empty</span>.
+    Tuần 4 P0 + P1 #2 đã polish MonthlyPlan + Trash headings. 4 vị trí
+    raw empty state còn lại trong codebase → audit này narrow xuống
+    2 reachable + 2 skip (xem §Skipped).
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- ============================================================ -->
+<!-- §1 — P2.1 Monthly Review main empty state                    -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§1 — Monthly Review main empty (P2.1)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Codebase: <code>lib/views/monthly_review_screen.dart</code> line 204-226
+    (<code>_EmptyStateView</code>). Đã có icon + heading, polish thêm hint line
+    mirror pattern <code>_PlanEmptyState</code> (line 567).
+  </p>
+
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Field</th><th class="p-2 text-left">Spec</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2">Trigger</td>
+        <td class="p-2">Monthly Review screen, <code>data.currentPeriodSpending = 0</code></td>
+      </tr>
+      <tr>
+        <td class="p-2">Layout</td>
+        <td class="p-2">Center → Padding 24 → Column [Icon 48, gap 16, Text 16, gap 8, Text 13]</td>
+      </tr>
+      <tr>
+        <td class="p-2">Icon</td>
+        <td class="p-2"><code>Icons.inbox_outlined</code> (giữ nguyên), 48px, <code>Colors.grey</code></td>
+      </tr>
+      <tr>
+        <td class="p-2">Heading (giữ nguyên)</td>
+        <td class="p-2">"Chưa có giao dịch trong tháng này" — 16px, grey, center</td>
+      </tr>
+      <tr>
+        <td class="p-2"><strong>Hint (mới)</strong></td>
+        <td class="p-2"><strong>"Bắt đầu thêm giao dịch để xem tổng kết tháng."</strong> — 13px, secondary, center</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="border border-gray-300 rounded p-4 bg-white">
+    <p class="text-xs text-gray-500 mb-2">Sau polish:</p>
+    <div data-state="monthly-review-main-empty" data-spending-count="0">
+      <div class="flex flex-col items-center gap-3 py-12">
+        <span class="text-5xl text-gray-400">📥</span>
+        <p class="text-base text-gray-500">Chưa có giao dịch trong tháng này</p>
+        <p data-state="monthly-review-main-hint" class="text-sm text-gray-400">
+          Bắt đầu thêm giao dịch để xem tổng kết tháng.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §2 — P2.2 Monthly Review compare empty state                 -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§2 — Monthly Review compare empty (P2.2)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Codebase: <code>lib/views/monthly_review_screen.dart</code> line 409-412
+    (inline trong <code>_CategoryChangesSection._SectionCard</code>). Section card
+    đã có emoji '📈' + title ở line 388-389 — body empty chỉ thêm 1 hint line.
+  </p>
+
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">Field</th><th class="p-2 text-left">Spec</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2">Trigger</td>
+        <td class="p-2"><code>!hasData</code> = previous month không có transactions để so sánh</td>
+      </tr>
+      <tr>
+        <td class="p-2">Layout</td>
+        <td class="p-2">Column [Text 13 (heading, giữ), gap 4, Text 13 (hint, mới)]</td>
+      </tr>
+      <tr>
+        <td class="p-2">Heading (giữ nguyên)</td>
+        <td class="p-2">"Chưa có dữ liệu so sánh" — 13px, secondary</td>
+      </tr>
+      <tr>
+        <td class="p-2"><strong>Hint (mới)</strong></td>
+        <td class="p-2"><strong>"Tháng trước chưa có giao dịch để so sánh."</strong> — 13px, secondary, italic</td>
+      </tr>
+      <tr>
+        <td class="p-2">Icon</td>
+        <td class="p-2">Không thêm (section card đã có emoji '📈' ở title)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="border border-gray-300 rounded p-4 bg-white">
+    <p class="text-xs text-gray-500 mb-2">Sau polish (inline trong section card):</p>
+    <div data-state="monthly-review-compare-section" data-has-data="false">
+      <div class="border border-gray-200 rounded p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span>📈</span>
+          <span class="font-medium">Biến động so với tháng trước</span>
+        </div>
+        <div data-state="monthly-review-compare-empty">
+          <p class="text-sm text-gray-500">Chưa có dữ liệu so sánh</p>
+          <p data-state="monthly-review-compare-hint" class="text-sm text-gray-500 italic mt-1">
+            Tháng trước chưa có giao dịch để so sánh.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- §3 — Skipped (audit)                                          -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§3 — Skipped (audit 2026-06-14)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Audit 4 vị trí raw empty state còn lại trong codebase, narrow xuống
+    2 reachable, 2 skip theo YAGNI:
+  </p>
+  <table class="text-sm w-full border border-gray-200 mb-3">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">File:line</th><th class="p-2 text-left">Verdict</th><th class="p-2 text-left">Lý do</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2"><code>monthly_plan_screen.dart:547-575</code></td>
+        <td class="p-2">✅ Already polished</td>
+        <td class="p-2">Tuần 4 P0 — icon + heading + hint đầy đủ</td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>category_management_screen.dart:246-250</code></td>
+        <td class="p-2">⏭️ Skip (unreachable)</td>
+        <td class="p-2">
+          <code>active.isEmpty</code> không xảy ra — <code>seedDefaultsIfEmpty</code>
+          (VM line 195) seed 6+ system categories, <code>isSystem</code> blocked
+          khỏi softDelete. Defensive code không có signal demand.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<!-- §4 — Flutter Key binding                                      -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-xl font-semibold mb-3">§4 — Flutter Key binding</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Theo CLAUDE.md <code>/implement</code> rule: HTML <code>data-*</code> encode enum/boolean,
+    map sang Flutter <code>Key</code>.
+  </p>
+  <table class="text-sm w-full border border-gray-200">
+    <thead class="bg-gray-100">
+      <tr><th class="p-2 text-left">HTML</th><th class="p-2 text-left">Flutter</th><th class="p-2 text-left">Test</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="p-2"><code>data-state="monthly-review-main-empty"</code></td>
+        <td class="p-2"><code>Key('state-monthly-review-main-empty')</code></td>
+        <td class="p-2"><code>find.byKey(Key('state-monthly-review-main-empty'))</code></td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>data-state="monthly-review-main-hint"</code></td>
+        <td class="p-2"><code>Key('state-monthly-review-main-hint')</code></td>
+        <td class="p-2"><code>find.byKey(Key('state-monthly-review-main-hint'))</code></td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>data-state="monthly-review-compare-empty"</code></td>
+        <td class="p-2"><code>Key('state-monthly-review-compare-empty')</code></td>
+        <td class="p-2"><code>find.byKey(Key('state-monthly-review-compare-empty'))</code></td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>data-state="monthly-review-compare-hint"</code></td>
+        <td class="p-2"><code>Key('state-monthly-review-compare-hint')</code></td>
+        <td class="p-2"><code>find.byKey(Key('state-monthly-review-compare-hint'))</code></td>
+      </tr>
+      <tr>
+        <td class="p-2"><code>data-spending-count="0"</code></td>
+        <td class="p-2">n/a (dynamic count)</td>
+        <td class="p-2">Assert qua <code>data.currentPeriodSpending</code> getter</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer class="border-t border-gray-200 bg-white p-6 mt-12 text-xs text-gray-500">
+  <p>P2 empty state polish contract-ref artifact. Linked by ADR-0042 (5-15 dòng).</p>
+  <p>Glossary: "tổng kết tháng" = monthly review. Không thêm term mới.</p>
+</footer>
+
+</body>
+</html>

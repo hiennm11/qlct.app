@@ -210,12 +210,20 @@ class _EmptyStateView extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          key: const Key('state-monthly-review-main-empty'),
           children: [
             const Icon(Icons.inbox_outlined, size: 48, color: Colors.grey),
             const SizedBox(height: 16),
             const Text(
               'Chưa có giao dịch trong tháng này',
               style: TextStyle(fontSize: 16, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Bắt đầu thêm giao dịch để xem tổng kết tháng.',
+              key: Key('state-monthly-review-main-hint'),
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
           ],
@@ -406,9 +414,25 @@ class _CategoryChangesSection extends StatelessWidget {
                   ),
               ],
             )
-          : const Text(
-              'Chưa có dữ liệu so sánh',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          : Column(
+              key: const Key('state-monthly-review-compare-empty'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Chưa có dữ liệu so sánh',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Tháng trước chưa có giao dịch để so sánh.',
+                  key: Key('state-monthly-review-compare-hint'),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ),
     );
   }
