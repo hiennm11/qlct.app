@@ -359,9 +359,24 @@ Không có jargon "snapshot"/"preview"/"auto-apply" leak ra UI — technical ter
 |------|--------|
 | `flutter analyze` (6 file thay đổi production: category_management_screen, monthly_plan_screen, category_merge_sheet, category_viewmodel, monthly_plan_viewmodel, auto_purge_prefs) | ✅ 0 issues |
 | `flutter test test/unit/ test/widget/` (batch) | ✅ `+861 -1` (1 fail pre-existing drift, không liên quan P3) |
-| `flutter build apk --release` | ✅ Built (chưa log, pending install) |
-| `flutter install -d 21091116C` | ⏸ Deferred — device offline tại `flutter devices` thời điểm này, retry khi reconnect |
-| Device version verification (`adb dumpsys package com.qlctapp`) | ⏸ Pending install |
+| `flutter build apk --release` (P3 batch, 1st attempt) | ✅ Built 58.5MB in 136s, nhưng CRASH on app start |
+| `flutter install -d 21091116C` (P3 batch 1st install) | ✅ 8.8s, nhưng `FormatException: Invalid empty scheme :SENTRY_DSN` ở `SentryOptions.parsedDsn` |
+| Device version verification (P3 1st install) | ✅ `versionCode=2026061407 versionName=1.7.0` (pass pubspec) |
+
+### Hotfix — Sentry init guard (commit `a6d72b9` + `2d75e75`, 2026-06-14)
+
+**Root cause:** Sentry SDK auto-parses DSN string → Uri via `SentryOptions.parsedDsn` computed getter, runs **BEFORE** user options callback. `Uri.parse('')` throws `FormatException: Invalid empty scheme` khi `--dart-define=SENTRY_DSN=$env:SENTRY_DSN` expand thành empty value (PowerShell session mất env var này). Codebase có early-return inside options callback nhưng quá muộn — SDK đã parse rồi.
+
+**Fix:** `lib/main.dart:37-65` — read DSN const trước, nếu empty → skip `SentryFlutter.init` entirely, gọi `_initApp()` directly. Same-day hotfix bump `1.7.0+2026061407 → 1.7.0+2026061408` (1st attempt 202606140701 rejected by Gradle: int32 cap, 10 digits > Integer.MAX_VALUE). Cadence: same-day RC = +1 increment, không ghép suffix. See [[android-versioncode-int32-cap]] + [[sentry-init-guard]].
+
+| Item | Result |
+|------|--------|
+| `flutter analyze lib/main.dart` | ✅ 0 issues |
+| `flutter build apk --release` (hotfix 2nd attempt) | ✅ Built 55.8MB in 90.4s (nhỏ hơn 58.5MB vì không kèm Sentry SDK debug symbols) |
+| `flutter install -d 21091116C` (hotfix 2nd install) | ✅ 8.5s |
+| Device version verification (hotfix) | ✅ `versionCode=2026061408 versionName=1.7.0` (match pubspec) |
+| Logcat init sequence (post-hotfix) | ✅ `⚠️ SENTRY_DSN not set` → `🚀 Initializing app...` → `📦 SharedPreferences` → `✅ Database ready` → ... → `Starting app...` (no exception) |
+| `flutter devices` verify | ✅ `21091116C (mobile) • cyqgeqsw696pivvo • android-arm64 • Android 12 (API 31)` |
 
 ---
 
