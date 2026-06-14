@@ -238,6 +238,10 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 - ~~**Monthly Review compare empty state raw Text**~~ — `monthly_review_screen.dart:409` chỉ `Text("Chưa có dữ liệu so sánh", 13px)` inline trong `_CategoryChangesSection._SectionCard`. 2026-06-14: wrap trong Column + thêm hint "Tháng trước chưa có giao dịch để so sánh." italic 13px. Section card đã có emoji '📈' + title → không thêm icon (duplicate noise). Commit `dc6ea2d`.
 - **Skipped (audit 2026-06-14)**: `category_management_screen.dart:246-250` `active.isEmpty` unreachable (system categories seeded by `seedDefaultsIfEmpty` line 195 VM, `isSystem` blocked khỏi softDelete) — YAGNI. `monthly_plan_screen.dart:547-575` đã polish ở Tuần 4 P0.
 
+### ✅ Verify pass: RC build process (audit 2026-06-14)
+
+- **CHANGELOG.md có cần không?** — Verify pass, KHÔNG cần. Codebase đã có 3 lớp release info: (1) git log conventional commits filter `git log v1.7.0..HEAD --oneline` cho release notes, (2) `RELEASE_CHECKLIST.md` §Verification Summary sections aggregate per-batch (Tuần 4 P0, P1 #2, P1 #4, P2 đều có), (3) ADR-0024 chốt release policy + device promotion gate. Thêm `CHANGELOG.md` là lớp thứ 4 trùng lặp — YAGNI. Personal app, user = developer, không cần user-facing release notes. Nếu sau này cần public release notes (GitHub release page), CÓ THỂ add `tools/release-notes.sh` parse conventional commits. Hiện tại skip.
+
 ### ✅ Closed by ADR-0038 (audit 2026-06-13)
 
 - ~~**Merge categories**~~ — ADR-0034 §Deferred → ADR-0038. `CategoryLocalDataSource.merge(sourceId, targetId)` cascade UPDATE 6 tables trong 1 SQLite transaction + soft-delete source (reuses ADR-0037 trash). `CategoryMergeCollision` exception với budget/PK collision handling. UI: AppBar `IconButton(Icons.merge_type)` + 2-step `CategoryMergeSheet` (source → target + preview + confirm). Undo qua trash restore. No schema/backup bump.
