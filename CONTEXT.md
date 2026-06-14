@@ -226,6 +226,12 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 
 - ~~**MonthlyPlan empty state wording quá terse**~~ — `monthly_plan_screen.dart:93` chỉ có `Center(child: Text('Không có dữ liệu'))` — không giải thích nguồn gốc auto-create. 2026-06-14: polish thành `_PlanEmptyState` widget với icon (`Icons.event_note_outlined`), heading "Chưa có kế hoạch cho tháng tới", hint giải thích "Kế hoạch sẽ được tạo từ snapshot tháng trước hoặc budget hiện tại khi bạn mở màn này lần đầu." Build APK release 58.4MB, install pass trên test device 21091116C. No domain/architecture change — UX wording only.
 
+### ✅ Closed by P1 #2 polish (2026-06-14)
+
+- ~~**Trash empty state bị ẩn hoàn toàn — user không biết feature tồn tại**~~ — `category_management_screen.dart:319` dùng `if (trash.isNotEmpty)` early-return → section biến mất khi rỗng. 2026-06-14: heading "Thùng rác" luôn render, body collapse khi rỗng (bỏ early-return, conditional body). Commit `559ff54` ADR-0041 contract-ref.
+- ~~**Unarchive đi đường vòng qua edit sheet**~~ — user phải tap archived row → mở edit sheet → tìm checkbox "Lưu trữ" → toggle off → save. 3 step cho 1 boolean flip. 2026-06-14: thêm `_buildArchivedRow` helper với `TextButton("Bỏ lưu trữ")` ở trailing, mirror pattern trash row "Khôi phục" (line 121). Dùng `vm.toggleArchive` đã có sẵn (VM line 315). Tap row vẫn mở edit sheet (giữ flow sửa name/emoji). 1-tap unarchive, snackbar confirm. Commit `559ff54`.
+- ~~**Merge confirm dialog không escalate khi counts cao**~~ — `category_merge_sheet.dart:334-356` show breakdown nhưng không có threshold warning. User có thể misclick merge 500 records. 2026-06-14: thêm warning banner trong confirm dialog content khi `preview.transactions + preview.recurring > 50`, match `TrashBanner` style (line 260). Banner text "⚠️ Thao tác này sẽ ảnh hưởng {N} bản ghi. Không thể hoàn tác." Threshold 50 chọn vì: merge 5-10 txns là cleanup thường, merge 50+ là refactor lớn. Commit `559ff54`.
+
 ### ✅ Closed by ADR-0038 (audit 2026-06-13)
 
 - ~~**Merge categories**~~ — ADR-0034 §Deferred → ADR-0038. `CategoryLocalDataSource.merge(sourceId, targetId)` cascade UPDATE 6 tables trong 1 SQLite transaction + soft-delete source (reuses ADR-0037 trash). `CategoryMergeCollision` exception với budget/PK collision handling. UI: AppBar `IconButton(Icons.merge_type)` + 2-step `CategoryMergeSheet` (source → target + preview + confirm). Undo qua trash restore. No schema/backup bump.
@@ -244,6 +250,7 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 | # | Item | First deferred in | Note |
 |---|------|-------------------|------|
 | 3 | **ExportService dedicated test file** | ADR-0002 §"Not covered yet" | ADR-0002 deferred "ExportService tests — deferred to follow-up ADR". `ExportService` is mocked in 12 tests across `test/unit/expense_viewmodel_test.dart` + `test/widgets/*` nhưng chưa có dedicated `export_service_test.dart`. CSV escaping edge cases (commas/quotes/newlines trong note), JSON format guarantees, empty-list path, date filter path chưa được cover trực tiếp. Promote to concrete task: 1-day effort, ~50 lines test file, no ADR cần. Track ở §Recommended next. |
+| 4 | **Trash filter/search** | P1 #2 audit 2026-06-14 | `canDeleteCategory` guard (VM line 490) chỉ cho soft-delete category clean (no financial refs). Thực tế trash section < 10 items. YAGNI. Reopen trigger: user report > 20 trash items thường xuyên hoặc feedback "trash khó tìm". Search theo name + sort theo deletedAt là implementation hint khi reopen. |
 
 ### 📋 Generic "out of scope" lists (chưa có concrete ADR request, track low priority)
 
