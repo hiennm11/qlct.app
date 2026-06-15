@@ -217,6 +217,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('⏱ [Phase B] MyApp.build start (Provider tree create)');
     return MultiProvider(
       providers: [
         // ADR-0050 (P1 — reactive settings): app-config VM, placed first so

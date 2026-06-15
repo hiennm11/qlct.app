@@ -40,17 +40,24 @@ class _HomeScreenState extends State<HomeScreen> {
     // Listen for errors from ExpenseViewModel
     context.read<ExpenseViewModel>().addListener(_onExpenseError);
 
-    // Trigger recurring check after first frame.
-    // Budget stats are kept in sync via ChangeNotifierProxyProvider in main.dart,
-    // not via a manual listener.
+    // ADR-0055 §Phase C: defer RecurringVM.checkAndGenerate ra 1 frame SAU
+    // first frame (frame 2) để không block first paint. Same-frame postFrame
+    // callback vẫn fires trước frame 1 GPU work complete.
+    // Nest addPostFrameCallback 2 levels: frame 1 paints → callback fires
+    // → schedule frame 2 → callback fires thật sự.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (!mounted) return;
+      debugPrint('⏱ [Phase C] HomeScreen.initState postFrame 1 (frame 1 painted)');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        debugPrint('⏱ [Phase C] RecurringVM.checkAndGenerate start (frame 2)');
         context.read<RecurringTransactionViewModel>().checkAndGenerate().then((generated) {
+          debugPrint('⏱ [Phase C] RecurringVM.checkAndGenerate done (generated=$generated)');
           if (mounted && generated > 0) {
             context.read<ExpenseViewModel>().refresh();
           }
         });
-      }
+      });
     });
   }
 
