@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:qlct/services/auto_purge_prefs.dart';
+import 'package:provider/provider.dart';
+import 'package:qlct/viewmodels/app_settings_viewmodel.dart';
 
 /// ADR-0047 (P3 #4): Settings screen — full-screen Scaffold chứa user-configurable
 /// global settings. P3 #4 chỉ move auto-purge switch từ CategoryManagementScreen
-/// sang đây (bug FAB + che switch). Scaffold 1-section hiện tại — sẵn sàng mở rộng
-/// P+ (theme, currency, interval, voice lang, budget carry, clear all) mà không
-/// cần restructuring. Mỗi P+ item cần grill + contract + ADR riêng trước khi add.
+/// sang đây (bug FAB + che switch). ADR-0050 (P1) refactor binding từ
+/// `AutoPurgePrefs` static + load-once → `AppSettingsViewModel` reactive, đóng
+/// known limitation ở ADR-0047 §Consequences. Scaffold 1-section hiện tại —
+/// sẵn sàng mở rộng P+ (theme, currency, interval, voice lang, budget carry,
+/// clear all) mà không cần restructuring. Mỗi P+ item cần grill + contract +
+/// ADR riêng trước khi add.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -22,10 +26,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // ADR-0045 + ADR-0047: local mirror of AutoPurgePrefs.enabled. Load async in
-  // initState, write back on change.
-  bool _autoPurgeEnabled = true;
-
   // ADR-0049: app version display. Load async via package_info_plus.
   // Build string format: '{version} (build {buildNumber})'.
   String _appVersionDisplay = '...';
@@ -33,18 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAutoPurgePref();
     _loadAppVersion();
-  }
-
-  Future<void> _loadAutoPurgePref() async {
-    final enabled = await AutoPurgePrefs.isEnabled();
-    if (mounted) setState(() => _autoPurgeEnabled = enabled);
-  }
-
-  Future<void> _setAutoPurgePref(bool value) async {
-    await AutoPurgePrefs.setEnabled(value);
-    setState(() => _autoPurgeEnabled = value);
   }
 
   Future<void> _loadAppVersion() async {
@@ -84,19 +73,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          // Auto-purge setting (moved from CategoryManagementScreen Trash section).
-          SwitchListTile(
-            key: Key(
-              _autoPurgeEnabled
-                  ? 'state-auto-purge-enabled'
-                  : 'state-auto-purge-disabled',
+          // ADR-0050: auto-purge switch bound to AppSettingsViewModel. Selector
+          // scopes rebuild tới chỉ field `autoPurgeEnabled` (vs Consumer trên
+          // whole VM) — cùng pattern `ProxyProvider<Expense, Budget>`.
+          Selector<AppSettingsViewModel, bool>(
+            selector: (_, s) => s.autoPurgeEnabled,
+            builder: (context, autoPurgeEnabled, _) => SwitchListTile(
+              key: Key(
+                autoPurgeEnabled
+                    ? 'state-auto-purge-enabled'
+                    : 'state-auto-purge-disabled',
+              ),
+              title: const Text('Tự động dọn thùng rác'),
+              subtitle: const Text(
+                'Các danh mục đã xoá sẽ tự động bị xoá vĩnh viễn sau 30 ngày.',
+              ),
+              value: autoPurgeEnabled,
+              onChanged: (v) => context
+                  .read<AppSettingsViewModel>()
+                  .setAutoPurgeEnabled(v),
             ),
-            title: const Text('Tự động dọn thùng rác'),
-            subtitle: const Text(
-              'Các danh mục đã xoá sẽ tự động bị xoá vĩnh viễn sau 30 ngày.',
-            ),
-            value: _autoPurgeEnabled,
-            onChanged: _setAutoPurgePref,
           ),
           // ADR-0049: App version display section.
           // Section header mirrors the 'Dữ liệu' pattern (line 52-70) for

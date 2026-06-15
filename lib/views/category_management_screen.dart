@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/core/theme.dart';
 import 'package:qlct/models/category.dart';
-import 'package:qlct/services/auto_purge_prefs.dart';
+import 'package:qlct/viewmodels/app_settings_viewmodel.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/widgets/category_create_sheet.dart';
 import 'package:qlct/widgets/category_edit_sheet.dart';
@@ -32,11 +32,6 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
   // ADR-0044: multi-select state.
   bool _selectionMode = false;
   final Set<String> _selectedIds = <String>{};
-
-  // ADR-0047: auto-purge setting đã chuyển sang SettingsScreen. Trash section
-  // vẫn đọc _autoPurgeEnabled để quyết định warning banner (banner tắt khi user
-  // off setting), nhưng không còn switch inline ở đây.
-  bool _autoPurgeEnabled = true;
 
   void _enterSelectionMode(String id) {
     HapticFeedback.lightImpact();
@@ -67,22 +62,10 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     });
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadAutoPurgePref();
-  }
-
-  // ADR-0047: load setting ở mount để warning banner quyết định show/hide. User
-  // toggle setting ở SettingsScreen — khi return về đây cần refresh. Hiện tại
-  // load 1 lần ở initState. Known limitation: nếu user toggle setting rồi return
-  // mà screen vẫn mounted, warning banner chưa reflect cho đến khi screen
-  // rebuild (next vm change). Acceptable cho P3 #4; P+ sẽ dùng RouteAware hoặc
-  // expose setting qua Provider nếu user phàn nàn.
-  Future<void> _loadAutoPurgePref() async {
-    final enabled = await AutoPurgePrefs.isEnabled();
-    if (mounted) setState(() => _autoPurgeEnabled = enabled);
-  }
+  // ADR-0050 (P1 — reactive settings): initState không còn load setting.
+  // `_buildTrashWarningBanner` wrap trong `Selector<AppSettingsViewModel,
+  // bool>` — banner gate reactive, không cần pop route để refresh.
+  // Đóng known limitation từ ADR-0047 §Consequences.
 
   Future<void> _bulkArchive(CategoryViewModel vm) async {
     final ids = _selectedIds.toList();
@@ -650,8 +633,21 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
-              // ADR-0045 §4: banner preview cho items sắp bị purge (25-30 ngày).
-              ..._buildTrashWarningBanner(vm),
+              // ADR-0045 §4 + ADR-0050: banner preview cho items sắp bị purge
+              // (25-30 ngày). Selector<AppSettingsViewModel, bool> scopes rebuild
+              // tới chỉ field `autoPurgeEnabled` — toggle ở Settings rebuild
+              // banner reactive mà KHÔNG cần pop route. Đóng known limitation
+              // từ ADR-0047 §Consequences.
+              Selector<AppSettingsViewModel, bool>(
+                selector: (_, s) => s.autoPurgeEnabled,
+                builder: (context, autoPurgeEnabled, _) {
+                  final widgets = _buildTrashWarningBanner(
+                    vm,
+                    autoPurgeEnabled: autoPurgeEnabled,
+                  );
+                  return Column(children: widgets);
+                },
+              ),
               // ADR-0048: empty state hint khi trash rỗng — body collapse trước đây
               // không giải thích feature tồn tại. Render card icon + heading + hint
               // mirror MonthlyPlan _PlanEmptyState pattern (Tuần 4 P0).
@@ -702,10 +698,16 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     );
   }
 
-  /// ADR-0045 §4: banner warning khi có items sắp bị purge (25-30 ngày).
-  /// Returns list of widgets (1 hoặc 0) để spread trong Column.
-  List<Widget> _buildTrashWarningBanner(CategoryViewModel vm) {
-    if (!_autoPurgeEnabled) return const [];
+  /// ADR-0045 §4 + ADR-0050: banner warning khi có items sắp bị purge
+  /// (25-30 ngày). Gate on `[autoPurgeEnabled]` parameter (reactive — passed in
+  /// from `Selector<AppSettingsViewModel, bool>` ở call site) thay local
+  /// `_autoPurgeEnabled` field (stale, load-once). Returns list of widgets
+  /// (1 hoặc 0) để wrap trong Column.
+  List<Widget> _buildTrashWarningBanner(
+    CategoryViewModel vm, {
+    required bool autoPurgeEnabled,
+  }) {
+    if (!autoPurgeEnabled) return const [];
     final approaching = vm.itemsApproachingPurge();
     if (approaching.isEmpty) return const [];
     final minDays = approaching.map((t) => t.daysOld).reduce((a, b) => a < b ? a : b);

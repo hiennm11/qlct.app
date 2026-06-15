@@ -32,6 +32,7 @@ import 'viewmodels/backup_viewmodel.dart';
 import 'viewmodels/monthly_review_viewmodel.dart';
 import 'viewmodels/monthly_plan_viewmodel.dart';
 import 'viewmodels/category_viewmodel.dart';
+import 'viewmodels/app_settings_viewmodel.dart';
 import 'views/home_screen.dart';
 
 Future<void> main() async {
@@ -225,6 +226,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // ADR-0050 (P1 — reactive settings): app-config VM, placed first so
+        // downstream VMs (CategoryVM, future BudgetVM proxy) có thể inject
+        // qua context.read<AppSettingsViewModel>() thay direct SharedPreferences.
+        ChangeNotifierProvider(
+          create: (_) => AppSettingsViewModel(storageService)..load(),
+        ),
         ChangeNotifierProvider(
           create: (_) => CategoryViewModel(categoryDataSource, budgetDataSource),
         ),

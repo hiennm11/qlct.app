@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>P1 — Reactive settings (AppSettingsViewModel + Consumer)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">P1 — Reactive settings</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Contract artifact for ADR-0050. Close known limitation from ADR-0047 §Consequences: <em>"CategoryManagementScreen chỉ load
+    autoPurgeEnabled một lần trong initState, nên nếu user đổi setting rồi quay lại khi screen vẫn còn
+    mounted thì warning banner chưa cập nhật ngay."</em>
+    Refactor setting source từ <code>AutoPurgePrefs</code> static + load-once →
+    <code>AppSettingsViewModel</code> (ChangeNotifier) + Provider. Settings screen + CategoryManagement
+    cùng <code>Consumer&lt;AppSettingsViewModel&gt;</code>; toggle rebuild cả 2 reactive. Drop Task 1.2
+    (RouteAware) vì 1.1 (Provider VM) là standard pattern (8 ChangeNotifier sẵn trong main.dart).
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- ============================================================ -->
+<!-- §1 — Architecture: VM + Provider                              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§1 — Architecture: AppSettingsViewModel</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    New ViewModel ở <code>lib/viewmodels/app_settings_viewmodel.dart</code>, extends
+    <code>ChangeNotifier</code>. Inject <code>StorageService</code> (the existing
+    SharedPreferences facade) qua constructor. First field là <code>autoPurgeEnabled</code>
+    (migrate từ <code>AutoPurgePrefs</code>). Thiết kế cho 6 P+ candidates (theme, currency,
+    purge interval, voice lang, budget carry, clear all) — không phải 1-off.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="vm-signature">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>class AppSettingsViewModel extends ChangeNotifier {
+  AppSettingsViewModel(this._storage);
+
+  final StorageService _storage;
+  bool _autoPurgeEnabled = true;
+  String? _lastPurgeDate; // yyyy-MM-dd, null = chưa purge lần nào
+
+  bool get autoPurgeEnabled =&gt; _autoPurgeEnabled;
+  String? get lastPurgeDate =&gt; _lastPurgeDate;
+
+  Future&lt;void&gt; load() async {
+    _autoPurgeEnabled = _storage.loadValue&lt;bool&gt;('auto_purge_enabled') ?? true;
+    _lastPurgeDate = _storage.loadValue&lt;String&gt;('last_purge_date');
+    notifyListeners();
+  }
+
+  Future&lt;void&gt; setAutoPurgeEnabled(bool value) async {
+    if (_autoPurgeEnabled == value) return;
+    _autoPurgeEnabled = value;
+    await _storage.saveValue('auto_purge_enabled', value);
+    notifyListeners();
+  }
+
+  Future&lt;void&gt; setLastPurgeDate(String dateStr) async {
+    _lastPurgeDate = dateStr;
+    await _storage.saveValue('last_purge_date', dateStr);
+    notifyListeners();
+  }
+}</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Why <code>AppSettingsViewModel</code>, không phải <code>SettingsViewModel</code>:</b> <code>App*</code> prefix
+    tránh name shadow với <code>SettingsScreen</code>, signals "app-config layer" (distinct from
+    domain VMs: Expense/Budget/Category/Recurring/QuickTemplate/Backup/MonthlyReview/MonthlyPlan).
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Provider wiring</b> (<code>lib/main.dart:226-290</code>): add 1
+    <code>ChangeNotifierProvider&lt;AppSettingsViewModel&gt;</code> ở top of providers list. Order matters
+    vì sau này có thể có VM khác depend on AppSettings (ví dụ <code>CategoryViewModel</code> nếu
+    <code>purgeOldTrash</code> ships). Place first → downstream VMs có thể inject qua
+    <code>ChangeNotifierProxyProvider</code> tương tự pattern Expense→Budget.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §2 — Settings screen binding                                  -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§2 — SettingsScreen binding</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    <code>SettingsScreen</code> drop <code>_loadAutoPurgePref</code> + <code>_setAutoPurgePref</code>
+    local state. Wrap auto-purge row trong <code>Selector&lt;AppSettingsViewModel, bool&gt;</code> (hoặc
+    <code>Consumer</code>). On change: <code>context.read&lt;AppSettingsViewModel&gt;().setAutoPurgeEnabled(value)</code>.
+    Lifecycle: <code>initState</code> gọi <code>context.read&lt;AppSettingsViewModel&gt;().load()</code>
+    một lần (idempotent — VM cache lần đầu read).
+  </p>
+
+  <div class="bg-gray-100 border border-gray-300 rounded p-3 max-w-sm mx-auto" data-test="settings-bound">
+    <div class="bg-blue-700 text-white px-4 py-3 rounded-t flex items-center">
+      <button class="mr-3 text-white">←</button>
+      <span class="text-lg font-medium">Cài đặt</span>
+    </div>
+    <div class="bg-white">
+      <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">
+        📁 Dữ liệu
+      </div>
+      <ul class="divide-y divide-gray-100">
+        <li class="flex items-center justify-between px-4 py-3" data-state="auto-purge-enabled">
+          <div>
+            <div class="text-sm font-medium text-gray-900">Tự động dọn thùng rác</div>
+            <div class="text-xs text-gray-500">Các danh mục đã xoá sẽ tự động bị xoá vĩnh viễn sau 30 ngày.</div>
+          </div>
+          <div class="relative">
+            <div class="w-10 h-6 bg-blue-600 rounded-full"><div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Key binding (giữ nguyên từ ADR-0047 contract):</b> <code>data-state="auto-purge-enabled"</code> khi
+    switch ON, <code>data-state="auto-purge-disabled"</code> khi OFF. Switch value đọc từ
+    <code>Selector&lt;AppSettingsViewModel, bool&gt;.select((_, vm) =&gt; vm.autoPurgeEnabled)</code>.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §3 — CategoryManagement trash banner binding                  -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§3 — CategoryManagementScreen trash banner binding</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Drop <code>_autoPurgeEnabled</code> local state + <code>_loadAutoPurgePref</code> method +
+    <code>AutoPurgePrefs</code> import. Wrap <code>_buildTrashWarningBanner</code> call trong
+    <code>Selector&lt;AppSettingsViewModel, bool&gt;</code> — banner gate chuyển từ
+    <code>if (!_autoPurgeEnabled)</code> (stale, load-once) → <code>if (!appSettings.autoPurgeEnabled)</code>
+    (reactive, Consumer rebuild on VM notify).
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="trash-banner-gate">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// Before (ADR-0047 — load-once, stale after toggle):
+if (!_autoPurgeEnabled) return const [];
+final approaching = vm.itemsApproachingPurge();
+...
+
+// After (ADR-0050 — reactive):
+Selector&lt;AppSettingsViewModel, bool&gt;(
+  selector: (_, s) =&gt; s.autoPurgeEnabled,
+  builder: (context, autoPurgeEnabled, _) {
+    if (!autoPurgeEnabled) return const SizedBox.shrink();
+    final approaching = vm.itemsApproachingPurge();
+    if (approaching.isEmpty) return const SizedBox.shrink();
+    // ... existing banner widget ...
+  },
+)</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Key binding (giữ nguyên):</b> <code>state-trash-purge-warning</code> ở line 715
+    <code>category_management_screen.dart</code>. Banner visible ⇔
+    <code>autoPurgeEnabled == true</code> AND <code>itemsApproachingPurge.isNotEmpty</code>.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §4 — Reactive assertion (the core fix)                        -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§4 — Reactive assertion (the core fix)</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Known limitation ADR-0047: <em>"nếu user đổi setting rồi quay lại khi screen vẫn còn mounted thì
+    warning banner chưa cập nhật ngay."</em> Reactive shape close gap: <code>notifyListeners</code>
+    trong <code>setAutoPurgeEnabled</code> rebuild tất cả <code>Selector&lt;AppSettingsViewModel,
+    bool&gt;</code> instances trong tree — KHÔNG cần pop Settings và KHÔNG cần RouteAware.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="reactive-flow">
+    <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-2">
+      <li>
+        <b>State A — initial:</b> CategoryManagement mounted, banner hiển thị vì
+        <code>autoPurgeEnabled=true</code> + 1 item approaching purge. Settings chưa mở.
+        <div class="mt-1 ml-2 text-xs text-gray-600">Key visible: <code>state-trash-purge-warning</code>.</div>
+      </li>
+      <li>
+        <b>State B — push Settings, toggle OFF:</b> User tap gear menu → push SettingsScreen.
+        Toggle auto-purge OFF → <code>setAutoPurgeEnabled(false)</code> → VM <code>notifyListeners</code>.
+        CategoryManagement vẫn mounted (route dưới stack).
+        <div class="mt-1 ml-2 text-xs text-gray-600">Nếu dùng Task 1.2 (RouteAware): banner vẫn hiển thị cho đến pop.</div>
+        <div class="mt-1 ml-2 text-xs text-green-700">Nếu dùng Task 1.1 (Provider VM): banner biến mất NGAY, trước cả pop.</div>
+      </li>
+      <li>
+        <b>State C — pop Settings:</b> User pop về CategoryManagement. Banner đã ở đúng state
+        (State B result). Pop là no-op cho state, chỉ unmount Settings route.
+      </li>
+      <li>
+        <b>State D — re-toggle ON (từ CategoryManagement hoặc Settings lại):</b> Banner
+        xuất hiện lại. Pop không cần thiết.
+      </li>
+    </ol>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>User-visible value:</b> reactive — feedback loop close trong ~16ms (1 frame rebuild), không
+    cần round-trip qua navigation. Bài học từ ADR-0017 §Slice 5 (revert "drop ProxyProvider → manual
+    listener"): cross-VM reactivity qua Provider là path of least resistance trong codebase này.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §5 — Test surface                                              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§5 — Test surface</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    2 widget test groups trong <code>test/widgets/category_management_reactive_settings_test.dart</code>:
+  </p>
+
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-2">
+    <li>
+      <b>Reactive-during-push (the actual fix):</b>
+      <ul class="list-disc pl-6 mt-1 text-xs text-gray-600 space-y-1">
+        <li>Mount CategoryManagement trong MultiProvider (CategoryViewModel + AppSettingsViewModel).</li>
+        <li>Seed 1 category với <code>deletedAt = now - 26 days</code> → <code>itemsApproachingPurge</code> returns it.</li>
+        <li>Verify <code>find.byKey(Key('state-trash-purge-warning'))</code> present.</li>
+        <li>Push SettingsScreen (vẫn trong cùng widget tree qua <code>Navigator</code> nested).</li>
+        <li>Toggle <code>SwitchListTile</code> OFF qua <code>tester.tap</code>.</li>
+        <li>Verify <code>state-trash-purge-warning</code> KHÔNG còn trong CategoryManagement tree MÀ CHƯA POP — proves reactivity.</li>
+      </ul>
+    </li>
+    <li>
+      <b>Pop-still-works (regression guard):</b>
+      <ul class="list-disc pl-6 mt-1 text-xs text-gray-600 space-y-1">
+        <li>Same setup, nhưng lần này toggle ON sau khi push (banner từ absent → present).</li>
+        <li>Pop Settings.</li>
+        <li>Verify <code>state-trash-purge-warning</code> present sau pop.</li>
+        <li>Đảm bảo navigation path (push/pop) không phá wiring.</li>
+      </ul>
+    </li>
+  </ol>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Async + SharedPreferences:</b> <code>setAutoPurgeEnabled</code> là async (await StorageService.write).
+    Wrap test actions trong <code>tester.runAsync</code> hoặc dùng <code>pumpAndSettle</code> với timeout hợp lý.
+    CONTEXT.md line 318 flags <code>budget_overview_widget_test.dart</code> hang ở pumpAndSettle → cẩn thận
+    với infinite rebuild loop. Selector pattern (không phải Consumer trên root VM) giúp minimize rebuild scope.
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>VM unit test:</b> <code>test/unit/app_settings_viewmodel_test.dart</code> cover (1) load default
+    ON khi key chưa set, (2) setEnabled writes + notifies, (3) idempotent set (no notify nếu value unchanged),
+    (4) lastPurgeDate round-trip.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §6 — Out of scope (explicit defer)                            -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§6 — Out of scope (explicit defer)</h2>
+
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-1">
+    <li>
+      <b>Task 1.2 (RouteAware fallback) — dropped.</b> YAGNI vs 8 ChangeNotifier precedent
+      (<code>main.dart:226-289</code>). RouteAware doesn't scale to 6 P+ candidates (ADR-0047 §5).
+      Revisit chỉ khi user explicitly opt out của Provider pattern.
+    </li>
+    <li>
+      <b>Restore-from-backup interaction với <code>auto_purge_enabled</code> + <code>last_purge_date</code>.</b>
+      Backup schema v9 (CONTEXT.md line 18) KHÔNG backup settings. Edge case: restore từ 60-day-old
+      backup với trash items >30 days old — current <code>last_purge_date</code> flag block re-purge
+      (giữ value "today"). Real bug, nhưng orthogonal to this epic. Flag ADR-0050 §Future work.
+    </li>
+    <li>
+      <b><code>CategoryViewModel.purgeOldTrash</code> call site migration.</b> Unshipped in current
+      branch (ADR-0045 §implement pending). Khi ship, prefer
+      <code>context.read&lt;AppSettingsViewModel&gt;().autoPurgeEnabled</code> over static
+      <code>AutoPurgePrefs.isEnabled()</code>. Out of scope here.
+    </li>
+    <li>
+      <b>6 P+ Settings candidates</b> (theme, currency, purge interval, voice lang, budget carry, clear all) —
+      mỗi cái cần grill + contract + ADR riêng per ADR-0047 §5.
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================================ -->
+<!-- §7 — Files touched                                             -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§7 — Files touched</h2>
+
+  <ul class="list-disc pl-6 text-sm text-gray-700 space-y-1">
+    <li><b>New</b> — <code>lib/viewmodels/app_settings_viewmodel.dart</code></li>
+    <li><b>Modify</b> — <code>lib/main.dart</code> (1 new <code>ChangeNotifierProvider</code>)</li>
+    <li><b>Modify</b> — <code>lib/views/settings_screen.dart</code> (drop <code>AutoPurgePrefs</code>, use VM)</li>
+    <li><b>Modify</b> — <code>lib/views/category_management_screen.dart</code> (drop <code>_loadAutoPurgePref</code>, use <code>Selector</code>)</li>
+    <li><b>Delete</b> — <code>lib/services/auto_purge_prefs.dart</code> (after grep verify 0 callers — see §8)</li>
+    <li><b>New</b> — <code>test/unit/app_settings_viewmodel_test.dart</code></li>
+    <li><b>New</b> — <code>test/widgets/category_management_reactive_settings_test.dart</code></li>
+    <li><b>New</b> — <code>docs/adr/0050-p1-reactive-settings-2026-06-15.md</code></li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<!-- §8 — Migration verification                                    -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§8 — Migration verification</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Before deleting <code>auto_purge_prefs.dart</code>, verify zero callers in
+    <code>lib/</code> + <code>test/</code>:
+  </p>
+  <div class="bg-gray-800 text-gray-100 rounded p-3 text-xs font-mono">
+    <div>grep -r "AutoPurgePrefs" lib/ test/</div>
+    <div>grep -r "auto_purge_enabled\|last_purge_date" lib/ test/</div>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    Expected: <code>AutoPurgePrefs</code> import zero post-refactor. Key strings
+    (<code>auto_purge_enabled</code>, <code>last_purge_date</code>) referenced only in
+    <code>app_settings_viewmodel.dart</code>. <code>last_purge_date</code> ownership
+    transfer từ <code>AutoPurgePrefs</code> static → <code>AppSettingsViewModel</code> field.
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Risk:</b> nếu <code>CategoryViewModel.purgeOldTrash</code> ship trước epic này, có 1 caller
+    <code>AutoPurgePrefs.isEnabled()</code> cần migrate. Mitigation: grep trước khi delete.
+  </p>
+</section>
+
+</main>
+</body>
+</html>

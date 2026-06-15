@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qlct/services/auto_purge_prefs.dart';
+import 'package:provider/provider.dart';
+import 'package:qlct/services/storage_service.dart';
+import 'package:qlct/viewmodels/app_settings_viewmodel.dart';
 import 'package:qlct/views/settings_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUpAll(() {
@@ -25,22 +28,36 @@ void main() {
     });
   });
 
+  setUp(() {
+    // ADR-0050: SharedPreferences mock cho AppSettingsViewModel.load() resolve.
+    SharedPreferences.setMockInitialValues({});
+  });
+
   // ADR-0049: app version display in Settings (P3 #5).
+  // ADR-0050: pump SettingsScreen with AppSettingsViewModel in scope — was
+  // AutoPurgePrefs fire-and-forget pre-ADR-0050; replaced by Provider since
+  // facade deleted in this epic.
+  Future<void> pumpSettingsScreen(WidgetTester tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final storage = StorageService(prefs);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChangeNotifierProvider<AppSettingsViewModel>(
+          create: (_) => AppSettingsViewModel(storage)..load(),
+          child: const SettingsScreen(),
+        ),
+      ),
+    );
+    // 3 pumps: (1) initial frame, (2) PackageInfo async resolves,
+    // (3) setState rebuild renders version text.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+  }
+
   group('SettingsScreen - version display (ADR-0049)', () {
     testWidgets('renders version row with version + build number', (tester) async {
-      // AutoPurgePrefs default = enabled. Avoid platform channel.
-      // Don't await — fire and forget; the row is read-only and doesn't
-      // depend on the pref value.
-      AutoPurgePrefs.isEnabled().then((_) {});
-
-      await tester.pumpWidget(
-        const MaterialApp(home: SettingsScreen()),
-      );
-      // 3 pumps: (1) initial frame, (2) PackageInfo async resolves,
-      // (3) setState rebuild renders version text.
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
+      await pumpSettingsScreen(tester);
 
       // Row exists
       expect(find.byKey(const Key('state-version-row')), findsOneWidget);
@@ -57,14 +74,7 @@ void main() {
     });
 
     testWidgets('version row is disabled (read-only info display)', (tester) async {
-      AutoPurgePrefs.isEnabled().then((_) {});
-
-      await tester.pumpWidget(
-        const MaterialApp(home: SettingsScreen()),
-      );
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
+      await pumpSettingsScreen(tester);
 
       // ListTile with enabled:false → onTap is null, no ripple on tap.
       final rowTile = tester.widget<ListTile>(

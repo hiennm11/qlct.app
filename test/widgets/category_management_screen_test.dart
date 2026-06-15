@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:qlct/models/category.dart';
+import 'package:qlct/services/storage_service.dart';
+import 'package:qlct/viewmodels/app_settings_viewmodel.dart';
 import 'package:qlct/viewmodels/category_viewmodel.dart';
 import 'package:qlct/views/category_management_screen.dart';
 import 'package:qlct/widgets/category_merge_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Category _coffee() {
   final now = DateTime(2026, 6, 10, 12);
@@ -48,21 +51,48 @@ Category _archived() {
   );
 }
 
+/// Pump [CategoryManagementScreen] wrapped in [CategoryViewModel] +
+/// [AppSettingsViewModel] Providers. SharedPreferences mock init in
+/// `setUp` ensures `AppSettingsViewModel.load()` resolves synchronously
+/// inside `tester.runAsync`.
+Future<void> _pumpScreen(
+  WidgetTester tester, {
+  required CategoryViewModel vm,
+}) async {
+  late final AppSettingsViewModel settingsVM;
+  await tester.runAsync(() async {
+    final prefs = await SharedPreferences.getInstance();
+    settingsVM = AppSettingsViewModel(StorageService(prefs))..load();
+  });
+  await tester.pumpWidget(
+    MaterialApp(
+      home: MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CategoryViewModel>.value(value: vm),
+          // ADR-0050: trash banner gate reads AppSettingsViewModel via
+          // Selector. Default state (autoPurgeEnabled=true) is sufficient
+          // cho tests không assert toggle behavior.
+          ChangeNotifierProvider<AppSettingsViewModel>.value(value: settingsVM),
+        ],
+        child: const CategoryManagementScreen(),
+      ),
+    ),
+  );
+  await tester.pump();
+}
+
 void main() {
+  setUp(() {
+    // ADR-0050: SharedPreferences mock init for AppSettingsViewModel backing.
+    SharedPreferences.setMockInitialValues({});
+  });
+
   group('CategoryManagementScreen smoke', () {
     testWidgets('renders active category row', (tester) async {
       // Use seeded() which loads synchronously — no async load needed.
       final vm = CategoryViewModel.seeded([_coffee(), _archived()]);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<CategoryViewModel>.value(
-            value: vm,
-            child: const CategoryManagementScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
+      await _pumpScreen(tester, vm: vm);
 
       expect(find.text('Cà phê'), findsOneWidget);
       expect(find.text('☕'), findsOneWidget);
@@ -71,15 +101,7 @@ void main() {
     testWidgets('shows archived section when archived categories exist', (tester) async {
       final vm = CategoryViewModel.seeded([_coffee(), _archived()]);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<CategoryViewModel>.value(
-            value: vm,
-            child: const CategoryManagementScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
+      await _pumpScreen(tester, vm: vm);
 
       expect(find.textContaining('Đã lưu trữ'), findsAtLeast(1));
       expect(find.text('Giải trí'), findsOneWidget);
@@ -88,15 +110,7 @@ void main() {
     testWidgets('tapping a row opens edit bottom sheet', (tester) async {
       final vm = CategoryViewModel.seeded([_coffee()]);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<CategoryViewModel>.value(
-            value: vm,
-            child: const CategoryManagementScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
+      await _pumpScreen(tester, vm: vm);
 
       await tester.tap(find.text('Cà phê'));
       await tester.pump();
@@ -121,15 +135,7 @@ void main() {
     // ===== ADR-0038: Merge sheet =====
     testWidgets('AppBar merge icon shows merge sheet step 1', (tester) async {
       final vm = CategoryViewModel.seeded([_coffee(), _archived()]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<CategoryViewModel>.value(
-            value: vm,
-            child: const CategoryManagementScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
+      await _pumpScreen(tester, vm: vm);
 
       await tester.tap(find.byIcon(Icons.merge_type));
       await tester.pump();
@@ -141,15 +147,7 @@ void main() {
 
     testWidgets('merge sheet step 1 → step 2 flow', (tester) async {
       final vm = CategoryViewModel.seeded([_coffee(), _archived()]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<CategoryViewModel>.value(
-            value: vm,
-            child: const CategoryManagementScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
+      await _pumpScreen(tester, vm: vm);
 
       await tester.tap(find.byIcon(Icons.merge_type));
       await tester.pump();
@@ -183,15 +181,7 @@ void main() {
     // Fix: wrap with SingleChildScrollView + Column.
     testWidgets('dragging a category row does not throw', (tester) async {
       final vm = CategoryViewModel.seeded([_coffee(), _archived()]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<CategoryViewModel>.value(
-            value: vm,
-            child: const CategoryManagementScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
+      await _pumpScreen(tester, vm: vm);
 
       // Locate the drag-handle icon for the active coffee row.
       final dragHandle = find.descendant(
@@ -215,15 +205,7 @@ void main() {
     // ===== ADR-0048: Trash empty state hint =====
     testWidgets('shows trash empty state when no soft-deleted categories', (tester) async {
       final vm = CategoryViewModel.seeded([_coffee()]);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<CategoryViewModel>.value(
-            value: vm,
-            child: const CategoryManagementScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
+      await _pumpScreen(tester, vm: vm);
 
       // Empty state widget rendered
       expect(find.byKey(const Key('state-trash-empty')), findsOneWidget);
