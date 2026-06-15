@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Contract: Weekly Review Card (Epic 4)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 p-6 font-sans">
+<div class="max-w-3xl mx-auto bg-white rounded-lg shadow p-6">
+
+  <h1 class="text-2xl font-bold mb-2">Contract: Weekly Review Card</h1>
+  <p class="text-sm text-slate-500 mb-6">ADR-0053 · Epic 4 · 2026-06-15</p>
+
+  <!-- ============================================================ -->
+  <!-- §1 — Context                                                  -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§1 Context</h2>
+    <p>Mục tiêu Epic 4: tạo lý do để user mở app ít nhất mỗi tuần, không chỉ khi cần nhập giao dịch. Monthly Review hiện có (ADR-0021) mạnh nhưng cadence 30 ngày — quá thưa cho engagement ngắn hạn.</p>
+    <p class="mt-2">Cần 1 lớp insight ngắn hạn ngay trên Home (giữa Budget và Transactions, theo Option 1 grill session) — recap 7 ngày qua, không phải full review screen.</p>
+    <p class="mt-2">Pattern reference: <code class="bg-slate-100 px-1 rounded">BudgetOverviewWidget</code> (alert-first collapse ADR-0014), <code class="bg-slate-100 px-1 rounded">StatsWidget._StatCard</code> (tap-through, gradient), <code class="bg-slate-100 px-1 rounded">MonthlyReviewViewModel</code> + <code class="bg-slate-100 px-1 rounded">MonthlyReviewBuilder</code> (read-only derived, pure builder).</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §2 — Decision (overall)                                       -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§2 Decision (overall)</h2>
+    <p>Thêm <code class="bg-slate-100 px-1 rounded">WeeklyReviewCard</code> widget + <code class="bg-slate-100 px-1 rounded">WeeklyReviewViewModel</code> + <code class="bg-slate-100 px-1 rounded">WeeklyReviewBuilder</code> + <code class="bg-slate-100 px-1 rounded">WeeklyReviewData</code> model. Runtime-only (mirror Monthly Review ADR-0021) — không persist, không migration, không backup schema bump.</p>
+    <p class="mt-2">10th <code class="bg-slate-100 px-1 rounded">ChangeNotifier</code> trong app, wired qua <code class="bg-slate-100 px-1 rounded">ChangeNotifierProxyProvider&lt;ExpenseViewModel, WeeklyReviewViewModel&gt;</code> trong <code class="bg-slate-100 px-1 rounded">main.dart</code>. Direct DataSource injection (Transaction + Budget + Recurring + Category) — không inject cross-VM (mirror ADR-0006 §Recurring).</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §3 — Week boundary + compare semantics                       -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§3 Week boundary + compare semantics</h2>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-100"><th class="text-left p-2">Quyết định</th><th class="text-left p-2">Spec</th></tr></thead>
+      <tbody>
+        <tr class="border-t">
+          <td class="p-2"><strong>Week start</strong></td>
+          <td class="p-2">Mon-Sun (ISO 8601 calendar week, cố định boundary)</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Week end (inclusive)</strong></td>
+          <td class="p-2">Sun 23:59:59 local time</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Current week range</strong></td>
+          <td class="p-2"><code>[weekStart(mon), min(now, weekEnd(sun))]</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Previous compare range (current week in progress)</strong></td>
+          <td class="p-2">Mirror ADR-0021 §Compare Period: same day-of-week-1 trước → cùng "hôm nay" tuần trước. Example Wed 2026-06-17: current [Mon 06-15, Wed 06-17], previous [Mon 06-08, Wed 06-10].</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Previous compare range (past full week)</strong></td>
+          <td class="p-2">Full [Mon, Sun] tuần trước — current week đã complete, không cần same-period.</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>prevWeekSpent = 0 case</strong></td>
+          <td class="p-2">UI label "Chưa có dữ liệu tuần trước" (mirror Monthly Review "Chưa có dữ liệu tháng trước"). Suppress comparison chip.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §4 — WeeklyReviewData model                                    -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§4 WeeklyReviewData model</h2>
+    <p>Freezed immutable runtime model (mirror <code class="bg-slate-100 px-1 rounded">MonthlyReviewData</code>). Không JSON serialization.</p>
+    <pre class="bg-slate-50 border border-slate-200 rounded p-3 mt-2 text-xs overflow-x-auto"><code>class WeeklyReviewData {
+  // Boundary
+  final DateTime currentWeekStart;     // Mon 00:00
+  final DateTime currentWeekEnd;       // Sun 23:59 (or now if in progress)
+  final DateTime previousCompareStart; // same-period previous week
+  final DateTime previousCompareEnd;
+
+  // Spending totals (exclude investment — mirror ADR-0021)
+  final int weekSpent;                 // sum spending in current week
+  final int prevWeekSpent;             // sum spending in previous compare range
+
+  // Top category delta
+  final String? topCategoryId;         // null nếu prev = current = 0
+  final int topCategoryDelta;          // absolute VND delta, primary metric
+  final int topCategoryCurrentSpent;
+  final int topCategoryPrevSpent;
+  final bool topCategoryNewlyIncurred; // true nếu prev = 0, current > 0
+
+  // Days with activity
+  final int daysLogged;                // 0-7, count days with ≥1 spending tx in current week
+
+  // Largest transaction (all categories incl. investment — grill Q4 deviation)
+  final WeeklyReviewLargestTransaction? largestTransaction;
+
+  // Budget risk
+  final List&lt;String&gt; budgetRiskCategoryIds; // categoryIds ở warning (≥80%) hoặc exceeded (≥100%)
+
+  // Upcoming recurring
+  final int upcomingRecurringCount;    // active rules với nextRunAt ∈ [now, now+7d]
+
+  // Flags
+  final bool hasEnoughDataForDelta;    // false nếu prevWeekSpent = 0 hoặc weekSpent = 0
+  final WeeklyReviewLowDataState lowDataState;  // empty / low / normal
+}
+
+class WeeklyReviewLargestTransaction {
+  final int amount;
+  final String categoryId;
+  final DateTime date;  // date only (bỏ time) — privacy
+}
+
+enum WeeklyReviewLowDataState {
+  empty,   // 0 spending tx
+  low,     // &lt; 3 spending tx
+  normal,  // ≥ 3 spending tx
+}</code></pre>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §5 — Investment semantics                                      -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§5 Investment semantics</h2>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-100"><th class="text-left p-2">Field</th><th class="text-left p-2">In/Ex investment</th><th class="text-left p-2">Rationale</th></tr></thead>
+      <tbody>
+        <tr class="border-t"><td class="p-2"><code>weekSpent</code></td><td class="p-2">Exclude</td><td class="p-2">Mirror ADR-0021 §Investment Handling</td></tr>
+        <tr class="border-t"><td class="p-2"><code>prevWeekSpent</code></td><td class="p-2">Exclude</td><td class="p-2">Same</td></tr>
+        <tr class="border-t"><td class="p-2"><code>topCategoryId</code> + delta</td><td class="p-2">Exclude</td><td class="p-2">Same</td></tr>
+        <tr class="border-t"><td class="p-2"><code>daysLogged</code></td><td class="p-2">Exclude (spending only)</td><td class="p-2">"logging" semantics = spending only</td></tr>
+        <tr class="border-t"><td class="p-2"><code>budgetRiskCategoryIds</code></td><td class="p-2">Exclude (spending + flexible/fixed only)</td><td class="p-2">Mirror ADR-0025 §Investment</td></tr>
+        <tr class="border-t"><td class="p-2"><code>largestTransaction</code></td><td class="p-2"><strong>Include (tất cả)</strong></td><td class="p-2">Grill Q4 deviation: weekly cadence 7 ngày, 0-2 investment tx, largest signal = useful</td></tr>
+        <tr class="border-t"><td class="p-2"><code>upcomingRecurringCount</code></td><td class="p-2">Include (all active rules)</td><td class="p-2">Insight "có N khoản sắp chạy" là chung, không split spend/invest</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §6 — Home widget visual + states                              -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§6 Home widget (visual + states)</h2>
+    <p>Placement: giữa <code class="bg-slate-100 px-1 rounded">BudgetOverviewWidget</code> và <code class="bg-slate-100 px-1 rounded">TransactionListWidget</code> (grill Option 1).</p>
+
+    <p class="mt-3 font-semibold">State 1: <code>empty</code> (0 spending tx trong tuần)</p>
+    <div class="mt-2 border border-slate-300 rounded p-4 bg-white">
+      <div data-state="weekly-review-empty" class="flex flex-col items-center gap-2 py-8">
+        <span class="text-5xl text-slate-400">📅</span>
+        <p class="text-base text-slate-500">Chưa có giao dịch tuần này</p>
+        <p data-state="weekly-review-empty-hint" class="text-sm text-slate-400 text-center">
+          Bắt đầu thêm giao dịch để xem tổng kết tuần.
+        </p>
+      </div>
+    </div>
+
+    <p class="mt-4 font-semibold">State 2: <code>low</code> (&lt; 3 spending tx) — render card compact, 1 insight</p>
+    <div class="mt-2 border border-slate-300 rounded p-4 bg-white">
+      <div data-state="weekly-review-card" data-low-data="low">
+        <div class="flex items-center mb-3">
+          <span class="text-base">📊</span>
+          <span class="ml-2 font-semibold">Tuần này</span>
+          <span class="ml-auto text-xs text-slate-500" data-bind="week-range">15/06 → 17/06</span>
+        </div>
+        <div data-state="weekly-review-insight-primary" class="bg-slate-50 rounded p-3">
+          <p class="text-sm text-slate-700">Đã chi <strong data-bind="week-spent">450.000 ₫</strong> trong 2 ngày qua</p>
+        </div>
+        <button data-state="weekly-review-cta" class="mt-3 w-full bg-blue-500 text-white rounded py-2 text-sm font-medium">
+          Xem chi tiết tuần này →
+        </button>
+      </div>
+    </div>
+
+    <p class="mt-4 font-semibold">State 3: <code>normal</code> (≥ 3 spending tx) — render full 3 insight chips</p>
+    <div class="mt-2 border border-slate-300 rounded p-4 bg-white">
+      <div data-state="weekly-review-card" data-low-data="normal">
+        <div class="flex items-center mb-3">
+          <span class="text-base">📊</span>
+          <span class="ml-2 font-semibold">Tuần này</span>
+          <span class="ml-auto text-xs text-slate-500" data-bind="week-range">15/06 → 21/06</span>
+        </div>
+
+        <div class="space-y-2">
+          <div data-state="weekly-review-insight-primary" class="bg-blue-50 border-l-4 border-blue-500 rounded p-3">
+            <p class="text-xs text-blue-700 font-semibold mb-1">SO SÁNH TUẦN TRƯỚC</p>
+            <p class="text-sm text-slate-800">Tuần này chi <strong data-bind="week-spent">1.250.000 ₫</strong>,
+              <span data-bind="delta-direction-up">▲ 320.000 ₫</span> so với tuần trước
+              (<span data-bind="prev-week-spent">930.000 ₫</span>)</p>
+          </div>
+
+          <div data-state="weekly-review-insight-secondary" class="bg-slate-50 rounded p-3">
+            <p class="text-xs text-slate-500 font-semibold mb-1">DANH MỤC TĂNG MẠNH</p>
+            <p class="text-sm text-slate-800">
+              <span data-bind="top-category-emoji">🍜</span>
+              <span data-bind="top-category-name">Ăn ngoài</span>:
+              <strong data-bind="top-category-delta">+ 180.000 ₫</strong>
+              <span class="text-xs text-slate-500">(<span data-bind="days-logged">5/7 ngày</span>)</span>
+            </p>
+          </div>
+
+          <div data-state="weekly-review-insight-tertiary" class="bg-slate-50 rounded p-3">
+            <p class="text-xs text-slate-500 font-semibold mb-1">SẮP TỚI</p>
+            <p class="text-sm text-slate-800">
+              <span data-bind="upcoming-recurring">Có 2 khoản định kỳ sẽ chạy trong 7 ngày tới</span>
+              <span class="text-slate-400" data-bind="budget-risk-separator"> · </span>
+              <span data-bind="budget-risk">1 ngân sách gần chạm ngưỡng</span>
+            </p>
+          </div>
+        </div>
+
+        <button data-state="weekly-review-cta" class="mt-3 w-full bg-blue-500 text-white rounded py-2 text-sm font-medium">
+          Xem chi tiết tuần này →
+        </button>
+      </div>
+    </div>
+
+    <p class="mt-3 text-xs text-slate-500">Largest transaction KHÔNG render ở card — chỉ internal data, hiện ở Monthly Review (nếu user tap CTA "Xem chi tiết" → navigate tới full review screen hoặc filter list).</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §7 — Tap-through behavior                                     -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§7 Tap-through behavior</h2>
+    <p>Mirror Stats tap-through (ADR-0008) — tap chip / CTA → set filter + scroll tới TransactionListWidget. Reuse pattern đã có.</p>
+    <table class="w-full text-sm border-collapse mt-2">
+      <thead><tr class="bg-slate-100"><th class="text-left p-2">Tap target</th><th class="text-left p-2">Action</th></tr></thead>
+      <tbody>
+        <tr class="border-t"><td class="p-2">Card CTA "Xem chi tiết tuần này"</td><td class="p-2"><code>setDateRangeFilter(currentWeekStart, currentWeekEnd)</code> + scroll to TransactionListWidget</td></tr>
+        <tr class="border-t"><td class="p-2">Insight "Danh mục tăng mạnh" chip</td><td class="p-2"><code>setDateRangeFilter(currentWeekStart, currentWeekEnd)</code> + <code>setCategoryFilter(topCategoryId)</code> + scroll</td></tr>
+        <tr class="border-t"><td class="p-2">Insight "Sắp tới" budget risk</td><td class="p-2">Scroll tới BudgetOverviewWidget (same-page navigation, no filter change)</td></tr>
+        <tr class="border-t"><td class="p-2">Empty state card</td><td class="p-2">No tap (just hint)</td></tr>
+      </tbody>
+    </table>
+    <p class="mt-2 text-xs text-slate-500">Không navigate tới full Monthly Review screen — Weekly Review card ở Home là summary lightweight, full analytics ở Monthly Review screen riêng.</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §8 — ViewModel state machine                                  -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§8 ViewModel state machine</h2>
+    <pre class="bg-slate-50 border border-slate-200 rounded p-3 mt-2 text-xs overflow-x-auto"><code>enum WeeklyReviewLoadState { initial, loading, loaded, error }
+
+class WeeklyReviewViewModel extends ChangeNotifier {
+  WeeklyReviewLoadState _state = WeeklyReviewLoadState.initial;
+  WeeklyReviewData? _data;
+  String? _errorMessage;
+
+  WeeklyReviewLoadState get state =&gt; _state;
+  WeeklyReviewData? get data =&gt; _data;
+  String? get errorMessage =&gt; _errorMessage;
+
+  Future&lt;void&gt; load();    // mount + dirty invalidation
+  void invalidate();       // called by ProxyProvider on ExpenseVM notify
+  Future&lt;void&gt; refresh();  // pull-to-refresh explicit
+}</code></pre>
+    <p class="mt-2 text-xs text-slate-500">3-state (loading/loaded/error) — <code>empty</code> derive từ <code>data.lowDataState</code>, không tách state riêng (ADR-0052 §3.1 lesson: tránh loading-state gap).</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §9 — Builder contract (pure, no I/O)                          -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§9 Builder contract (pure, no I/O)</h2>
+    <pre class="bg-slate-50 border border-slate-200 rounded p-3 mt-2 text-xs overflow-x-auto"><code>class WeeklyReviewBuilder {
+  static WeeklyReviewData build({
+    required List&lt;Transaction&gt; currentWeekTransactions,
+    required List&lt;Transaction&gt; previousCompareTransactions,
+    required List&lt;Budget&gt; budgets,
+    required List&lt;RecurringTransaction&gt; activeRecurring,
+    required List&lt;Category&gt; categories,
+    required DateTime currentWeekStart,
+    required DateTime currentWeekEnd,
+    required DateTime previousCompareStart,
+    required DateTime previousCompareEnd,
+    required DateTime now,
+  });
+}</code></pre>
+    <ul class="list-disc ml-6 text-sm space-y-1 mt-2">
+      <li>Pure function — không DataSource dependency, không ChangeNotifier, không side effects.</li>
+      <li>Input là pre-queried snapshots từ VM — không query full history vô hạn.</li>
+      <li>Spending aggregation: <code>tx.where((t) =&gt; !t.category.isInvestment).fold(0, (sum, t) =&gt; sum + t.amount)</code>.</li>
+      <li>Days logged: distinct date set, exclude investment.</li>
+      <li>Top category: aggregate by <code>categoryId</code> (ADR-0036), exclude investment, find max by <code>current - previous</code> absolute delta.</li>
+      <li>Largest: <code>tx.fold(max, ...)</code> by amount — include investment (grill Q4).</li>
+      <li>Budget risk: filter <code>budgets</code> where <code>spent/limit ≥ 0.8</code> (warning) or <code>≥ 1.0</code> (exceeded). Compute spent from <code>currentWeekTransactions</code> filter by categoryId.</li>
+      <li>Upcoming recurring: <code>activeRecurring.where((r) =&gt; r.nextRunAt.isAfter(now) &amp;&amp; r.nextRunAt.isBefore(now.add(Duration(days: 7)))).length</code>.</li>
+      <li><code>lowDataState</code>: <code>empty</code> if spending tx count = 0; <code>low</code> if &lt; 3; <code>normal</code> otherwise.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §10 — Data flow                                                -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§10 Data flow</h2>
+    <pre class="bg-slate-50 border border-slate-200 rounded p-3 mt-2 text-xs overflow-x-auto"><code>HomeScreen.initState
+  ↓
+WeeklyReviewViewModel.load()
+  ↓
+TransactionLocalDataSource.getByDateRange(currentWeekStart, currentWeekEnd)
+TransactionLocalDataSource.getByDateRange(prevCompareStart, prevCompareEnd)
+BudgetLocalDataSource.getAll()
+RecurringLocalDataSource.getActive()
+  ↓
+WeeklyReviewBuilder.build(...)
+  ↓
+WeeklyReviewData → notifyListeners()
+  ↓
+WeeklyReviewCard rebuild
+
+# Freshness: ChangeNotifierProxyProvider&lt;ExpenseVM, WeeklyReviewVM&gt;
+#   → on ExpenseVM.notify → weeklyVM.invalidate()
+#   → next read re-runs load() if data is stale
+
+# Pull-to-refresh: RefreshIndicator wrap HomeScreen SingleChildScrollView
+#   → onRefresh → weeklyVM.refresh()</code></pre>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §11 — Flutter Key binding table                                -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§11 Flutter Key binding</h2>
+    <p class="text-sm text-slate-600 mb-2">Theo CLAUDE.md: HTML <code>data-state</code> encode enum/boolean, map sang Flutter <code>Key</code>. Number/string state assert qua getter, không qua Key.</p>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-100"><th class="text-left p-2">HTML</th><th class="text-left p-2">Flutter widget</th><th class="text-left p-2">Test</th></tr></thead>
+      <tbody>
+        <tr class="border-t">
+          <td class="p-2"><code>data-state="weekly-review-empty"</code></td>
+          <td class="p-2"><code>Key('state-weekly-review-empty')</code></td>
+          <td class="p-2"><code>find.byKey(Key('state-weekly-review-empty'))</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><code>data-state="weekly-review-empty-hint"</code></td>
+          <td class="p-2"><code>Key('state-weekly-review-empty-hint')</code></td>
+          <td class="p-2"><code>find.byKey(Key('state-weekly-review-empty-hint'))</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><code>data-state="weekly-review-card"</code></td>
+          <td class="p-2"><code>Key('state-weekly-review-card')</code></td>
+          <td class="p-2"><code>find.byKey(Key('state-weekly-review-card'))</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><code>data-state="weekly-review-insight-primary"</code></td>
+          <td class="p-2"><code>Key('state-weekly-review-insight-primary')</code></td>
+          <td class="p-2"><code>find.byKey(Key('state-weekly-review-insight-primary'))</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><code>data-state="weekly-review-insight-secondary"</code></td>
+          <td class="p-2"><code>Key('state-weekly-review-insight-secondary')</code></td>
+          <td class="p-2"><code>find.byKey(Key('state-weekly-review-insight-secondary'))</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><code>data-state="weekly-review-insight-tertiary"</code></td>
+          <td class="p-2"><code>Key('state-weekly-review-insight-tertiary')</code></td>
+          <td class="p-2"><code>find.byKey(Key('state-weekly-review-insight-tertiary'))</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><code>data-state="weekly-review-cta"</code></td>
+          <td class="p-2"><code>Key('state-weekly-review-cta')</code></td>
+          <td class="p-2"><code>find.byKey(Key('state-weekly-review-cta'))</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><code>data-low-data="low"</code> / <code>"normal"</code></td>
+          <td class="p-2">n/a (dynamic)</td>
+          <td class="p-2">Assert qua <code>viewModel.data.lowDataState</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><code>data-bind="week-spent"</code></td>
+          <td class="p-2">n/a (dynamic number)</td>
+          <td class="p-2">Assert qua <code>viewModel.data.weekSpent</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §12 — Out of scope                                             -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§12 Out of scope</h2>
+    <ul class="list-disc ml-6 text-sm space-y-1">
+      <li>Weekly Review full screen route (giống Monthly Review) — chỉ card trên Home, không route riêng.</li>
+      <li>Weekly Review history (cached past weeks) — YAGNI, MVP chỉ current week.</li>
+      <li>Weekly Review notification/push reminder — YAGNI.</li>
+      <li>Custom week start day (Sun-Sat) — chỉ Mon-Sun.</li>
+      <li>Weekly Review export/share — reuse Monthly Review pattern khi user request.</li>
+      <li>Days logged = "ngày user mở app" — analytics chưa track, chỉ count days có giao dịch.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §13 — Test plan                                                -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§13 Test plan</h2>
+    <h3 class="text-sm font-semibold mt-2 mb-1">Builder unit tests (test/unit/weekly_review_builder_test.dart)</h3>
+    <ul class="list-disc ml-6 text-sm space-y-1">
+      <li>empty week → lowDataState=empty, weekSpent=0, no insights, hasEnoughDataForDelta=false</li>
+      <li>tuần này &gt; tuần trước → weekSpent &gt; prevWeekSpent, delta direction up</li>
+      <li>không có dữ liệu tuần trước → prevWeekSpent=0, hasEnoughDataForDelta=false, topCategoryNewlyIncurred=true nếu có category mới</li>
+      <li>chỉ có investment → weekSpent=0, lowDataState=empty (vì spending only), largestTransaction.include investment</li>
+      <li>recurring upcoming → upcomingRecurringCount=count rules với nextRunAt ∈ [now, now+7d]</li>
+      <li>budget risk có/không → budgetRiskCategoryIds filter đúng threshold (warning ≥80% + exceeded ≥100%)</li>
+      <li>days logged = distinct dates with spending tx, exclude investment</li>
+      <li>largest transaction pick max by amount across all categories (incl investment)</li>
+      <li>same-period compare for current week in progress</li>
+      <li>full-week compare for past week</li>
+    </ul>
+
+    <h3 class="text-sm font-semibold mt-3 mb-1">Widget test (test/widgets/weekly_review_card_test.dart)</h3>
+    <ul class="list-disc ml-6 text-sm space-y-1">
+      <li>Empty state render khi data.lowDataState=empty, verify cả 2 key bindings (heading + hint)</li>
+      <li>Low state render card compact với 1 insight primary, CTA button</li>
+      <li>Normal state render 3 insight chips, CTA button</li>
+      <li>Tap CTA → callback fire (verify onTapXxx param)</li>
+      <li>Tap insight "Danh mục tăng mạnh" → callback fire onTapTopCategory</li>
+      <li>Loading state (initial) → render skeleton hoặc empty Card (mirror BudgetOverview pattern)</li>
+    </ul>
+  </section>
+
+</div>
+</body>
+</html>

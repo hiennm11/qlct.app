@@ -4,11 +4,13 @@ import '../viewmodels/expense_viewmodel.dart';
 
 import '../viewmodels/recurring_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
+import '../viewmodels/weekly_review_viewmodel.dart';
 import '../widgets/stats_widget.dart';
 import '../widgets/transaction_list_widget.dart';
 import '../widgets/chart_widget.dart';
 import '../widgets/budget_overview_widget.dart';
 import '../widgets/recurring_overview_widget.dart';
+import '../widgets/weekly_review_card.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/quick_templates_strip.dart';
 import '../core/constants.dart';
@@ -296,6 +298,55 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: BudgetOverviewWidget(
                       onCategoryTap: (categoryName) {
                         context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
+                        _scrollToSection(_transactionListKey);
+                      },
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 20),
+                ),
+
+                // Weekly Review card (ADR-0053, Epic 4). Placement: giữa
+                // BudgetOverviewWidget và TransactionListWidget (grill
+                // Option 1). Tap-through mirror StatsWidget.onTapWeek.
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: WeeklyReviewCard(
+                      onCtaTap: () {
+                        final vm = context.read<ExpenseViewModel>();
+                        vm.clearFilters();
+                        final now = DateTime.now();
+                        final startOfWeek =
+                            now.subtract(Duration(days: now.weekday - 1));
+                        vm.setDateRangeFilter(
+                          DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
+                          DateTime(now.year, now.month, now.day),
+                        );
+                        _scrollToSection(_transactionListKey);
+                      },
+                      onTopCategoryTap: () {
+                        final weeklyVM = context.read<WeeklyReviewViewModel>();
+                        final categoryId = weeklyVM.data?.topCategoryId;
+                        if (categoryId == null) return;
+                        final catVM = context.read<CategoryViewModel>();
+                        final cat = catVM.activeCategories
+                            .where((c) => c.id == categoryId)
+                            .firstOrNull;
+                        final vm = context.read<ExpenseViewModel>();
+                        vm.clearFilters();
+                        final now = DateTime.now();
+                        final startOfWeek =
+                            now.subtract(Duration(days: now.weekday - 1));
+                        vm.setDateRangeFilter(
+                          DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
+                          DateTime(now.year, now.month, now.day),
+                        );
+                        if (cat != null) {
+                          // Resolve categoryId → categoryName (filter uses name)
+                          vm.setCategoryFilter(cat.name);
+                        }
                         _scrollToSection(_transactionListKey);
                       },
                     ),

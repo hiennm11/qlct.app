@@ -33,6 +33,7 @@ import 'viewmodels/monthly_review_viewmodel.dart';
 import 'viewmodels/monthly_plan_viewmodel.dart';
 import 'viewmodels/category_viewmodel.dart';
 import 'viewmodels/app_settings_viewmodel.dart';
+import 'viewmodels/weekly_review_viewmodel.dart';
 import 'views/home_screen.dart';
 
 Future<void> main() async {
@@ -293,6 +294,23 @@ class MyApp extends StatelessWidget {
             builder: MonthlyBudgetPlanBuilder(),
             now: DateTime.now(),
           ),
+        ),
+        // ADR-0053 (Epic 4 — Weekly Review): 10th ChangeNotifier.
+        // ProxyProvider<ExpenseVM> → on add/delete notify, weeklyVM.invalidate()
+        // marks data stale → next load() recomputes. Mirror BudgetViewModel
+        // pattern (ADR-0005) but weeklyVM doesn't need expense stats; only
+        // needs dirty signal.
+        ChangeNotifierProxyProvider<ExpenseViewModel, WeeklyReviewViewModel>(
+          create: (_) => WeeklyReviewViewModel(
+            transactionDataSource: transactionDataSource,
+            budgetDataSource: budgetDataSource,
+            recurringDataSource: recurringDataSource,
+            categoryDataSource: categoryDataSource,
+          ),
+          update: (_, expenseVM, weeklyVM) {
+            weeklyVM!.invalidate();
+            return weeklyVM;
+          },
         ),
       ],
       child: MaterialApp(
