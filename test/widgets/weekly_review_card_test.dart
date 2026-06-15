@@ -292,4 +292,73 @@ void main() {
     await tester.pumpAndSettle();
     expect(topCatTapped, 1);
   });
+
+  testWidgets('auto-reloads when VM is marked dirty (ProxyProvider pattern, ADR-0054)', (tester) async {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+
+    var txs = <Transaction>[];
+
+    // Dynamic stub: re-evaluate `txs` at each call (mocktail captures closure)
+    when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => List.of(txs));
+
+    final fakeBuilder = FakeWeeklyReviewBuilder(
+      (current, previous, budgets, recurring, cats, cs, ce, ps, pe, n) {
+        return WeeklyReviewData(
+          currentWeekStart: weekStart,
+          currentWeekEnd: now,
+          previousCompareStart: weekStart.subtract(const Duration(days: 7)),
+          previousCompareEnd: weekStart.subtract(const Duration(days: 7)),
+          weekSpent: current.fold<int>(0, (s, t) => s + t.amount),
+          prevWeekSpent: 0,
+          spendingDelta: 0,
+          lowDataState: WeeklyReviewLowDataState.normal,
+          topCategoryId: 'cat-food',
+          topCategoryDelta: 100000,
+          topCategoryCurrentSpent: 100000,
+          topCategoryPrevSpent: 0,
+          daysLogged: 1,
+        );
+      },
+    );
+
+    final weeklyVM = WeeklyReviewViewModel(
+      transactionDataSource: mockTxDS,
+      budgetDataSource: mockBudgetDS,
+      recurringDataSource: mockRecurringDS,
+      categoryDataSource: mockCatDS,
+      builder: fakeBuilder,
+    );
+
+    // 1 tx initially → weekSpent = 100k
+    txs = [Transaction(id: 't1', amount: 100000, category: 'Ăn ngoài', categoryId: 'cat-food', emoji: '🍜', date: weekStart, note: '')];
+    await weeklyVM.load();
+    await tester.pumpAndSettle();
+
+    final catVM = CategoryViewModel.seeded(allCategories);
+    await tester.pumpWidget(_harness(
+      weeklyVM: weeklyVM,
+      catVM: catVM,
+      onCtaTap: () {},
+      onTopCategoryTap: () {},
+    ));
+    await tester.pumpAndSettle();
+
+    // Initial state: weekSpent = 100k (1 tx)
+    expect(find.textContaining('100.000'), findsWidgets,
+        reason: 'Initial load should show 100.000 from 1 transaction');
+
+    // Simulate user adds another transaction (200k) → ProxyProvider invalidates VM
+    txs.add(Transaction(id: 't2', amount: 200000, category: 'Ăn ngoài', categoryId: 'cat-food', emoji: '🍜', date: weekStart, note: ''));
+    weeklyVM.invalidate();
+
+    // Pump enough frames to let postFrameCallback fire + Future.wait resolve
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    // Sau auto-reload: weekSpent = 300k (100k + 200k)
+    expect(find.textContaining('300.000'), findsWidgets,
+        reason: 'After invalidate + postFrame load, weekSpent should be 300.000');
+  });
 }

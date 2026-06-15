@@ -302,10 +302,12 @@ class WeeklyReviewViewModel extends ChangeNotifier {
   ↓
 WeeklyReviewViewModel.load()
   ↓
-TransactionLocalDataSource.getByDateRange(currentWeekStart, currentWeekEnd)
-TransactionLocalDataSource.getByDateRange(prevCompareStart, prevCompareEnd)
-BudgetLocalDataSource.getAll()
-RecurringLocalDataSource.getActive()
+[Parallel — Future.wait, ADR-0054 §Perf]
+  TransactionLocalDataSource.getByDateRange(currentWeekStart, currentWeekEnd)
+  TransactionLocalDataSource.getByDateRange(prevCompareStart, prevCompareEnd)
+  BudgetLocalDataSource.getAll()
+  RecurringLocalDataSource.getAll()
+  CategoryLocalDataSource.getAll()
   ↓
 WeeklyReviewBuilder.build(...)
   ↓
@@ -315,10 +317,40 @@ WeeklyReviewCard rebuild
 
 # Freshness: ChangeNotifierProxyProvider&lt;ExpenseVM, WeeklyReviewVM&gt;
 #   → on ExpenseVM.notify → weeklyVM.invalidate()
-#   → next read re-runs load() if data is stale
+#   → invalidate() sets _dirty=true AND notifyListeners()
+#   → Selector<WeeklyReviewVM, bool> watching isDirty re-emits true
+#   → postFrameCallback schedules vm.load()
+#   → after load, _dirty=false → Selector re-emits false → no loop
 
 # Pull-to-refresh: RefreshIndicator wrap HomeScreen SingleChildScrollView
 #   → onRefresh → weeklyVM.refresh()</code></pre>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §10b — Auto-refresh behavior (ADR-0054)                        -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§10b Auto-refresh behavior (ADR-0054)</h2>
+    <p class="text-sm text-slate-600 mb-2">Card tự refresh khi <code>ExpenseViewModel</code> notify (user add/edit/delete transaction qua QuickAddBar, TransactionEditDialog, TransactionDetailSheet, bulk delete). Không cần kill app hoặc pull-to-refresh.</p>
+    <ul class="list-disc ml-6 text-sm text-slate-600 space-y-1">
+      <li><strong>Trigger chain</strong>: ExpenseVM.notify → ProxyProvider update → <code>weeklyVM.invalidate()</code> → <code>_dirty = true</code> + <code>notifyListeners()</code> → Selector rebuild → postFrameCallback → <code>vm.load()</code>.</li>
+      <li><strong>No-op guard</strong>: <code>invalidate()</code> bỏ qua nếu <code>_dirty == true</code> sẵn (tránh redundant rebuild khi ExpenseVM notify liên tục).</li>
+      <li><strong>Idempotent</strong>: <code>load()</code> skip nếu <code>data != null && !_dirty</code> (mirror ADR-0050 settings pattern).</li>
+      <li><strong>Failure handling</strong>: nếu <code>load()</code> throw → VM set <code>errorMessage</code> → widget render <code>_ErrorView</code> với retry button. Card KHÔNG silent fail.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §10c — Parallel fetch (ADR-0054 §Perf)                         -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§10c Parallel fetch (ADR-0054 §Perf)</h2>
+    <p class="text-sm text-slate-600 mb-2">5 queries song song qua <code>Future.wait([...])</code> thay sequential <code>await</code>. Wall-clock cost giảm từ 5×T_query xuống 1×T_query (~80-100ms saved trên SQLite local).</p>
+    <ul class="list-disc ml-6 text-sm text-slate-600 space-y-1">
+      <li><strong>Independent queries</strong>: 5 queries không có FK dependency tại fetch time → safe to parallelize.</li>
+      <li><strong>Error semantics</strong>: nếu bất kỳ query fail, <code>Future.wait</code> throw ngay → outer try/catch set <code>errorMessage</code> (same như sequential). Error bubble như cũ.</li>
+      <li><strong>Category fallback</strong>: nếu <code>categoryDataSource.getAll()</code> return empty → fallback <code>seedCategories</code> (ADR-0027 §10). Check empty sau <code>Future.wait</code> complete.</li>
+    </ul>
   </section>
 
   <!-- ============================================================ -->
