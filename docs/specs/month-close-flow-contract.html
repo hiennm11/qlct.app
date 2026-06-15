@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Contract: Month Close Flow (Epic 5)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 p-6 font-sans">
+<div class="max-w-3xl mx-auto bg-white rounded-lg shadow p-6">
+
+  <h1 class="text-2xl font-bold mb-2">Contract: Month Close Flow</h1>
+  <p class="text-sm text-slate-500 mb-6">ADR-0056 (pending) · Epic 5 · 2026-06-15</p>
+
+  <!-- ============================================================ -->
+  <!-- §1 — Context                                                  -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§1 Context</h2>
+    <p>App đã đầu tư rất sâu ở domain budget: live <code class="bg-slate-100 px-1 rounded">Budget</code>, persisted <code class="bg-slate-100 px-1 rounded">BudgetSnapshot</code> (history), draft <code class="bg-slate-100 px-1 rounded">BudgetPlan</code> cho tháng tới, carry-over từ <code class="bg-slate-100 px-1 rounded">BudgetSnapshot.carryAmount</code>, <code class="bg-slate-100 px-1 rounded">MonthlyReview</code> read-only analytics.</p>
+    <p class="mt-2"><strong>Vấn đề:</strong> 4 capability riêng lẻ, user phải tự nối chúng vào 1 workflow. Cuối tháng user không có 1 hành trình rõ — từ "xem tháng vừa qua" → "hiểu carry-over" → "tạo/chỉnh kế hoạch tháng tới".</p>
+    <p class="mt-2"><strong>Mục tiêu Epic 5:</strong> orchestrate existing capability thành 1 luồng có chủ đích, không tạo khái niệm domain mới.</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §2 — Decision (overall)                                       -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§2 Decision (overall)</h2>
+    <p>5 thành phần (5 task), tất cả re-use domain primitives có sẵn:</p>
+    <ol class="list-decimal list-inside mt-2 space-y-1 text-sm">
+      <li><strong>Entry rule</strong> — runtime heuristic (<code class="bg-slate-100 px-1 rounded">dayOfMonth &gt;= 25</code>), không persist lúc đầu.</li>
+      <li><strong>MonthCloseBanner</strong> — Card trên HomeScreen, dynamic copy theo plan state.</li>
+      <li><strong>Review-to-plan handoff</strong> — CTA cuối <code class="bg-slate-100 px-1 rounded">MonthlyReviewScreen</code> deep-link sang <code class="bg-slate-100 px-1 rounded">MonthlyPlanScreen</code> với source suggestion phù hợp.</li>
+      <li><strong>Carry-over explanation</strong> — copy ngắn giải thích <code class="bg-slate-100 px-1 rounded">+X ₫ chuyển từ tháng trước</code> đang ảnh hưởng category nào (review + plan).</li>
+      <li><strong>Dismiss logic</strong> — key <code class="bg-slate-100 px-1 rounded">month_close_dismissed_{previousMonthYYYYMM}</code> trong <code class="bg-slate-100 px-1 rounded">AppSettingsViewModel</code> (reactive, mirror ADR-0050 pattern).</li>
+    </ol>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §3 — Entry rule (§Task 5.1)                                   -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§3 Entry rule (§Task 5.1)</h2>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-100"><th class="text-left p-2">Quyết định</th><th class="text-left p-2">Spec</th></tr></thead>
+      <tbody>
+        <tr class="border-t">
+          <td class="p-2"><strong>CTA hiện khi</strong></td>
+          <td class="p-2"><code>dayOfMonth &gt;= 25</code> (today là ngày 25 → hết tháng)</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>CTA ẩn khi</strong></td>
+          <td class="p-2">User dismiss cho tháng đó (key <code>month_close_dismissed_YYYYMM</code> với YYYYMM = previous month) HOẶC <code>dayOfMonth &lt; 25</code></td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Target month semantics</strong></td>
+          <td class="p-2">CTA "Xem tổng kết tháng này" → mở <code>MonthlyReviewScreen</code> với <code>selectedMonth = previousMonth</code> (tháng trước, đã kết thúc) — không phải tháng hiện tại đang chạy.</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Runtime-only</strong></td>
+          <td class="p-2">Tính mỗi build từ <code>DateTime.now()</code>. Không persist rule lúc đầu. Có thể add "always show" toggle ở Settings sau nếu user yêu cầu.</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Edge case: tháng mới bắt đầu</strong></td>
+          <td class="p-2">Ngày 1-24 tháng mới: CTA ẩn. Ngày 25+ mới hiện lại (với target = tháng vừa qua — month rollover case tự nhiên).</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §4 — MonthCloseBanner widget (§Task 5.2)                     -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§4 MonthCloseBanner widget (§Task 5.2)</h2>
+    <p>Card đặt giữa <code class="bg-slate-100 px-1 rounded">BudgetOverviewWidget</code> và <code class="bg-slate-100 px-1 rounded">WeeklyReviewCard</code> trên HomeScreen.</p>
+
+    <h3 class="text-base font-semibold mt-3 mb-1">§4.1 Dynamic copy theo plan state</h3>
+    <p>Query <code class="bg-slate-100 px-1 rounded">MonthlyPlanViewModel</code> để check <code class="bg-slate-100 px-1 rounded">data.plan</code> cho <code class="bg-slate-100 px-1 rounded">previousMonth</code> + 1 tháng (= current month +1 = tháng tới target):</p>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-100"><th class="text-left p-2">Plan state</th><th class="text-left p-2">Copy + CTA priority</th></tr></thead>
+      <tbody>
+        <tr class="border-t">
+          <td class="p-2">Không có plan cho "tháng tới"</td>
+          <td class="p-2">
+            <strong>Heading:</strong> "Đã đến lúc chốt tháng này"<br>
+            <strong>Sub:</strong> "Tạo kế hoạch tháng tới từ số liệu tháng {previousMonthLabel}"<br>
+            <strong>Primary CTA:</strong> "Lên kế hoạch tháng tới" (icon <code>Icons.event_note</code>)<br>
+            <strong>Secondary CTA:</strong> "Xem tổng kết" (icon <code>Icons.bar_chart</code>)
+          </td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">Có plan draft (status=draft, appliedAt=null)</td>
+          <td class="p-2">
+            <strong>Heading:</strong> "Bạn đã có kế hoạch tháng tới"<br>
+            <strong>Sub:</strong> "Đã lên {N} hạng mục · cập nhật {updatedAtLabel}"<br>
+            <strong>Primary CTA:</strong> "Mở kế hoạch" (icon <code>Icons.edit_note</code>)<br>
+            <strong>Secondary CTA:</strong> "Xem tổng kết" (icon <code>Icons.bar_chart</code>)
+          </td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">Có plan applied (status=applied, appliedAt!=null)</td>
+          <td class="p-2">
+            <strong>Heading:</strong> "Kế hoạch tháng tới đã sẵn sàng"<br>
+            <strong>Sub:</strong> "Đã áp dụng {appliedAtLabel} · {N} hạng mục"<br>
+            <strong>Primary CTA:</strong> "Xem kế hoạch" (icon <code>Icons.visibility</code>)<br>
+            <strong>Secondary CTA:</strong> "Xem tổng kết" (icon <code>Icons.bar_chart</code>)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 class="text-base font-semibold mt-3 mb-1">§4.2 Dismiss button</h3>
+    <p>IconButton <code class="bg-slate-100 px-1 rounded">Icons.close</code> ở top-right của Card. Tap → set dismiss key cho <code class="bg-slate-100 px-1 rounded">previousMonthYYYYMM</code> (không phải current month). Snackbar 5s: "Đã ẩn gợi ý chốt tháng" + action "Hoàn tác" (mirror existing Undo pattern — clear key).</p>
+
+    <h3 class="text-base font-semibold mt-3 mb-1">§4.3 Visual</h3>
+    <p>Card với background nhẹ (<code class="bg-slate-100 px-1 rounded">colorScheme.primaryContainer</code> hoặc <code class="bg-slate-100 px-1 rounded">surfaceContainerHigh</code>), icon đầu heading, 2 button Row cuối. Mirror style <code class="bg-slate-100 px-1 rounded">WeeklyReviewCard</code> (rounded 12px, padding 16).</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §5 — Review-to-plan handoff (§Task 5.3)                      -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§5 Review-to-plan handoff (§Task 5.3)</h2>
+    <p>Cuối <code class="bg-slate-100 px-1 rounded">MonthlyReviewScreen</code> (sau compare section, trước fixed expense hoặc cuối scroll), thêm 1 Card mới:</p>
+    <ul class="list-disc list-inside mt-2 text-sm space-y-1">
+      <li><strong>Heading:</strong> "Bước tiếp theo"</li>
+      <li><strong>Body:</strong> "Dùng số liệu tháng này làm cơ sở cho kế hoạch tháng {nextMonthLabel}"</li>
+      <li><strong>Primary CTA:</strong> "Lên kế hoạch tháng tới" → <code class="bg-slate-100 px-1 rounded">Navigator.push(MonthlyPlanScreen)</code>. Nếu đã có plan draft, copy = "Mở kế hoạch hiện tại".</li>
+      <li><strong>Secondary CTA:</strong> "Chỉ xem" (đóng card, không navigate).</li>
+    </ul>
+    <p class="mt-2">Source suggestion (xem §4.1) đã được <code class="bg-slate-100 px-1 rounded">MonthlyPlanScreen</code> tự detect khi mở (xem <code class="bg-slate-100 px-1 rounded">MonthlyPlanViewModel._loadPlan</code> ADR-0026 §Source resolution) — copy từ review/previous month snapshot sẽ tự fallback từ <code class="bg-slate-100 px-1 rounded">copy_previous_snapshot</code> nếu chưa có plan. <strong>Không cần truyền source qua Navigator</strong> — VM đã handle.</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §6 — Carry-over explanation polish (§Task 5.4)                -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§6 Carry-over explanation polish (§Task 5.4)</h2>
+    <p>Hiện tại code đã có (ADR-0025 + ADR-0035):</p>
+    <ul class="list-disc list-inside mt-2 text-sm space-y-1">
+      <li><code class="bg-slate-100 px-1 rounded">BudgetSnapshot.carryAmount</code> persist ở v14.</li>
+      <li>Monthly Review (past month) hiển thị "Còn dư chuyển tháng sau: +X ₫" per category (ADR-0035).</li>
+      <li>Budget overview current month hiển thị "Chuyển từ tháng trước: +..." (ADR-0032).</li>
+    </ul>
+    <p class="mt-2">Polished copy ngắn (≤80 ký tự) inline ở 2 chỗ:</p>
+    <ol class="list-decimal list-inside mt-2 space-y-1 text-sm">
+      <li><strong>Monthly Review (current month, applied plan path):</strong> dưới budget highlight, dim text 12px: "Carry-over từ {previousMonthLabel} sẽ áp dụng tự động khi tháng kết thúc" — chỉ khi user chưa có carry_amount set cho tháng hiện tại.</li>
+      <li><strong>Monthly Plan screen</strong> (draft state): trong total budget input, dim hint: "Số liệu carry-over từ {previousMonthLabel} sẽ được cộng vào khi áp dụng plan" — chỉ khi user chưa manually adjust total budget.</li>
+    </ol>
+    <p class="mt-2">Không thêm field mới vào model — chỉ read <code class="bg-slate-100 px-1 rounded">BudgetSnapshot.carryAmount</code> existing + check 1 boolean flag qua <code class="bg-slate-100 px-1 rounded">AppSettings</code> key <code>budget_carry_explained_YYYYMM</code> (tương tự dismiss key, không annoy user).</p>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §7 — Dismiss logic (§Task 5.5)                                -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§7 Dismiss logic (§Task 5.5)</h2>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-100 px-1 rounded"><th class="text-left p-2">Quyết định</th><th class="text-left p-2">Spec</th></tr></thead>
+      <tbody>
+        <tr class="border-t">
+          <td class="p-2"><strong>Key format</strong></td>
+          <td class="p-2"><code>month_close_dismissed_{YYYYMM}</code> với YYYYMM = <strong>previous month</strong> (tháng cần chốt), không phải current month.</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Storage</strong></td>
+          <td class="p-2">SharedPreferences qua <code>AppSettingsViewModel</code> (ADR-0050 pattern). Reactive — <code>Selector&lt;AppSettingsViewModel, String?&gt;</code> watching dismissed key.</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>AppSettingsViewModel API</strong></td>
+          <td class="p-2">
+            <code>String? getDismissedMonthClose(String yearMonth)</code><br>
+            <code>Future&lt;void&gt; setDismissedMonthClose(String yearMonth)</code><br>
+            <code>Future&lt;void&gt; clearDismissedMonthClose(String yearMonth)</code> (cho Undo)
+          </td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Auto-cleanup</strong></td>
+          <td class="p-2">Không cần (key tự nhiên không relevant sau khi sang tháng mới vì check <code>dayOfMonth &gt;= 25</code> + previous-month mới). Nếu user tích luỹ 5+ key thì SharedPreferences rất nhỏ (&lt;1KB).</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2"><strong>Backup/restore</strong></td>
+          <td class="p-2">Out of scope. <code>month_close_dismissed_*</code> là user-specific UI preference, không thuộc financial data. Mirror <code>auto_purge_enabled</code> precedent (ADR-0047).</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §8 — Files modified                                           -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§8 Files modified</h2>
+    <ul class="list-disc list-inside text-sm space-y-1">
+      <li><code>lib/widgets/month_close_banner.dart</code> (new) — Banner widget + dynamic copy.</li>
+      <li><code>lib/viewmodels/app_settings_viewmodel.dart</code> — add 3 dismiss methods.</li>
+      <li><code>lib/views/home_screen.dart</code> — insert <code>MonthCloseBanner</code> giữa <code>BudgetOverviewWidget</code> và <code>WeeklyReviewCard</code>. Selector wrap + visibility gate.</li>
+      <li><code>lib/views/monthly_review_screen.dart</code> — add "Bước tiếp theo" card cuối screen.</li>
+      <li><code>lib/views/monthly_plan_screen.dart</code> — add carry-over hint dim text.</li>
+      <li><code>lib/views/monthly_review_screen.dart</code> — add carry-over explanation dim text (current month path).</li>
+      <li><code>docs/adr/0056-month-close-flow-2026-06-15.md</code> (new).</li>
+      <li><code>CONTEXT.md</code> — KDD #49.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §9 — Key bindings (Flutter side)                              -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§9 Key bindings (Flutter)</h2>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-100"><th class="text-left p-2">HTML</th><th class="text-left p-2">Flutter Key</th></tr></thead>
+      <tbody>
+        <tr class="border-t"><td class="p-2"><code>data-state="visible"</code></td><td class="p-2"><code>Key('mc-state-visible')</code></td></tr>
+        <tr class="border-t"><td class="p-2"><code>data-state="dismissed"</code></td><td class="p-2"><code>Key('mc-state-dismissed')</code></td></tr>
+        <tr class="border-t"><td class="p-2"><code>data-plan="no-plan"</code></td><td class="p-2"><code>Key('mc-plan-no')</code></td></tr>
+        <tr class="border-t"><td class="p-2"><code>data-plan="draft"</code></td><td class="p-2"><code>Key('mc-plan-draft')</code></td></tr>
+        <tr class="border-t"><td class="p-2"><code>data-plan="applied"</code></td><td class="p-2"><code>Key('mc-plan-applied')</code></td></tr>
+        <tr class="border-t"><td class="p-2">CTA "Lên kế hoạch tháng tới"</td><td class="p-2"><code>Key('mc-cta-plan')</code></td></tr>
+        <tr class="border-t"><td class="p-2">CTA "Xem tổng kết"</td><td class="p-2"><code>Key('mc-cta-review')</code></td></tr>
+        <tr class="border-t"><td class="p-2">Dismiss icon</td><td class="p-2"><code>Key('mc-dismiss')</code></td></tr>
+        <tr class="border-t"><td class="p-2">Snackbar undo</td><td class="p-2"><code>Key('mc-undo')</code></td></tr>
+        <tr class="border-t"><td class="p-2">Carry-over dim text (review)</td><td class="p-2"><code>Key('carry-explain-review')</code></td></tr>
+        <tr class="border-t"><td class="p-2">Carry-over dim text (plan)</td><td class="p-2"><code>Key('carry-explain-plan')</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- §10 — Self-detection 3 câu hỏi                               -->
+  <!-- ============================================================ -->
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§10 Self-detection (ADR type)</h2>
+    <ol class="list-decimal list-inside text-sm space-y-1">
+      <li>Schema bump? <strong>Không</strong> (re-use BudgetPlan + BudgetSnapshot existing; chỉ add 3 methods mới trên AppSettingsViewModel).</li>
+      <li>Dependency / layer architecture change? <strong>Không</strong> (chỉ thêm widget + 3 method VM).</li>
+      <li>Release policy / versioning change? <strong>Không</strong>.</li>
+    </ol>
+    <p class="mt-2">→ <strong>Contract-ref ADR</strong> (5-15 dòng), link contract HTML này làm đặc tả UI/logic.</p>
+  </section>
+
+</div>
+</body>
+</html>

@@ -353,6 +353,18 @@ class _TotalBudgetField extends StatelessWidget {
             ),
             onChanged: (_) => onChanged(),
           ),
+          // ADR-0056 (Epic 5): dim text giải thích "Còn dư chuyển tháng
+          // sau" — số dư category tháng trước sẽ tự động cộng vào giới hạn
+          // mới khi áp dụng plan.
+          const SizedBox(height: 8),
+          const Text(
+            'Đã gồm số dư (nếu có) chuyển từ tháng trước.',
+            key: Key('carry-explain-plan'),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );

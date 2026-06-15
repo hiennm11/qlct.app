@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../viewmodels/monthly_review_viewmodel.dart';
 import '../viewmodels/expense_viewmodel.dart';
+import '../viewmodels/monthly_plan_viewmodel.dart';
 import '../core/theme.dart';
 import '../core/formatters.dart';
 import '../models/monthly_review_data.dart';
 import '../widgets/skeleton_box.dart';
+import 'monthly_plan_screen.dart';
 
 /// Static Vietnamese month names — no locale-data dependency.
 const _viMonthNames = [
@@ -270,6 +272,13 @@ class _ReviewContent extends StatelessWidget {
           _FixedExpenseSection(data: data),
           const SizedBox(height: 16),
           _CategoryHighlightsSection(data: data),
+          const SizedBox(height: 16),
+          // ADR-0056 (Epic 5): review-to-plan handoff — Card cuối screen
+          // "Bước tiếp theo" → Navigator.push(MonthlyPlanScreen). Source
+          // suggestion tự resolve trong MonthlyPlanViewModel theo
+          // previous-month snapshot (ADR-0026 §Source resolution) — không
+          // cần truyền qua Navigator.
+          const _NextStepSection(),
         ],
       ),
     );
@@ -667,6 +676,14 @@ class _CategoryHighlightsSection extends StatelessWidget {
             const Divider(),
             const SizedBox(height: 8),
             const Text('Ngân sách vượt', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            // ADR-0056 (Epic 5): dim text giải thích "Còn dư chuyển tháng
+            // sau" — số dư cuối tháng sẽ tự động cộng vào budget tháng tới.
+            const SizedBox(height: 4),
+            const Text(
+              'Số dư cuối tháng sẽ chuyển sang kế hoạch tháng sau.',
+              key: Key('carry-explain-review'),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
             const SizedBox(height: 8),
             ...data.budgetHighlights.map((b) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
@@ -716,5 +733,96 @@ class _CategoryHighlightsSection extends StatelessWidget {
     expenseVm.setCategoryFilter(categoryName);
     expenseVm.setDateRangeFilter(monthStart, monthEnd);
     Navigator.of(context).pop();
+  }
+}
+
+/// ADR-0056 (Epic 5 — month close flow): review-to-plan handoff card.
+/// Card cuối MonthlyReviewScreen "Bước tiếp theo" → Navigator.push
+/// (MonthlyPlanScreen). Dynamic copy theo plan state của tháng tới:
+/// - no-plan → "Lên kế hoạch tháng tới"
+/// - draft/applied → "Mở kế hoạch hiện tại"
+/// Source suggestion tự resolve trong MonthlyPlanViewModel — không cần
+/// truyền source qua Navigator.
+class _NextStepSection extends StatelessWidget {
+  const _NextStepSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<MonthlyPlanViewModel>(
+      builder: (context, planVM, _) {
+        final plan = planVM.data?.plan;
+        final hasPlan = plan != null;
+        final ctaLabel =
+            hasPlan ? 'Mở kế hoạch hiện tại' : 'Lên kế hoạch tháng tới';
+        final heading = hasPlan
+            ? 'Kế hoạch tháng tới đã có sẵn'
+            : 'Bước tiếp theo: lên kế hoạch tháng tới';
+        final sub = hasPlan
+            ? 'Mở lại bản nháp hoặc điều chỉnh giới hạn theo số liệu vừa rồi.'
+            : 'Dùng số liệu tháng này làm gợi ý để khởi tạo kế hoạch nhanh.';
+
+        return Card(
+          color: AppColors.primary.withValues(alpha: 0.06),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: AppColors.primary.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('➡️', style: TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        heading,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  sub,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    key: const Key('mc-cta-review-next'),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const MonthlyPlanScreen(),
+                        ),
+                      );
+                    },
+                    icon: Icon(
+                      hasPlan ? Icons.edit_note : Icons.add_chart,
+                      size: 18,
+                    ),
+                    label: Text(ctaLabel),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

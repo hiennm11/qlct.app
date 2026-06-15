@@ -23,10 +23,23 @@ class AppSettingsViewModel extends ChangeNotifier {
   static const _kAutoPurgeEnabledKey = 'auto_purge_enabled';
   static const _kLastPurgeDateKey = 'last_purge_date';
 
+  // ADR-0056 (Epic 5 — month close flow): per-month dismiss key cho
+  // MonthCloseBanner. Suffix = previousMonthYYYYMM (tháng cần chốt), không
+  // phải current month. Sang tháng mới tự nhiên reset vì check previousMonth
+  // thay đổi → key cũ không còn relevant. SharedPreferences rất nhỏ nên
+  // không cần auto-cleanup.
+  static const _kMonthCloseDismissedPrefix = 'month_close_dismissed_';
+
   // Default ON per UX copy "Danh mục đã xoá sẽ xuất hiện ở đây trong 30 ngày"
   // (ADR-0045 §implement) + `AutoPurgePrefs.isEnabled` precedent.
   bool _autoPurgeEnabled = true;
   String? _lastPurgeDate; // yyyy-MM-dd, null = chưa purge lần nào
+
+  // Map yearMonth → dismissed (true) hoặc absent (null). Reactive — gọi
+  // setDismissedMonthClose sẽ notify → MonthCloseBanner Selector rebuild
+  // với visibility mới. Cache in-memory để tránh hit SharedPreferences mỗi
+  // build. Lazy-init qua _ensureDismissedMap() trong getDismissedMonthClose.
+  final Map<String, bool> _dismissedMonths = {};
 
   bool get autoPurgeEnabled => _autoPurgeEnabled;
   String? get lastPurgeDate => _lastPurgeDate;
@@ -38,6 +51,43 @@ class AppSettingsViewModel extends ChangeNotifier {
     final enabled = _storage.loadValue<bool>(_kAutoPurgeEnabledKey);
     _autoPurgeEnabled = enabled ?? true;
     _lastPurgeDate = _storage.loadValue<String>(_kLastPurgeDateKey);
+    notifyListeners();
+  }
+
+  // ================================================================
+  // ADR-0056 (Epic 5 — month close flow): per-month dismiss API
+  // ================================================================
+
+  /// `true` nếu user dismissed MonthCloseBanner cho [yearMonth] (format
+  /// `yyyyMM`, ví dụ `'202605'`). First call lazy-loads key từ SharedPreferences
+  /// rồi cache in-memory.
+  bool isMonthCloseDismissed(String yearMonth) {
+    if (_dismissedMonths.containsKey(yearMonth)) {
+      return _dismissedMonths[yearMonth] ?? false;
+    }
+    final key = '$_kMonthCloseDismissedPrefix$yearMonth';
+    final raw = _storage.loadValue<bool>(key) ?? false;
+    _dismissedMonths[yearMonth] = raw;
+    return raw;
+  }
+
+  /// Set dismiss flag cho [yearMonth]. Idempotent — early-return nếu đã set.
+  /// Notify listeners để MonthCloseBanner Selector rebuild (ẩn banner).
+  Future<void> setDismissedMonthClose(String yearMonth) async {
+    if (_dismissedMonths[yearMonth] == true) return;
+    _dismissedMonths[yearMonth] = true;
+    final key = '$_kMonthCloseDismissedPrefix$yearMonth';
+    await _storage.saveValue(key, true);
+    notifyListeners();
+  }
+
+  /// Clear dismiss flag (cho Undo snackbar action). Idempotent. Notify listeners
+  /// để banner re-show.
+  Future<void> clearDismissedMonthClose(String yearMonth) async {
+    if (_dismissedMonths[yearMonth] != true) return;
+    _dismissedMonths[yearMonth] = false;
+    final key = '$_kMonthCloseDismissedPrefix$yearMonth';
+    await _storage.saveValue(key, false);
     notifyListeners();
   }
 

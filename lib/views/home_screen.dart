@@ -11,6 +11,7 @@ import '../widgets/chart_widget.dart';
 import '../widgets/budget_overview_widget.dart';
 import '../widgets/recurring_overview_widget.dart';
 import '../widgets/weekly_review_card.dart';
+import '../widgets/month_close_banner.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/quick_templates_strip.dart';
 import '../core/constants.dart';
@@ -312,6 +313,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SliverToBoxAdapter(
                   child: SizedBox(height: 20),
+                ),
+
+                // Month Close Banner (ADR-0056, Epic 5). Placement: giữa
+                // BudgetOverviewWidget và WeeklyReviewCard. Entry rule
+                // dayOfMonth >= 25 + per-month dismiss key. Selector wrap
+                // internally để chỉ rebuild khi dismiss flag thay đổi.
+                const SliverToBoxAdapter(
+                  child: MonthCloseBanner(),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 12),
                 ),
 
                 // Weekly Review card (ADR-0053, Epic 4). Placement: giữa
