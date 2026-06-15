@@ -27,7 +27,19 @@ class _BudgetOverviewWidgetState extends State<BudgetOverviewWidget> {
   Widget build(BuildContext context) {
     return Consumer<BudgetViewModel>(
       builder: (context, viewModel, child) {
-        if (viewModel.isLoading && viewModel.budgets.isEmpty && viewModel.totalBudget == null) {
+        // ADR-0052 3.1: 3rd term uses OR to close the loading-state gap
+        // where `totalBudget` is pre-loaded from storage (e.g. 5,000,000
+        // VND) but `_stats` is still null. The pre-fix 3-term AND was
+        // `isLoading && budgets.isEmpty && totalBudget == null` which
+        // evaluated to `true && true && false = false` (totalBudget is
+        // non-null after pre-load) so the skeleton was skipped and
+        // empty budget cards briefly flashed before stats arrived. The
+        // fix: `totalBudget == null OR totalBudgetStatus == null` — the
+        // skeleton stays visible until BOTH the pre-loaded budget AND
+        // the computed stats have arrived.
+        if (viewModel.isLoading &&
+            viewModel.budgets.isEmpty &&
+            (viewModel.totalBudget == null || viewModel.totalBudgetStatus == null)) {
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(16),

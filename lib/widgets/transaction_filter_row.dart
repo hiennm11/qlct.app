@@ -145,7 +145,11 @@ class _TransactionFilterRowState extends State<TransactionFilterRow> {
                   firstDate: DateTime(2020),
                   lastDate: DateTime.now(),
                 );
-                if (picked != null) {
+                // ADR-0052 3.3: mounted guard trước khi gọi setDateFilter
+                // (VM notify → setState ở ancestor) sau khi showDatePicker
+                // resolve. Nếu widget unmount trong lúc picker mở (user
+                // back gesture, route pop), setState sẽ throw.
+                if (picked != null && mounted) {
                   widget.viewModel.setDateFilter(picked);
                 }
               },

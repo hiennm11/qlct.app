@@ -241,5 +241,37 @@ void main() {
       expect(find.byIcon(Icons.chevron_left), findsOneWidget);
       expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     });
+
+    // ===== ADR-0052 3.2: small-height viewport regression test =====
+    // Pre-fix: full review screen with all 4 sections (Tổng quan, Phân tích
+    // danh mục, So sánh ngân sách, Giao dịch định kỳ) overflowed at 560px.
+    // Even with empty data, the empty-state Column + 3 month-nav buttons
+    // is enough to push the bottom off-screen. This test guards the
+    // parent scroll view (or section scrollables) against regression.
+    testWidgets('does not overflow at 400x560 viewport with full review sections (regression guard)',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 560));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      // Seed with some data so all 4 sections render
+      final now = DateTime.now();
+      final txs = [
+        Transaction(id: '1', amount: 50000, category: 'Ăn ngoài', categoryId: 'eating-out', emoji: '🍜',
+            date: DateTime(now.year, now.month, 1), note: ''),
+        Transaction(id: '2', amount: 30000, category: 'Cà phê', categoryId: 'coffee', emoji: '☕',
+            date: DateTime(now.year, now.month, 2), note: ''),
+      ];
+      when(() => mockTxDS.getByDateRange(any(), any())).thenAnswer((_) async => txs);
+      when(() => mockBudgetDS.getAll()).thenAnswer((_) async => []);
+
+      final vm = makeVm();
+      await vm.loadMonth();
+
+      await tester.pumpWidget(wrap(const MonthlyReviewScreen(), vm));
+      await tester.pumpAndSettle();
+
+      // No RenderFlex overflow exception should be thrown at 400x560.
+      expect(tester.takeException(), isNull);
+    });
   });
 }

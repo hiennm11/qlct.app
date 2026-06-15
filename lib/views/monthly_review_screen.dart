@@ -297,7 +297,18 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Text(emoji, style: const TextStyle(fontSize: 20)),
                 const SizedBox(width: 8),
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                // ADR-0052 3.2: Flexible wrap section title — pre-fix
+                // Text was unconstrained, ở viewport 400px với title
+                // dài ("So sánh ngân sách tháng", "Giao dịch định kỳ
+                // trong tháng") thì Row overflow 155px. Flexible + ellipsis
+                // cho title co lại an toàn.
+                Flexible(
+                  child: Text(
+                    title,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -352,7 +363,18 @@ class _MetricRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+        // ADR-0052 3.2: Flexible wrap label — pre-fix label Text was
+        // unconstrained, kết hợp với right Text (long currency format)
+        // ở viewport 400px thì Row overflow 28-43px. Flexible cho
+        // label co lại + ellipsis, amount giữ nguyên.
+        Flexible(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal),
+          ),
+        ),
+        const SizedBox(width: 8),
         Text(
           CurrencyFormatter.format(amount),
           style: TextStyle(
@@ -395,7 +417,17 @@ class _BiggestDayRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text('Ngày tiêu nhiều nhất', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        // ADR-0052 3.2: Flexible wrap "Ngày tiêu nhiều nhất" label
+        // (160px) + right text (date + amount ~310px) > 400px viewport.
+        // Flexible cho label ellipsis, right text giữ nguyên.
+        const Flexible(
+          child: Text(
+            'Ngày tiêu nhiều nhất',
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          ),
+        ),
+        const SizedBox(width: 8),
         Text(
           '${DateFormatter.formatDate(day.date)} — ${CurrencyFormatter.format(day.totalAmount)}',
           style: const TextStyle(fontWeight: FontWeight.w500),

@@ -150,7 +150,7 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
             ),
             const SizedBox(height: 12),
             GestureDetector(
-              key: _categoryKey,
+              key: const Key('category-dropdown'),
               onTap: () {
                 final RenderBox box = _categoryKey.currentContext!.findRenderObject() as RenderBox;
                 final Offset offset = box.localToGlobal(Offset.zero);
@@ -205,7 +205,12 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
               ),
             ),
             const SizedBox(height: 12),
-            if (_selectedCategory != null) _buildSuggestionChips(context),
+            // ADR-0052 3.2: SingleChildScrollView wrap cho suggestion chips
+            // với N amounts + N notes Wraps. Pre-fix Column thẳng, nếu
+            // history nhiều thì Wrap run nhiều line → Column height vượt
+            // viewport. Wrap để chips scroll trong Card.
+            if (_selectedCategory != null)
+              SingleChildScrollView(child: _buildSuggestionChips(context)),
             const SizedBox(height: 12),
             TextField(
               controller: _noteController,

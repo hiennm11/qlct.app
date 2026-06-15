@@ -158,4 +158,27 @@ void main() {
     // "Gợi ý" label should not appear since no history
     expect(find.text('Gợi ý số tiền'), findsNothing);
   });
+
+  // ===== ADR-0052 3.2: small-height viewport regression test =====
+  // Pre-fix: ListView.separated with NeverScrollableScrollPhysics inside
+  // a Column (no scroll physics) overflowed when expanded with 5+
+  // categories at 560px viewport (5 category cards + slider + chips > 560).
+  // Wrap moved expanded list into SingleChildScrollView. This test guards
+  // against re-introducing the unwrapped ListView.
+  testWidgets('does not overflow at 400x560 viewport when expanded with 5+ categories (regression guard)',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 560));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    // _FakeCategoryViewModel is seeded with 5+ seedCategories by default
+    // (Ăn ngoài, Cà phê, Ăn nhà, Xăng, Giải trí — at least 5).
+    await pumpWithHistory(tester, []);
+
+    // Expand the quick input panel
+    await tester.tap(find.text('⚡ Ghi chép nhanh'));
+    await tester.pumpAndSettle();
+
+    // No RenderFlex overflow exception should be thrown at 400x560.
+    expect(tester.takeException(), isNull);
+  });
 }

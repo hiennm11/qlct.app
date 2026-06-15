@@ -142,7 +142,8 @@ class _RecurringEditDialogState extends State<RecurringEditDialog> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
     );
-    if (picked != null) {
+    // ADR-0052 3.3: mounted guard trước setState sau showDatePicker await.
+    if (picked != null && mounted) {
       setState(() => _startDate = picked);
     }
   }

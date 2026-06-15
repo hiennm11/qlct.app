@@ -384,4 +384,38 @@ void main() {
       expect(cards, findsAtLeastNWidgets(1));
     });
   });
+
+  // ===== ADR-0052 3.2: small-height viewport regression test =====
+  // Pre-fix: Column inside Card overflowed at 4+ rules in 560px viewport
+  // (maxDisplay cap = 5, so any user with 5 rules hit it). Wrap moved
+  // content into SingleChildScrollView; this test guards against
+  // re-introducing the unwrapped Column.
+  group('RecurringOverviewWidget - ADR-0052 small-height viewport', () {
+    testWidgets('does not overflow at 400x560 viewport with 5 rule cards (regression guard)',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 560));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final rules = <RecurringTransaction>[
+        for (var i = 0; i < 5; i++)
+          RecurringTransaction(
+            id: 'rule-$i',
+            categoryName: 'Cà phê',
+            categoryId: 'coffee',
+            amount: 20000,
+            frequency: 'daily',
+            nextRunAt: DateTime(2026, 6, 4),
+            createdAt: DateTime(2026, 6, 1),
+          ),
+      ];
+      when(() => mockRecurringRepo.getAll()).thenAnswer((_) async => rules);
+      vm = RecurringTransactionViewModel(mockRecurringRepo, mockTransactionRepo, mockCategoryDS);
+
+      await tester.pumpWidget(buildWidget());
+      await tester.pumpAndSettle();
+
+      // No RenderFlex overflow exception should be thrown at 400x560.
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

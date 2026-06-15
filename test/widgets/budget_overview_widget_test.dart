@@ -388,4 +388,67 @@ void main() {
   //    thực sự, nên assertion 'Đầu tư' findsNothing vẫn pass dù filter
   //    không hoạt động. Test giả vờ pass → không có signal coverage.
   // User explicit permission: 'cái nào cổ quá k liên quan hiện tại có thể remove'.
+
+  // ===== ADR-0052 3.1: loading-state gap regression test =====
+  // Reproduces the bug where `totalBudget` is pre-loaded from storage
+  // (mockStorage returns 5,000,000) but `_stats` is still null. The
+  // 3-term skeleton guard (pre-fix) was `isLoading && budgets.isEmpty
+  // && totalBudget == null` = `true && true && false = false` — the
+  // skeleton was skipped, empty cards briefly flashed before stats
+  // arrived. Fix adds 4th term `totalBudgetStatus == null` so the
+  // skeleton stays visible until stats populate.
+  group('BudgetOverviewWidget - ADR-0052 loading-state gap', () {
+    testWidgets(
+      'pre-fix bug: totalBudget pre-loaded + null stats → skeleton still rendered (regression guard)',
+      (tester) async {
+        // vm is already constructed in setUp with mockStorage returning
+        // 5,000,000. isLoading starts true (forceReload was called in
+        // setUp) and _stats is null (ProxyProvider has not delivered).
+        // After settleVm, isLoading flips to false but stats still null.
+        // The 4-term guard should now hold the skeleton.
+        await tester.pumpWidget(wrap());
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+
+        // Pre-fix: skeleton skipped → empty SectionHeader + empty
+        //   list flashed. Post-fix: skeleton visible (key state-budget-
+        //   overview-loading at line 35 of widget).
+        expect(find.byKey(const Key('state-budget-overview-loading')), findsOneWidget);
+      },
+    );
+
+    testWidgets('does not overflow at 400x560 viewport with 4+ budget cards (regression guard)',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 560));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      // Reuse mixedBudgets() (3 budgets) + add 1 more so 4 cards render
+      // — the original hotfix found overflow at 4+.
+      when(() => mockRepo.getAll()).thenAnswer((_) async => [
+            ...mixedBudgets(),
+            Budget(
+              id: '4',
+              categoryName: 'Giải trí',
+              categoryId: 'entertainment',
+              monthlyLimit: 800000,
+              alertThreshold: 80,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]);
+      vm.forceReload();
+
+      // Flush real microtasks so _loadBudgets completes.
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // No RenderFlex overflow exception should be thrown at 400x560.
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

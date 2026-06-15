@@ -43,38 +43,50 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Expandable header
-            InkWell(
-              onTap: () {
-                setState(() {
-                  _isExpanded = !_isExpanded;
-                });
-              },
-              child: Row(
-                children: [
-                  Icon(
-                    _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '⚡ Ghi chép nhanh',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ],
+        // ADR-0052 3.2: SingleChildScrollView wrap toàn bộ Card content.
+        // Pre-fix Column trực tiếp ở line 46 → khi expanded với 5+
+        // categories, Column height vượt viewport 560px gây RenderFlex
+        // overflow 1243px. Wrap SingleChildScrollView để content scroll
+        // trong Card. Header Row cũng wrap Flexible để title "⚡ Ghi
+        // chép nhanh" không tràn 28px ở viewport 400px.
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Expandable header
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _isExpanded = !_isExpanded;
+                  });
+                },
+                child: Row(
+                  children: [
+                    Icon(
+                      _isExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    // Flexible để title co lại ở viewport hẹp 400px (title
+                    // ~430px > 400px, overflow 28px). Không ellipsis — title
+                    // ngắn, chỉ cần wrap flex.
+                    Flexible(
+                      child: Text(
+                        '⚡ Ghi chép nhanh',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            // Expandable content
-            if (_isExpanded) ...[
-              const SizedBox(height: 16),
-              Builder(
-                builder: (ctx) {
-                  final cats = ctx.watch<CategoryViewModel>().quickInputCategories;
-                  if (cats.isEmpty) return const SizedBox.shrink();
-                  return ListView.separated(
+              // Expandable content
+              if (_isExpanded) ...[
+                const SizedBox(height: 16),
+                Builder(
+                  builder: (ctx) {
+                    final cats = ctx.watch<CategoryViewModel>().quickInputCategories;
+                    if (cats.isEmpty) return const SizedBox.shrink();
+                    return ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: cats.length,
@@ -192,6 +204,7 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
               ),
             ],
           ],
+        ),
         ),
       ),
     );

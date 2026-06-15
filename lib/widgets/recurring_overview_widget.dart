@@ -72,30 +72,38 @@ class RecurringOverviewWidget extends StatelessWidget {
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SectionHeader(
-                  emoji: '🔄',
-                  title: 'Giao dịch định kỳ',
-                  onAction: () => _showAddDialog(context),
-                  actionIcon: Icons.add,
-                ),
-                const SizedBox(height: 12),
-                if (rules.isEmpty)
-                  const _EmptyState()
-                else ...[
-                  ...displayRules.map((rule) => _buildRuleCard(context, rule)),
-                  if (hasMore)
-                    TextButton(
-                      onPressed: () => RecurringListSheet.show(context),
-                      child: Text(
-                        'Xem thêm ${rules.length - maxDisplay} mục',
-                        style: const TextStyle(color: AppColors.textSecondary),
+            // ADR-0052 3.2: SingleChildScrollView để tránh RenderFlex
+            // overflow khi N≥4 rule cards (maxDisplay=5 cap, nhưng
+            // _buildRuleCard có ListTile multi-line subtitle, height
+            // stack up). Pre-fix Column thẳng, viewport 560px với 4+
+            // rules thì bị cắt khỏi viewport — same pattern bug đã hit
+            // budget_overview trước đây.
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SectionHeader(
+                    emoji: '🔄',
+                    title: 'Giao dịch định kỳ',
+                    onAction: () => _showAddDialog(context),
+                    actionIcon: Icons.add,
+                  ),
+                  const SizedBox(height: 12),
+                  if (rules.isEmpty)
+                    const _EmptyState()
+                  else ...[
+                    ...displayRules.map((rule) => _buildRuleCard(context, rule)),
+                    if (hasMore)
+                      TextButton(
+                        onPressed: () => RecurringListSheet.show(context),
+                        child: Text(
+                          'Xem thêm ${rules.length - maxDisplay} mục',
+                          style: const TextStyle(color: AppColors.textSecondary),
+                        ),
                       ),
-                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );
