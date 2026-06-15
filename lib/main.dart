@@ -296,15 +296,24 @@ class MyApp extends StatelessWidget {
         // marks data stale → next load() recomputes. Mirror BudgetViewModel
         // pattern (ADR-0005) but weeklyVM doesn't need expense stats; only
         // needs dirty signal.
-        ChangeNotifierProxyProvider<ExpenseViewModel, WeeklyReviewViewModel>(
-          create: (_) => WeeklyReviewViewModel(
-            transactionDataSource: transactionDataSource,
-            budgetDataSource: budgetDataSource,
-            recurringDataSource: recurringDataSource,
-            categoryDataSource: categoryDataSource,
-          ),
-          update: (_, expenseVM, weeklyVM) {
-            weeklyVM!.invalidate();
+        // ADR-0057 (race fix 2026-06-16): drop ChangeNotifierProxyProvider.
+        // Old pattern: update() fires on every weeklyVM.notify (cascade)
+        // → re-calls invalidate() → re-notify → ... infinite micro-loop
+        // where dirty=true blocks load() from completing. Replace with
+        // plain ChangeNotifierProvider + manual listener on ExpenseVM
+        // attached once in create. Listener calls invalidate() (no
+        // notify) so cascade impossible.
+        ChangeNotifierProvider<WeeklyReviewViewModel>(
+          create: (context) {
+            final weeklyVM = WeeklyReviewViewModel(
+              transactionDataSource: transactionDataSource,
+              budgetDataSource: budgetDataSource,
+              recurringDataSource: recurringDataSource,
+              categoryDataSource: categoryDataSource,
+            );
+            // Wire listener once. ExpenseVM notify on add/edit/delete
+            // → mark stale. No notify needed (cascade guard).
+            context.read<ExpenseViewModel>().addListener(weeklyVM.invalidate);
             return weeklyVM;
           },
         ),

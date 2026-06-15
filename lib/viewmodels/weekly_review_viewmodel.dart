@@ -16,6 +16,13 @@ import '../services/weekly_review_builder.dart';
 /// ExpenseViewModel.allTransactions (pagination problem, mirror ADR-0021).
 ///
 /// ADR-0053: Weekly Review Card on Home (Epic 4)
+/// ADR-0057 (race fix 2026-06-16): proxy chain `ExpenseVM → WeeklyVM → notify →
+/// ProxyProvider update → invalidate → notify → ...` caused cascade re-fire.
+/// Fix: drop `ChangeNotifierProxyProvider` pattern, use plain
+/// `ChangeNotifierProvider` + manual listener on ExpenseVM. Listener marks
+/// dirty (in-memory only, no notify to avoid cascade) → next `load()` recomputes.
+/// Selector-based auto-refresh dropped; widgets call `load()` directly after
+/// observing `isDirty` via plain `Consumer`.
 class WeeklyReviewViewModel extends ChangeNotifier {
   final TransactionLocalDataSource _transactionDataSource;
   final BudgetLocalDataSource _budgetDataSource;
@@ -44,9 +51,10 @@ class WeeklyReviewViewModel extends ChangeNotifier {
   WeeklyReviewData? get data => _data;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  /// True when ProxyProvider marked data stale (e.g. ExpenseVM notify from
-  /// add/edit/delete) but no `load()` has been triggered yet. Widget watches
-  /// this via Selector to auto-refresh without polling. ADR-0054.
+  /// True when data is stale (ExpenseVM notified from add/edit/delete) but
+  /// `load()` hasn't re-run yet. Widget reads via Consumer; on transition
+  /// true→false calls `load()` from `didChangeDependencies` or
+  /// `addPostFrameCallback`. ADR-0057.
   bool get isDirty => _dirty;
 
   /// Load weekly review for current week.
@@ -59,11 +67,14 @@ class WeeklyReviewViewModel extends ChangeNotifier {
     await _load();
   }
 
-  /// Mark data as stale. ProxyProvider calls this on ExpenseViewModel notify.
-  /// Next `load()` will recompute. Notifies listeners so widgets watching
-  /// `isDirty` (e.g. Selector-based auto-refresh) can react (ADR-0054).
+  /// Mark data as stale. Listener on ExpenseVM calls this. No-op if already
+  /// dirty. Calls `notifyListeners()` ONCE so Consumer<WeeklyVM> rebuilds
+  /// and the postFrame `load()` side-effect fires. Cascade-safe because we
+  /// no longer wrap in `ChangeNotifierProxyProvider<ExpenseVM, WeeklyVM>`
+  /// (ADR-0057): old proxy's `update` callback fired on every weeklyVM
+  /// notify → re-called invalidate → re-notify → infinite micro-loop.
   void invalidate() {
-    if (_dirty) return; // no-op nếu đã dirty — tránh redundant rebuild
+    if (_dirty) return;
     _dirty = true;
     notifyListeners();
   }

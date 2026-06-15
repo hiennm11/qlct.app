@@ -51,59 +51,56 @@ class _WeeklyReviewCardState extends State<WeeklyReviewCard> {
 
   @override
   Widget build(BuildContext context) {
-    // ADR-0054 §Auto-refresh: wrap Consumer trong Selector<VM, bool> watching
-    // isDirty. Khi ProxyProvider<ExpenseVM> mark dirty (user add/edit/delete
-    // tx), Selector re-emits → side-effect schedule vm.load() qua
-    // postFrameCallback. Sau khi load xong, _dirty = false → Selector
-    // re-emit false → không loop. Tránh polling, không cần listener.
-    return Selector<WeeklyReviewViewModel, bool>(
-      selector: (_, vm) => vm.isDirty,
-      builder: (context, isDirty, _) {
-        if (isDirty) {
+    // ADR-0057 (race fix 2026-06-16): drop Selector-based auto-refresh.
+    // Old pattern used Selector<VM, bool> watching isDirty + postFrame to
+    // call vm.load() — but Selector only re-emits when value changes via
+    // VM.notifyListeners. Now that invalidate() is notify-less (cascade
+    // guard), isDirty transitions are silent. Use didChangeDependencies
+    // hook instead: when Consumer<VM> rebuilds (data/loading changed),
+    // check isDirty and call load() in a postFrame.
+    return Consumer<WeeklyReviewViewModel>(
+      builder: (context, vm, _) {
+        if (vm.isDirty && vm.data != null && !vm.isLoading) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
-              context.read<WeeklyReviewViewModel>().load();
+              vm.load();
             }
           });
         }
-        return Consumer<WeeklyReviewViewModel>(
-          builder: (context, vm, _) {
-            if (vm.errorMessage != null) {
-              return _ErrorView(
-                message: vm.errorMessage!,
-                onRetry: () => vm.refresh(),
-              );
-            }
+        if (vm.errorMessage != null) {
+          return _ErrorView(
+            message: vm.errorMessage!,
+            onRetry: () => vm.refresh(),
+          );
+        }
 
-            if (vm.isLoading && vm.data == null) {
-              return const _LoadingView();
-            }
+        if (vm.isLoading && vm.data == null) {
+          return const _LoadingView();
+        }
 
-            final data = vm.data;
-            if (data == null) {
-              return const SizedBox.shrink();
-            }
+        final data = vm.data;
+        if (data == null) {
+          return const SizedBox.shrink();
+        }
 
-            if (data.lowDataState == WeeklyReviewLowDataState.empty) {
-              return const _WeeklyReviewEmptyState();
-            }
+        if (data.lowDataState == WeeklyReviewLowDataState.empty) {
+          return const _WeeklyReviewEmptyState();
+        }
 
-            if (data.lowDataState == WeeklyReviewLowDataState.low) {
-              return _LowDataView(
-                data: data,
-                onCtaTap: widget.onCtaTap,
-              );
-            }
+        if (data.lowDataState == WeeklyReviewLowDataState.low) {
+          return _LowDataView(
+            data: data,
+            onCtaTap: widget.onCtaTap,
+          );
+        }
 
-            return Consumer<CategoryViewModel>(
-              builder: (context, catVM, _) {
-                return _NormalView(
-                  data: data,
-                  categories: catVM.activeCategories,
-                  onCtaTap: widget.onCtaTap,
-                  onTopCategoryTap: widget.onTopCategoryTap,
-                );
-              },
+        return Consumer<CategoryViewModel>(
+          builder: (context, catVM, _) {
+            return _NormalView(
+              data: data,
+              categories: catVM.activeCategories,
+              onCtaTap: widget.onCtaTap,
+              onTopCategoryTap: widget.onTopCategoryTap,
             );
           },
         );
