@@ -90,55 +90,43 @@ String? _normalizeDsn(String raw) {
 }
 
 Future<void> _initApp() async {
-  debugPrint('🚀 Initializing app...');
+  // ADR-0055: cold start perf — timestamp checkpoints for Phase A/B/C profiling.
+  final t0 = DateTime.now().millisecondsSinceEpoch;
+  debugPrint('⏱ [t+0] _initApp start');
 
   // Initialize dependencies
-  debugPrint('📦 Getting SharedPreferences...');
-  final prefs = await SharedPreferences.getInstance();
-  debugPrint('✅ SharedPreferences initialized');
+  debugPrint('⏱ [Phase A] SharedPreferences + DB init (parallel, ADR-0055 §Fix 1)');
+  final results = await Future.wait<dynamic>([
+    SharedPreferences.getInstance(),
+    Future(() async {
+      final helper = DatabaseHelper();
+      await helper.database; // force init
+      return helper;
+    }),
+  ]);
+  final prefs = results[0] as SharedPreferences;
+  final dbHelper = results[1] as DatabaseHelper;
+  debugPrint('⏱ [t+${DateTime.now().millisecondsSinceEpoch - t0}ms] SharedPreferences + DB ready');
 
   // Initialize StorageService for SharedPreferences
   final storageService = StorageService(prefs);
 
-  debugPrint('💾 Setting up database...');
-  final dbHelper = DatabaseHelper();
   final transactionDataSource = SqliteTransactionDataSource(dbHelper);
-  debugPrint('✅ Database ready');
 
-  debugPrint('🔄 Running migration...');
+  debugPrint('⏱ [Phase A] MigrationService.migrate()');
   final migrationService = MigrationService(dbHelper);
   await migrationService.migrate();
-  debugPrint('✅ Migration done');
+  debugPrint('⏱ [t+${DateTime.now().millisecondsSinceEpoch - t0}ms] Migration done');
 
-  debugPrint('📤 Setting up export service...');
   final exportService = ExportService();
-  debugPrint('✅ Export service ready');
 
-  debugPrint('💾 Setting up category data source...');
   final categoryDataSource = SqliteCategoryDataSource(dbHelper);
-  debugPrint('✅ Category data source ready');
-
-  debugPrint('💰 Setting up budget data source...');
   final budgetDataSource = SqliteBudgetDataSource(dbHelper);
-  debugPrint('✅ Budget data source ready');
-
-  debugPrint('📸 Setting up budget snapshot data source...');
   final budgetSnapshotDataSource = SqliteBudgetSnapshotDataSource(dbHelper);
-  debugPrint('✅ Budget snapshot data source ready');
-
-  debugPrint('📋 Setting up budget plan data source...');
   final budgetPlanDataSource = SqliteBudgetPlanDataSource(dbHelper);
-  debugPrint('✅ Budget plan data source ready');
-
-  debugPrint('🔄 Setting up recurring data source...');
   final recurringDataSource = SqliteRecurringDataSource(dbHelper);
-  debugPrint('✅ Recurring data source ready');
-
-  debugPrint('⚡ Setting up quick template data source...');
   final quickTemplateDataSource = SqliteQuickTemplateDataSource(dbHelper);
-  debugPrint('✅ Quick template data source ready');
 
-  debugPrint('📦 Setting up backup service...');
   final backupService = BackupService(
     transactionDataSource,
     budgetDataSource,
@@ -150,9 +138,8 @@ Future<void> _initApp() async {
     storageService,
     dbHelper,
   );
-  debugPrint('✅ Backup service ready');
 
-  debugPrint('Starting app...');
+  debugPrint('⏱ [t+${DateTime.now().millisecondsSinceEpoch - t0}ms] runApp()');
   runApp(MyApp(
     transactionDataSource: transactionDataSource,
     budgetDataSource: budgetDataSource,
@@ -165,6 +152,11 @@ Future<void> _initApp() async {
     storageService: storageService,
     backupService: backupService,
   ));
+
+  // First frame paint marker
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    debugPrint('⏱ [t+${DateTime.now().millisecondsSinceEpoch - t0}ms] FIRST FRAME PAINTED');
+  });
 }
 
 Widget _buildErrorApp() {
@@ -283,6 +275,9 @@ class MyApp extends StatelessWidget {
             categoryDataSource: categoryDataSource,
           ),
         ),
+        // ADR-0055 (cold start perf): defer MonthlyPlanViewModel.load() from
+        // ctor microtask → on-demand khi MonthlyPlanScreen.initState postFrame.
+        // Save ~20-50ms cold start path.
         ChangeNotifierProvider(
           create: (_) => MonthlyPlanViewModel(
             budgetPlanDataSource: budgetPlanDataSource,

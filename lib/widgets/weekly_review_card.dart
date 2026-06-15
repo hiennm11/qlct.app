@@ -35,10 +35,16 @@ class _WeeklyReviewCardState extends State<WeeklyReviewCard> {
   @override
   void initState() {
     super.initState();
-    // Trigger initial load (idempotent — VM skips if already loaded & not dirty).
+    // ADR-0055 §Fix 3: chỉ trigger initial load khi `data == null`.
+    // Selector<VM, bool> watching isDirty sẽ cover subsequent invalidations
+    // (user add/edit/delete tx) → tránh double-load race trong cùng frame
+    // cold start (initState postFrame + Selector rebuild postFrame đều
+    // schedule load).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<WeeklyReviewViewModel>().load();
+      if (!mounted) return;
+      final vm = context.read<WeeklyReviewViewModel>();
+      if (vm.data == null) {
+        vm.load();
       }
     });
   }
