@@ -187,8 +187,11 @@ void main() {
     });
   });
 
-  group('getByCategory', () {
-    test('returns transactions for specific category', () async {
+  // ADR-0051: removed `getByCategory(String)` (name-based lookup). Production
+  // path per ADR-0029 is in-memory filter on `Transaction.category` snapshot
+  // — same pattern as TransactionSuggestionEngine. Regression guard below.
+  group('in-memory category filter (ADR-0029 / ADR-0051)', () {
+    test('filter getAll() by category name snapshot returns matching rows', () async {
       final t1 = Transaction(
         id: 'uuid-1',
         amount: 50000,
@@ -211,7 +214,8 @@ void main() {
       await dataSource.add(t1);
       await dataSource.add(t2);
 
-      final result = await dataSource.getByCategory('Ăn ngoài');
+      final all = await dataSource.getAll();
+      final result = all.where((t) => t.category == 'Ăn ngoài').toList();
 
       expect(result.length, 1);
       expect(result.first.id, 'uuid-1');

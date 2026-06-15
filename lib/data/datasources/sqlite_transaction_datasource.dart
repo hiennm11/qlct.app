@@ -92,19 +92,6 @@ class SqliteTransactionDataSource implements TransactionLocalDataSource {
   }
 
   @override
-  @Deprecated('No production caller in lib/; use in-memory filter on Transaction.category (snapshot) per ADR-0029. Will be removed in next release.')
-  Future<List<Transaction>> getByCategory(String category) async {
-    final db = await _dbHelper.database;
-    final maps = await db.query(
-      'transactions',
-      where: 'category = ?',
-      whereArgs: [category],
-      orderBy: 'created_at DESC',
-    );
-    return maps.map(transactionFromRow).toList();
-  }
-
-  @override
   Future<List<Transaction>> getByDateRange(DateTime start, DateTime end) async {
     final db = await _dbHelper.database;
     final maps = await db.query(

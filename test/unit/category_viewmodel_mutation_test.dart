@@ -179,15 +179,6 @@ class _FakeBudgetDataSource implements BudgetLocalDataSource {
   }
 
   @override
-  Future<Budget?> getByCategory(String categoryName) async {
-    try {
-      return _budgets.firstWhere((b) => b.categoryName == categoryName);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  @override
   Future<Budget?> getByCategoryId(String categoryId) async {
     try {
       return _budgets.firstWhere((b) => b.categoryId == categoryId);

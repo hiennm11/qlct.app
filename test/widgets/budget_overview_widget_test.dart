@@ -75,7 +75,6 @@ void main() {
     when(() => mockRepo.getAll()).thenAnswer((_) async => <Budget>[]);
     when(() => mockRepo.upsert(any())).thenAnswer((_) async {});
     when(() => mockRepo.delete(any())).thenAnswer((_) async {});
-    when(() => mockRepo.getByCategory(any())).thenAnswer((_) async => null);
     when(() => mockRepo.bulkUpsert(any())).thenAnswer((_) async {});
     when(() => mockRepo.clearAll()).thenAnswer((_) async {});
     when(() => mockRepo.count()).thenAnswer((_) async => 0);

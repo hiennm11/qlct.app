@@ -139,7 +139,7 @@ Do not chase unrelated legacy/full-suite failures in this slice.
 ### Negative
 
 - Some read/display paths still use name snapshots because aggregate stats and historical exports are name-keyed today.
-- ~~The code temporarily has both `getByCategory` and `getByCategoryId` until all post-rename flows are implemented.~~ **Resolved 2026-06-14 (Tuần 1 P0)**: `BudgetLocalDataSource.getByCategory(String)` and `TransactionLocalDataSource.getByCategory(String)` soft-deprecated via `@Deprecated` annotation pointing to `getByCategoryId` / in-memory filter per ADR-0029. Zero production callers in `lib/`. Hard removal targeted next release.
+- ~~The code temporarily has both `getByCategory` and `getByCategoryId` until all post-rename flows are implemented.~~ **Resolved 2026-06-14 (Tuần 1 P0)** soft-deprecation, then **closed 2026-06-15 by [ADR-0051](../adr/0051-remove-name-based-lookup-2026-06-15.md)**: hard removal complete. `BudgetLocalDataSource.getByCategoryId` and in-memory `Transaction.category` snapshot filter (per ADR-0029) are the only paths.
 
 ### Deferred
 

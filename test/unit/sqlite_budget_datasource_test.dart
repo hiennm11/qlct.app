@@ -306,34 +306,6 @@ void main() {
     });
   });
 
-  group('getByCategory', () {
-    test('returns budget for matching categoryName', () async {
-      final budget = Budget(
-        id: 'find-uuid',
-        categoryName: 'Subscription', categoryId: 'subscription',
-        monthlyLimit: 200000,
-        alertThreshold: 75,
-        createdAt: DateTime.now(),
-      );
-
-      await dataSource.upsert(budget);
-
-      final result = await dataSource.getByCategory('Subscription');
-
-      expect(result, isNotNull);
-      expect(result!.id, 'find-uuid');
-      expect(result.categoryName, 'Subscription');
-      expect(result.monthlyLimit, 200000);
-      expect(result.alertThreshold, 75);
-    });
-
-    test('returns null when no budget exists for category', () async {
-      final result = await dataSource.getByCategory('NonExistentCategory');
-
-      expect(result, isNull);
-    });
-  });
-
   group('getByCategoryId', () {
     test('returns budget for matching categoryId', () async {
       final budget = Budget(

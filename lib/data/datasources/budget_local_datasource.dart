@@ -4,11 +4,8 @@ abstract class BudgetLocalDataSource {
   Future<List<Budget>> getAll();
   Future<void> upsert(Budget budget);
   Future<void> delete(String id);
-  /// Use [getByCategoryId] for budget mutation/archive-guard lookups
-  /// (ADR-0030 lookup seam). Name-based lookup is kept temporarily for
-  /// migration/legacy callers; hard removal targeted next release.
-  @Deprecated('Use getByCategoryId per ADR-0030; name-based lookup will be removed in next release')
-  Future<Budget?> getByCategory(String categoryName);
+  /// Category-keyed budget lookup. ADR-0030 established the id-based seam;
+  /// ADR-0051 hard-removed the legacy name-based `getByCategory(String)`.
   Future<Budget?> getByCategoryId(String categoryId);
 
   /// Bulk upsert budgets using batch for performance

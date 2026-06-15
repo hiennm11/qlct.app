@@ -52,8 +52,6 @@ class _FakeTransactionDataSource implements TransactionLocalDataSource {
   @override
   Future<List<Transaction>> getByDate(DateTime date) async => [];
   @override
-  Future<List<Transaction>> getByCategory(String category) async => [];
-  @override
   Future<List<Transaction>> getByDateRange(DateTime s, DateTime e) async => [];
   @override
   Future<void> bulkInsert(List<Transaction> ts) async {
