@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Contract: App Version Display (P3 #5)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 p-6 font-sans">
+<div class="max-w-3xl mx-auto bg-white rounded-lg shadow p-6">
+
+  <h1 class="text-2xl font-bold mb-2">Contract: App Version Display</h1>
+  <p class="text-sm text-slate-500 mb-6">ADR-0049 · P3 #5 · 2026-06-15</p>
+
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§1 Context</h2>
+    <p>User explicit request sau smoke test v1.7.0+2026061501: cần thấy app version trong Settings để verify bản đang chạy đúng là bản vừa install (không phải cache, không phải bản cũ).</p>
+    <p class="mt-2">Hiện tại: <code class="bg-slate-100 px-1 rounded">lib/views/settings_screen.dart</code> chỉ có 1 section "Dữ liệu" (auto-purge switch). Không có UI hiển thị version ở bất kỳ đâu trong app.</p>
+    <p class="mt-2">Pattern reference: section header <code class="bg-slate-100 px-1 rounded">Row(Icon + Text)</code> line 52-70, divider ListTile trailing <code class="bg-slate-100 px-1 rounded">Text(...)</code> style.</p>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§2 Decision</h2>
+    <p>Thêm section mới "Thông tin" ở cuối <code class="bg-slate-100 px-1 rounded">SettingsScreen</code> body ListView:</p>
+
+    <div class="mt-4 border border-slate-200 rounded p-4 bg-slate-50">
+      <p class="text-xs text-slate-500 mb-2">Visual mockup:</p>
+      <div class="bg-white border border-slate-300 rounded p-3 mb-2">
+        <div class="flex items-center text-xs text-slate-500 mb-1">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span class="font-semibold tracking-wider">THÔNG TIN</span>
+        </div>
+        <div class="flex justify-between items-center py-2 px-1" data-state="version-row">
+          <span>Phiên bản</span>
+          <span class="text-slate-500" data-bind="version-value">1.7.0 (build 2026061501)</span>
+        </div>
+      </div>
+    </div>
+
+    <ul class="list-disc ml-6 mt-3 space-y-1">
+      <li>Section header: icon <code class="bg-slate-100 px-1 rounded">Icons.info_outline</code> 18px + text "THÔNG TIN" 12 semibold grey-600, same pattern như "Dữ liệu" section.</li>
+      <li>Row: ListTile hoặc Row trailing Text — dùng <code class="bg-slate-100 px-1 rounded">ListTile</code> cho consistency với auto-purge switch ở trên, <code class="bg-slate-100 px-1 rounded">enabled: false</code> để disable tap (read-only info).</li>
+      <li>Value format: <code class="bg-slate-100 px-1 rounded">{version}+{build}</code> hoặc <code class="bg-slate-100 px-1 rounded">{version} (build {build})</code>. Chọn dạng 2 để build number dễ nhìn hơn.</li>
+      <li>Source: <code class="bg-slate-100 px-1 rounded">package_info_plus</code> — đã có sẵn trong pubspec (line trong pubspec.lock), không cần add dependency.</li>
+    </ul>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§3 Out of scope</h2>
+    <ul class="list-disc ml-6 space-y-1">
+      <li>Hiển thị database schema version (SQLite v15, backup v9) — đã show ở About dialog nếu có; user không request.</li>
+      <li>Tap row để copy version vào clipboard — YAGNI, nếu user cần sẽ request sau.</li>
+      <li>"What's new" link tới CHANGELOG — YAGNI per CONTEXT §Verify pass 2026-06-14.</li>
+      <li>Force update check / version comparison — không có server.</li>
+    </ul>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-lg font-semibold mb-2">§4 Flutter Key binding</h2>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-100"><th class="text-left p-2">HTML</th><th class="text-left p-2">Flutter widget</th><th class="text-left p-2">Test</th></tr></thead>
+      <tbody>
+        <tr class="border-t"><td class="p-2"><code>data-state="version-row"</code></td><td class="p-2"><code>Key('state-version-row')</code></td><td class="p-2"><code>find.byKey(Key('state-version-row'))</code></td></tr>
+      </tbody>
+    </table>
+    <p class="text-sm text-slate-500 mt-2">Version string dynamic → assert qua widget text, không qua Key.</p>
+  </section>
+
+  <section>
+    <h2 class="text-lg font-semibold mb-2">§5 Verify pass (audit 2026-06-15)</h2>
+    <p>Smoke test trên device <code class="bg-slate-100 px-1 rounded">21091116C</code> sau khi install APK v1.7.0+2026061501 (commit <code class="bg-slate-100 px-1 rounded">ab1c9ee</code>).</p>
+    <ul class="list-disc ml-6 mt-2 space-y-1">
+      <li>Mở Settings → scroll xuống dưới cùng → thấy section "Thông tin" → row "Phiên bản" → value "1.7.0 (build 2026061501)".</li>
+      <li>Row không tap được (read-only, info display).</li>
+      <li>Verify version thực sự match APK đã install: <code class="bg-slate-100 px-1 rounded">adb shell dumpsys package com.example.qlct | grep version</code> hoặc <code class="bg-slate-100 px-1 rounded">flutter install</code> output.</li>
+    </ul>
+  </section>
+
+</div>
+</body>
+</html>

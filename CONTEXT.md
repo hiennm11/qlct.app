@@ -253,6 +253,10 @@ Tracked từ audit 2026-06-13 sau khi ADR-0037 close. Status: **🔴 open** = ch
 - **P2.6 Haptic irreversible confirm** — `HapticFeedback.heavyImpact()` ở 2 destructive không undo: "Xoá vĩnh viễn" (purge, `category_management_screen.dart:174`) + "Hợp nhất" (merge, `category_merge_sheet.dart:384`). Đúng Apple HIG/Material guideline: haptic chỉ ở irreversible action, không spam.
 - **Skipped (audit 2026-06-14)**: inline button spinner (2 vị trí) đã polish; `LinearProgressIndicator` có value (2 vị trí) không phải indeterminate; backup/restore progress đã có UI; haptic ở soft-delete/delete transaction (không irreversible, có undo/restore).
 
+### ✅ Closed by P3 #5 — Settings: App version display (ADR-0049, 2026-06-15)
+
+- **App version không hiển thị trong app** — Smoke test v1.7.0+2026061501 cần verify version trên device không qua `adb dumpsys`. 2026-06-15: thêm section "Thông tin" + row "Phiên bản" cuối `SettingsScreen`. Source `package_info_plus: ^9.0.1` (chính thức Flutter Community Plus plugin, BSD-3-Clause, ~5KB compiled, stable 3+ năm). Value format `'{version} (build {buildNumber})'` — ví dụ `"1.7.0 (build 2026061501)"`. ListTile `enabled: false` → read-only, no ripple on tap, match Android Settings → About → Version convention. Initial state `'...'` placeholder trong khi chờ async load, settle qua 3 pump cycles trong widget test. Key binding `state-version-row` cho `find.byKey` assert. Commit thay đổi `lib/views/settings_screen.dart` + `pubspec.yaml` (add explicit dep) + `docs/specs/p3-5-app-version-display-contract.html` + `docs/adr/0049-...md` (full ADR vì dependency change) + `test/widgets/settings_screen_test.dart` (mock platform channel cho `package_info_plus`).
+
 ### ✅ Closed by budget overview bug fixes (commit `ab1c9ee`, 2026-06-15)
 
 2 production bugs found while debugging pre-existing test drift (NOT test-only, fixed inline per `pre-existing-test-drift.md` §Iteration note 2026-06-15):

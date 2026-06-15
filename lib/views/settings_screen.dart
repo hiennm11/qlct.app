@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:qlct/services/auto_purge_prefs.dart';
 
 /// ADR-0047 (P3 #4): Settings screen — full-screen Scaffold chứa user-configurable
@@ -25,10 +26,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // initState, write back on change.
   bool _autoPurgeEnabled = true;
 
+  // ADR-0049: app version display. Load async via package_info_plus.
+  // Build string format: '{version} (build {buildNumber})'.
+  String _appVersionDisplay = '...';
+
   @override
   void initState() {
     super.initState();
     _loadAutoPurgePref();
+    _loadAppVersion();
   }
 
   Future<void> _loadAutoPurgePref() async {
@@ -39,6 +45,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _setAutoPurgePref(bool value) async {
     await AutoPurgePrefs.setEnabled(value);
     setState(() => _autoPurgeEnabled = value);
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersionDisplay =
+            '${info.version} (build ${info.buildNumber})';
+      });
+    }
   }
 
   @override
@@ -81,6 +97,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             value: _autoPurgeEnabled,
             onChanged: _setAutoPurgePref,
+          ),
+          // ADR-0049: App version display section.
+          // Section header mirrors the 'Dữ liệu' pattern (line 52-70) for
+          // visual consistency. Row is ListTile enabled:false — read-only info,
+          // matches Android Settings → About → Version convention.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 18, color: Colors.grey.shade600),
+                const SizedBox(width: 8),
+                Text(
+                  'Thông tin',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            key: const Key('state-version-row'),
+            leading: const Icon(Icons.smartphone),
+            title: const Text('Phiên bản'),
+            trailing: Text(
+              _appVersionDisplay,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            enabled: false,
           ),
         ],
       ),
