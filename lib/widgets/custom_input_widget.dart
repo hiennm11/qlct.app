@@ -150,7 +150,12 @@ class _CustomInputWidgetState extends State<CustomInputWidget> {
             ),
             const SizedBox(height: 12),
             GestureDetector(
-              key: const Key('category-dropdown'),
+              // ADR-0058 (fix 2026-06-16): bind _categoryKey so
+              // findRenderObject() resolves the actual box. Pre-fix used
+              // `const Key('category-dropdown')` (test-seam convention) —
+              // GlobalKey.currentContext was always null, tap threw on
+              // `!` bang → menu never shown.
+              key: _categoryKey,
               onTap: () {
                 final RenderBox box = _categoryKey.currentContext!.findRenderObject() as RenderBox;
                 final Offset offset = box.localToGlobal(Offset.zero);

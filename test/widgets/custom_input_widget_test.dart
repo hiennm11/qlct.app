@@ -96,6 +96,38 @@ void main() {
     expect(find.text('Thêm giao dịch'), findsOneWidget);
   });
 
+  // ===== ADR-0058 (fix 2026-06-16): category dropdown opens on tap =====
+  // Pre-fix: `GestureDetector` was bound to `const Key('category-dropdown')`
+  // (test-seam convention) but the `findRenderObject` lookup on line 155
+  // used `_categoryKey.currentContext!`. GlobalKey.currentContext was
+  // always null because the key was never assigned to a widget in the
+  // tree → tap threw `Null check operator used on a null value` →
+  // PopupMenu never opened → user could not pick a category.
+  testWidgets('category dropdown opens on tap (ADR-0058 regression guard)',
+      (tester) async {
+    await pumpCustomInput(tester);
+
+    // Find the category InputDecorator by its label "Danh mục" — the
+    // GestureDetector wraps it. Pre-fix: tap silently threw
+    // `Null check operator used on a null value` from
+    // `_categoryKey.currentContext!` (GlobalKey was never bound) → no
+    // PopupMenu found.
+    final categoryField = find.ancestor(
+      of: find.text('Danh mục'),
+      matching: find.byType(InputDecorator),
+    );
+    expect(categoryField, findsOneWidget);
+    await tester.tap(categoryField);
+    await tester.pump(); // start showMenu animation
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Quick input categories come from seedCategories (mirrored in
+    // CategoryViewModel.seeded). Verify at least one of the
+    // predefined category names shows up in the open PopupMenu.
+    expect(find.text('Ăn ngoài'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   // ===== ADR-0052 3.2: small-height viewport regression test =====
   // Pre-fix: `_buildSuggestionChips` returned a Column with N amounts + N
   // notes Wraps. When history has many txns for the selected category,
@@ -105,9 +137,7 @@ void main() {
   // Wrap moved the function call into SingleChildScrollView. This test
   // guards against re-introducing the unwrapped Column. The test pumps
   // the bare Card at 400x560 and asserts no exception — guards the
-  // Card→Padding→Column layout itself (the chip path requires a
-  // category-selection gesture that has its own pre-existing bugs
-  // out of scope for this audit).
+  // Card→Padding→Column layout itself.
   testWidgets('does not overflow at 400x560 viewport (regression guard)',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 560));
@@ -150,9 +180,7 @@ void main() {
     await tester.pump();
 
     // Bare Card (no category selected) at 400x560 — guards the
-    // Card→Padding→Column layout. Suggestion chips path requires a
-    // gesture-driven dropdown interaction that has its own pre-existing
-    // null-bang bug out of scope for this audit.
+    // Card→Padding→Column layout.
     expect(tester.takeException(), isNull);
   });
 }
