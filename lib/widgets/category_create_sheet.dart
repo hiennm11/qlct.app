@@ -209,8 +209,8 @@ class _CategoryCreateSheetState extends State<CategoryCreateSheet> {
                   const SizedBox(height: 12),
 
                   // Kind dropdown (ADR-0034 §3)
-                  // ignore: deprecated_member_use
                   DropdownButtonFormField<CategoryKind>(
+                    // ignore: deprecated_member_use
                     value: _selectedKind,
                     decoration: InputDecoration(
                       labelText: 'Loại danh mục',

@@ -582,17 +582,15 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   buildDefaultDragHandles: false,
                   itemCount: active.length,
-                  onReorder: _selectionMode
+                  onReorderItem: _selectionMode
                       ? (oldIndex, newIndex) {}
                       : (oldIndex, newIndex) async {
-                    // ReorderableListView quirk: when moving down, newIndex
-                    // is one past the target slot.
-                    final adjusted = newIndex > oldIndex
-                        ? newIndex - 1
-                        : newIndex;
+                    // onReorderItem (Flutter 3.44+) auto-adjusts newIndex
+                    // for the removed item at oldIndex, so we can insert
+                    // directly at newIndex.
                     final moved = List<Category>.from(active);
                     final item = moved.removeAt(oldIndex);
-                    moved.insert(adjusted, item);
+                    moved.insert(newIndex, item);
                     final ok = await vm.reorderCategories(moved);
                     if (!context.mounted) return;
                     if (!ok && vm.errorMessage != null) {
