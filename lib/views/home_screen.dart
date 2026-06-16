@@ -3,13 +3,10 @@ import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
 
 import '../viewmodels/recurring_viewmodel.dart';
-import '../viewmodels/category_viewmodel.dart';
 import '../viewmodels/weekly_review_viewmodel.dart';
 import '../widgets/budget_overview_widget.dart';
 import '../widgets/month_close_banner.dart';
-import '../widgets/note_entry.dart';
-import '../widgets/recent_transactions_card.dart';
-import '../widgets/today_strip.dart';
+import '../widgets/super_input_card.dart';
 import '../widgets/transaction_list_widget.dart';
 import '../widgets/weekly_review_card.dart';
 import '../core/constants.dart';
@@ -18,13 +15,18 @@ import 'account_hub_screen.dart';
 import 'backup_restore_screen.dart';
 import 'budget_hub_screen.dart';
 import 'transaction_hub_screen.dart';
+import '../widgets/quick_templates_strip.dart';
 
-/// ADR-0067 (Epic 6 Home — Balanced Note-First): HomeScreen restructured.
-/// Sections (top→bottom): NoteEntry → TodayStrip → BudgetOverviewWidget →
+/// ADR-0069 (Epic 6.1 Home — Super-Input): Home restructured thành
+/// 1 super-input card (5 methods) + sticky Lưu chung. Bỏ RecentTransactionsCard
+/// (redundant với TransactionHubScreen) và inline TodayStrip. Budget summary
+/// di chuyển xuống section 5 của SuperInputCard (compact 1 dòng).
+///
+/// Sections (top→bottom): SuperInputCard → BudgetOverviewWidget →
 /// MonthCloseBanner (ADR-0056) → WeeklyReviewCard (ADR-0053) →
-/// RecentTransactionsCard (3 rows + "Xem tất cả") → TransactionListWidget.
+/// TransactionListWidget.
+///
 /// Bottom navigation 4-tab (Tổng quan active / Giao dịch / Ngân sách / Tài khoản).
-/// Per grill Q3 option C: hub screens mới (Transaction/Budget/Account).
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -35,6 +37,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _transactionListKey = GlobalKey();
+  final GlobalKey<SuperInputCardState> _superInputKey =
+      GlobalKey<SuperInputCardState>();
+  // ADR-0073 (Bug B v3): host-owned proxy ValueNotifier. Pre-v3, host
+  // subscribed `_superInputKey.currentState?.changeTick ?? ValueNotifier(0)`
+  // ở lúc Scaffold build → child State chưa mount → notifier rác mãi 0
+  // → ValueListenableBuilder không rebuild → button stays disabled.
+  // Post-v3: proxy rebind sau khi child mount qua addPostFrameCallback.
+  final ValueNotifier<int> _saveTick = ValueNotifier<int>(0);
+  VoidCallback? _saveTickForward;
   String? _lastShownError;
   int _currentIndex = 0;
 
@@ -46,6 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // ADR-0055 §Phase C: defer RecurringVM.checkAndGenerate ra frame 2.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // ADR-0073: rebind host proxy → child changeTick sau khi child mount.
+      _attachSuperInputBridge();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         context.read<RecurringTransactionViewModel>().checkAndGenerate().then((generated) {
@@ -57,9 +70,34 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // ADR-0073: forward child changeTick bumps → host _saveTick. Phải re-attach
+  // mỗi lần child rebuild widget tree mới (GlobalKey vẫn dùng được, nhưng
+  // nếu parent rebuild mà key stable thì state giữ nguyên → attach 1 lần đủ).
+  // Đề phòng child rebuild (vd: setState trong builder), check trước khi add.
+  void _attachSuperInputBridge() {
+    final child = _superInputKey.currentState;
+    if (child == null) return;
+    final tick = child.changeTick;
+    if (_saveTickForward != null) {
+      tick.removeListener(_saveTickForward!);
+    }
+    _saveTickForward = () {
+      if (mounted) _saveTick.value = tick.value;
+    };
+    tick.addListener(_saveTickForward!);
+    // Force 1 bump để lần build đầu của ValueListenableBuilder ở host
+    // thấy state mới nhất (không phải 0 rác).
+    _saveTick.value = tick.value;
+  }
+
   @override
   void dispose() {
     context.read<ExpenseViewModel>().removeListener(_onExpenseError);
+    final child = _superInputKey.currentState;
+    if (child != null && _saveTickForward != null) {
+      child.changeTick.removeListener(_saveTickForward!);
+    }
+    _saveTick.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -141,6 +179,17 @@ class _HomeScreenState extends State<HomeScreen> {
       children: const [
         Text('Ứng dụng quản lý chi tiêu cá nhân với tính năng theo dõi chi tiêu, ngân sách và giao dịch định kỳ.'),
       ],
+    );
+  }
+
+  void _showAllTemplates() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => const ManageTemplatesSheet(),
     );
   }
 
@@ -265,6 +314,23 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+      // ADR-0069 §2: sticky bottom — 1 nút Lưu chung (pill teal, 48px).
+      // ADR-0073 (Bug B v3): nghe host _saveTick proxy (rebound từ
+      // SuperInputCardState.changeTick qua _attachSuperInputBridge) thay vì
+      // listen trực tiếp `_superInputKey.currentState?.changeTick ?? …`.
+      // Listen trực tiếp race với child mount → notifier rác mãi 0.
+      bottomSheet: ValueListenableBuilder<int>(
+        valueListenable: _saveTick,
+        builder: (context, _, __) {
+          final canSave = _superInputKey.currentState?.canSave ?? false;
+          return SuperInputSaveButton(
+            canSave: canSave,
+            onSave: () {
+              _superInputKey.currentState?.save();
+            },
+          );
+        },
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           await context.read<ExpenseViewModel>().refresh();
@@ -278,23 +344,18 @@ class _HomeScreenState extends State<HomeScreen> {
               sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
             ),
 
-            // NoteEntry (ADR-0067 §2) — replaces QuickAddBar.
-            const SliverToBoxAdapter(
+            // ADR-0069 — SuperInputCard (5 input methods + 1 Lưu sticky).
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: NoteEntry(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SuperInputCard(
+                  key: _superInputKey,
+                  onSeeAllTemplates: _showAllTemplates,
+                  onNoteFocused: _scrollToTop,
+                ),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // TodayStrip (ADR-0067 §3) — at-a-glance spending vs remaining.
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: TodayStrip(),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
             // BudgetOverviewWidget (kept per grill Q1+2 keep MonthCloseBanner/WeeklyReview).
             SliverToBoxAdapter(
@@ -337,10 +398,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     final weeklyVM = context.read<WeeklyReviewViewModel>();
                     final categoryId = weeklyVM.data?.topCategoryId;
                     if (categoryId == null) return;
-                    final catVM = context.read<CategoryViewModel>();
-                    final cat = catVM.activeCategories
-                        .where((c) => c.id == categoryId)
-                        .firstOrNull;
                     final vm = context.read<ExpenseViewModel>();
                     vm.clearFilters();
                     final now = DateTime.now();
@@ -350,33 +407,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
                       DateTime(now.year, now.month, now.day),
                     );
-                    if (cat != null) {
-                      vm.setCategoryFilter(cat.name);
-                    }
                     _scrollToTransactionList();
                   },
                 ),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-            // RecentTransactionsCard (ADR-0067 §4) — 3 rows + "Xem tất cả".
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: RecentTransactionsCard(
-                  onSeeAllTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const TransactionHubScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
             // Full TransactionListWidget (kept inline on Home for tap-through).
             SliverToBoxAdapter(
@@ -389,8 +425,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            // Extra bottom padding to ensure last item not hidden by sticky Save.
             const SliverPadding(
-              padding: EdgeInsets.only(bottom: 24),
+              padding: EdgeInsets.only(bottom: 96),
               sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
             ),
           ],

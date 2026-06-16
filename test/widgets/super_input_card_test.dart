@@ -316,4 +316,84 @@ void main() {
       expect(key.currentState!.changeTick.value, greaterThan(tickBefore));
     });
   });
+
+  // ADR-0073 (Bug B v3): bridge path test. Pre-v3 host subscribed
+  // `_superInputKey.currentState?.changeTick ?? ValueNotifier(0)` ở lúc
+  // build → child State chưa mount → notifier rác → button stays disabled.
+  // Test này mount SuperInputCard + ValueListenableBuilder host giống
+  // home_screen.bottomSheet + assert FilledButton.onPressed null→callback
+  // khi canSave transition.
+  group('ADR-0073 bridge path — host ValueListenableBuilder', () {
+    testWidgets(
+        'host ValueListenableBuilder rebuilds + Save button enable khi child changeTick bump',
+        (tester) async {
+      final superKey = GlobalKey<SuperInputCardState>();
+      final hostTick = ValueNotifier<int>(0);
+      addTearDown(hostTick.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            // Mount SuperInputCard trước để GlobalKey có currentState.
+            body: MultiProvider(
+              providers: [
+                ChangeNotifierProvider.value(value: catVM),
+                ChangeNotifierProvider.value(value: expenseVM),
+                ChangeNotifierProvider.value(value: qtVM),
+                ChangeNotifierProvider.value(value: settingsVM),
+              ],
+              child: SuperInputCard(key: superKey),
+            ),
+            // Host bridge pattern (giống home_screen.dart post-v3): proxy
+            // ValueNotifier addListener sau frame đầu (mô phỏng
+            // _attachSuperInputBridge).
+            bottomSheet: ValueListenableBuilder<int>(
+              valueListenable: hostTick,
+              builder: (context, _, __) {
+                final canSave = superKey.currentState?.canSave ?? false;
+                return SuperInputSaveButton(
+                  canSave: canSave,
+                  onSave: () {},
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      // First frame → child mount → currentState != null.
+      await tester.pump();
+      // Rebind host proxy → child changeTick (mô phỏng addPostFrameCallback
+      // _attachSuperInputBridge trong home_screen).
+      hostTick.addListener(() {});
+      void forward() {
+        hostTick.value = superKey.currentState!.changeTick.value;
+      }
+
+      superKey.currentState!.changeTick.addListener(forward);
+      addTearDown(() {
+        superKey.currentState?.changeTick.removeListener(forward);
+      });
+      // Force initial sync.
+      hostTick.value = superKey.currentState!.changeTick.value;
+      await tester.pump();
+
+      // Form rỗng → canSave false → button onPressed null (disabled).
+      var btn = tester.widget<FilledButton>(
+          find.byKey(const Key('super-input-save-button')));
+      expect(btn.onPressed, isNull);
+      expect(superKey.currentState!.canSave, isFalse);
+
+      // Tap chip → canSave false→true → child changeTick bump → host
+      // ValueListenableBuilder rebuild → button onPressed != null.
+      await tester.tap(find.byKey(const Key('quick-chip-food_out')));
+      await tester.pump();
+
+      btn = tester.widget<FilledButton>(
+          find.byKey(const Key('super-input-save-button')));
+      expect(superKey.currentState!.canSave, isTrue);
+      expect(btn.onPressed, isNotNull,
+          reason: 'host bridge phải rebuild và re-read canSave sau child changeTick bump');
+    });
+  });
 }
