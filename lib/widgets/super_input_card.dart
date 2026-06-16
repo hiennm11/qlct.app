@@ -94,12 +94,16 @@ class SuperInputCardState extends State<SuperInputCard> {
   void _onNoteOrAmountChanged() {
     final note = _noteController.text;
     final amount = _amountController.text;
-    final canSaveChanged = _canSaveInternal != _lastCanSave;
     setState(() {
       if (note != _noteText) _noteText = note;
       if (amount != _amountText) _amountText = amount;
     });
-    if (canSaveChanged) {
+    // Bug B fix v2 (2026-06-16 14:14 device test): PHẢI đọc _canSaveInternal
+    // SAU setState. setState synchronously cập nhật _noteText/_amountText,
+    // nên _canSaveInternal phải đọc SAU để thấy giá trị mới. Pre-v2 bug:
+    // read-before-setState trả về _canSaveInternal cũ (false) → so sánh với
+    // _lastCanSave(false) → no bump → button stays disabled.
+    if (_canSaveInternal != _lastCanSave) {
       _lastCanSave = _canSaveInternal;
       changeTick.value++;
     }
@@ -308,7 +312,6 @@ class SuperInputCardState extends State<SuperInputCard> {
 
   // ===== Quick category chip tap (contract Q8) =====
   void _onQuickCategoryTap(Category c) {
-    final newCanSave = _canSaveInternal;
     setState(() {
       _selectedCategory = c;
       _selectedCategoryId = c.id;
@@ -319,8 +322,9 @@ class SuperInputCardState extends State<SuperInputCard> {
         );
       }
     });
-    if (newCanSave != _lastCanSave) {
-      _lastCanSave = newCanSave;
+    // Bug B fix v2: đọc _canSaveInternal SAU setState.
+    if (_canSaveInternal != _lastCanSave) {
+      _lastCanSave = _canSaveInternal;
       changeTick.value++;
     }
   }
@@ -328,13 +332,13 @@ class SuperInputCardState extends State<SuperInputCard> {
   // ===== Custom input category dropdown =====
   void _onDropdownCategoryChanged(Category? c) {
     if (c == null) return;
-    final newCanSave = _canSaveInternal;
     setState(() {
       _selectedCategory = c;
       _selectedCategoryId = c.id;
     });
-    if (newCanSave != _lastCanSave) {
-      _lastCanSave = newCanSave;
+    // Bug B fix v2: đọc _canSaveInternal SAU setState.
+    if (_canSaveInternal != _lastCanSave) {
+      _lastCanSave = _canSaveInternal;
       changeTick.value++;
     }
   }
