@@ -5,7 +5,10 @@ import '../viewmodels/expense_viewmodel.dart';
 import '../viewmodels/recurring_viewmodel.dart';
 import '../viewmodels/weekly_review_viewmodel.dart';
 import '../widgets/budget_overview_widget.dart';
+import '../widgets/collapsible_recurring_card.dart';
+import '../widgets/collapsible_stats_card.dart';
 import '../widgets/month_close_banner.dart';
+import '../widgets/recent_transactions_card.dart';
 import '../widgets/super_input_card.dart';
 import '../widgets/transaction_list_widget.dart';
 import '../widgets/weekly_review_card.dart';
@@ -24,9 +27,17 @@ import '../widgets/quick_templates_strip.dart';
 ///
 /// Sections (top→bottom): SuperInputCard → BudgetOverviewWidget →
 /// MonthCloseBanner (ADR-0056) → WeeklyReviewCard (ADR-0053) →
-/// TransactionListWidget.
+/// RecentTransactionsCard (3 tx + "Xem tất cả") →
+/// CollapsibleStatsCard (Hôm nay / Tuần này / Tháng này) →
+/// CollapsibleRecurringCard (≤5 rules) → TransactionListWidget.
 ///
 /// Bottom navigation 4-tab (Tổng quan active / Giao dịch / Ngân sách / Tài khoản).
+///
+/// ADR-0080 (Epic 6.2 Home restore): restore Stats + Recurring + Recent
+/// từ reference image user gửi 2026-06-16. Stats/Recurring render dạng
+/// collapsible (chevron toggle) để tiết kiệm viewport budget. Stats
+/// onTap wires today/week/month filter + scroll-to-tx-list, mirror
+/// WeeklyReviewCard.onCtaTap pattern.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -422,6 +433,82 @@ class _HomeScreenState extends State<HomeScreen> {
                   key: _transactionListKey,
                   child: const TransactionListWidget(),
                 ),
+              ),
+            ),
+
+            // ADR-0080: RecentTransactionsCard (3 tx + "Xem tất cả").
+            // Reference image 2026-06-16 yêu cầu restore section này.
+            // onSeeAllTap navigate sang TransactionHubScreen.
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: RecentTransactionsCard(
+                  onSeeAllTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TransactionHubScreen(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // ADR-0080: CollapsibleStatsCard. StatsWidget bị drop khỏi
+            // Home trong Epic 6 (ADR-0067/0069), không relocate. Restore
+            // dạng collapsible (chevron toggle) — mặc định chỉ thấy
+            // header row, expand mới hiện 3 stat cards. onTap wires
+            // setDateRangeFilter(today/week/month) + _scrollToTransactionList,
+            // mirror WeeklyReviewCard.onCtaTap pattern ở L385-396.
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: CollapsibleStatsCard(
+                  onTapToday: () {
+                    final vm = context.read<ExpenseViewModel>();
+                    vm.clearFilters();
+                    final now = DateTime.now();
+                    vm.setDateRangeFilter(
+                      DateTime(now.year, now.month, now.day),
+                      DateTime(now.year, now.month, now.day, 23, 59, 59),
+                    );
+                    _scrollToTransactionList();
+                  },
+                  onTapWeek: () {
+                    final vm = context.read<ExpenseViewModel>();
+                    vm.clearFilters();
+                    final now = DateTime.now();
+                    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+                    vm.setDateRangeFilter(
+                      DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
+                      DateTime(now.year, now.month, now.day, 23, 59, 59),
+                    );
+                    _scrollToTransactionList();
+                  },
+                  onTapMonth: () {
+                    final vm = context.read<ExpenseViewModel>();
+                    vm.clearFilters();
+                    final now = DateTime.now();
+                    final firstOfMonth = DateTime(now.year, now.month, 1);
+                    final firstOfNextMonth = DateTime(now.year, now.month + 1, 1);
+                    final lastOfMonth = firstOfNextMonth.subtract(const Duration(seconds: 1));
+                    vm.setDateRangeFilter(firstOfMonth, lastOfMonth);
+                    _scrollToTransactionList();
+                  },
+                ),
+              ),
+            ),
+
+            // ADR-0080: CollapsibleRecurringCard. RecurringOverviewWidget
+            // bị drop khỏi Home trong Epic 6, không relocate. Restore dạng
+            // collapsible. Widget owns add/edit/dismiss/sheet flows
+            // internally — không cần callback ở host.
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: const CollapsibleRecurringCard(),
               ),
             ),
 
