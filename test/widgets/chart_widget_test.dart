@@ -65,8 +65,8 @@ void main() {
     return ExpenseViewModel(mockRepo, mockExport, mockCategoryDS);
   }
 
-  group('ChartWidget - SectionHeader integration (data state)', () {
-    testWidgets('renders SectionHeader with emoji and title when data exists',
+  group('ChartWidget - no SectionHeader (data state) (Bug A v2 fix 2026-06-16)', () {
+    testWidgets('ChartWidget KHÔNG render SectionHeader (title là host\'s job)',
         (tester) async {
       final now = DateTime.now();
       final tx = Transaction(
@@ -83,28 +83,13 @@ void main() {
       await tester.pumpWidget(wrap(vm));
       await tester.pumpAndSettle();
 
-      expect(find.byType(SectionHeader), findsOneWidget);
-      expect(find.text('📊'), findsOneWidget);
-      expect(find.text('Chi tiêu theo danh mục'), findsOneWidget);
-    });
-
-    testWidgets('has no action button on the header', (tester) async {
-      final tx = Transaction(
-        id: 'tx-1',
-        amount: 50000,
-        category: 'Ăn ngoài',
-        categoryId: 'food_out',
-        emoji: '🍔',
-        date: DateTime.now(),
-        note: '',
-      );
-      final vm = makeVm([tx]);
-
-      await tester.pumpWidget(wrap(vm));
-      await tester.pumpAndSettle();
-
-      final header = tester.widget<SectionHeader>(find.byType(SectionHeader));
-      expect(header.onAction, isNull);
+      // Bug A v2 fix: SectionHeader bị duplicate với 'Biểu đồ danh mục'
+      // manual header ở budget_hub_screen.dart. ChartWidget chỉ render
+      // chart + legend, title thuộc host responsibility.
+      expect(find.byType(SectionHeader), findsNothing);
+      expect(find.text('Chi tiêu theo danh mục'), findsNothing);
+      // chart-loaded key vẫn render (chart + legend có data).
+      expect(find.byKey(const Key('chart-loaded')), findsOneWidget);
     });
   });
 

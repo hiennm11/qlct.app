@@ -100,8 +100,10 @@ class _ChartWidgetState extends State<ChartWidget> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SectionHeader(emoji: '📊', title: 'Chi tiêu theo danh mục'),
-                const SizedBox(height: 24),
+                // Bug A v2 (ADR-0070 §3 update 2026-06-16): SectionHeader
+                // bị duplicate với '📊 Biểu đồ danh mục' manual header ở
+                // budget_hub_screen.dart:78-93. Host screen đã render title
+                // rồi, ChartWidget chỉ render chart + legend.
                 // ADR-0070 §2: SizedBox 250→280 (+30px headroom) + legend
                 // wrap trong SingleChildScrollView.
                 SizedBox(
