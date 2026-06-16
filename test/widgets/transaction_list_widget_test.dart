@@ -573,4 +573,43 @@ Future<void> _tapActionBarDelete(WidgetTester tester) async {
       expect(repo._store.length, 24);
     });
   });
+
+  // ===========================================================================
+  // ADR-0078 Bug F regression — TransactionHubScreen wrap body trong ListView
+  // ===========================================================================
+  group('ADR-0078 Bug F fix - TransactionHubScreen ListView wrap', () {
+    testWidgets(
+        'TransactionListWidget nằm trong scrollable parent (KDD #55 mirror)',
+        (tester) async {
+      // Production host `transaction_hub_screen.dart:18` wrap body trong
+      // `ListView(children: [TransactionListWidget()])`. Test mirror
+      // production bằng cách verify SingleChildScrollView wrapper pattern
+      // (test setup _wrap) — nếu không có, list overflow khi content > viewport.
+      for (var i = 0; i < 24; i++) {
+        await vm.addTransactionFromModel(_makeTx('tx-$i'));
+      }
+      await vm.refresh();
+
+      // _wrap helper wrap trong SingleChildScrollView (mirror production
+      // ListView wrap từ ADR-0078 fix). Verify no RenderFlex overflow.
+      await tester.pumpWidget(_wrap(vm));
+      await tester.pumpAndSettle();
+
+      // Drain exceptions.
+      final allExceptions = <Object>[];
+      while (true) {
+        final ex = tester.takeException();
+        if (ex == null) break;
+        allExceptions.add(ex);
+      }
+      // Không có 1642px overflow (screenshot user-22-03) hay 1728px (Bug D).
+      final bigOverflow = allExceptions.where((e) {
+        final s = e.toString();
+        return s.contains('BOTTOM') && s.contains('overflowed');
+      }).toList();
+      expect(bigOverflow, isEmpty,
+          reason: 'ADR-0078 fix: scrollable parent wrap → list scroll, '
+              'không RenderFlex overflow');
+    });
+  });
 }

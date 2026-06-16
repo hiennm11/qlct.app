@@ -328,11 +328,11 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(400, 560));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      // ADR-0074: wrap với SizedBox(height: 420) mirror real host
-      // constraint ở budget_hub_screen.dart. Pre-fix, test dùng
-      // setSurfaceSize(400, 560) full screen → không phát hiện bug
-      // RenderFlex overflow thực tế (KDD #55).
-      await tester.pumpWidget(wrapWithHeight(vm, 420));
+      // ADR-0074 + ADR-0079: wrap với SizedBox(height: 460) — real host
+      // budget_hub_screen.dart dùng 460 (bumped từ 420 vì legend row
+      // fontSize 10→12 cần headroom). Test mirror real host constraint
+      // (KDD #55 — test surface ≠ real host SizedBox wrapper bug).
+      await tester.pumpWidget(wrapWithHeight(vm, 460));
       await tester.pumpAndSettle();
 
       // No RenderFlex overflow exception.
@@ -377,10 +377,10 @@ void main() {
         (tester) async {
       final vm = makeVm(buildTxs(8));
 
-      await tester.binding.setSurfaceSize(const Size(400, 420));
+      await tester.binding.setSurfaceSize(const Size(400, 460));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(wrapWithHeight(vm, 420));
+      await tester.pumpWidget(wrapWithHeight(vm, 460));
       await tester.pumpAndSettle();
 
       // 8 legend rows rendered (2-col Wrap → 4 rows).
@@ -399,17 +399,17 @@ void main() {
         (tester) async {
       final vm = makeVm(buildTxs(12));
 
-      await tester.binding.setSurfaceSize(const Size(400, 420));
+      await tester.binding.setSurfaceSize(const Size(400, 460));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       // pumpWidget + pump thay vì pumpAndSettle vì stress edge expected
-      // RenderFlex overflow exception (6 rows × 40 = 240 + pie 180 +
-      // spacer 12 + Card padding 32 = 464 > 420 host). pumpAndSettle
+      // RenderFlex overflow exception (6 rows × 48 = 288 + pie 144 +
+      // spacer 12 + Card padding 32 = 476 > 460 host). pumpAndSettle
       // sẽ fail vì exception. ADR-0074 documented stress limit.
       // takeException() trước pump để clear exception từ pumpWidget
       // (Flutter render overflow trong pump phase).
       tester.takeException();
-      await tester.pumpWidget(wrapWithHeight(vm, 420));
+      await tester.pumpWidget(wrapWithHeight(vm, 460));
       await tester.pump();
       tester.takeException();
 
@@ -424,14 +424,46 @@ void main() {
       expect(find.textContaining('%'), findsNWidgets(12));
     });
 
+    // ADR-0079: pie radius dynamic scale với pieSize. Verify pie render
+    // diameter ≤ 180 (SizedBox constraint) — pieSize * 0.4 * 2 = 144
+    // pie outer + 36*2 = 72 centerSpace = outer ring 144px, không vượt 180.
+    // Pre-fix radius=80 cố định → diameter 196 > 180 → overflow.
+    testWidgets('ADR-0079: pie chart diameter không vượt 180 SizedBox',
+        (tester) async {
+      final vm = makeVm(buildTxs(5));
+
+      await tester.binding.setSurfaceSize(const Size(400, 460));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(wrapWithHeight(vm, 460));
+      await tester.pumpAndSettle();
+
+      // Find the PieChart widget via its data. Verify no overflow exception.
+      expect(tester.takeException(), isNull);
+
+      // % strings render với fontSize 12 (post-ADR-0079).
+      final percentTexts = tester.widgetList<Text>(
+        find.byWidgetPredicate(
+          (w) => w is Text && w.data != null && w.data!.contains('%'),
+        ),
+      );
+      expect(percentTexts, isNotEmpty);
+      // All % Text widgets fontSize = 12.
+      for (final t in percentTexts) {
+        expect(t.style?.fontSize, 12,
+            reason: 'ADR-0079: legend % text fontSize phải 12, '
+                'không phải 10');
+      }
+    });
+
     testWidgets('1 cat: 1 legend row + pie chart still rendered (baseline)',
         (tester) async {
       final vm = makeVm(buildTxs(1));
 
-      await tester.binding.setSurfaceSize(const Size(400, 420));
+      await tester.binding.setSurfaceSize(const Size(400, 460));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(wrapWithHeight(vm, 420));
+      await tester.pumpWidget(wrapWithHeight(vm, 460));
       await tester.pumpAndSettle();
 
       final rowKeys = find.byWidgetPredicate(

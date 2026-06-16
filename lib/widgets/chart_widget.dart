@@ -89,11 +89,19 @@ class _ChartWidgetState extends State<ChartWidget> {
           );
         }
 
+        // ADR-0079: compute pieSize 1 lần ở đây để pass vào _createSections
+        // (radius = pieSize * 0.4 dynamic). 180 cap giống LayoutBuilder bên dưới.
+        final pieSize = 180.0;
+
         // Recompute sections only when stats or active categories change.
         if (_cachedSections == null ||
             !identical(_lastStats, stats) ||
             !identical(_lastCategories, widget.activeCategories)) {
-          _cachedSections = _createSections(categoryTotals, widget.activeCategories);
+          _cachedSections = _createSections(
+            categoryTotals,
+            widget.activeCategories,
+            pieSize,
+          );
           _lastStats = stats;
           _lastCategories = widget.activeCategories;
         }
@@ -124,6 +132,9 @@ class _ChartWidgetState extends State<ChartWidget> {
                       child: SizedBox(
                         width: pieSize,
                         height: pieSize,
+                        // ADR-0079: clamp PieChart size với pieSize constraint.
+                        // Pre-fix PieChart tự vẽ diameter 2*radius+2*centerSpace
+                        // = 196 > 180 SizedBox → overflow, đè legend rows.
                         child: PieChart(
                           PieChartData(
                             sections: _cachedSections!,
@@ -151,6 +162,7 @@ class _ChartWidgetState extends State<ChartWidget> {
   List<PieChartSectionData> _createSections(
     Map<String, int> categoryTotals,
     List<Category> activeCategories,
+    double pieSize,
   ) {
     final colors = AppColors.categoryColors;
 
@@ -167,7 +179,11 @@ class _ChartWidgetState extends State<ChartWidget> {
         // tự sinh title từ value. Drop title thôi không đủ — phải tắt showTitle.
         showTitle: false,
         color: color,
-        radius: 80,
+        // ADR-0079: dynamic radius scale với pieSize. Pre-fix radius=80 cố
+        // định → diameter 2*80 + 2*36(centerSpace) = 196 > SizedBox 180 →
+        // pie vượt boundary, đè lên legend. pieSize*0.4=72 → diameter 144
+        // + 36 = 180 fit SizedBox, auto scale nếu pieSize thay đổi.
+        radius: pieSize * 0.4,
       );
     }).toList();
   }
@@ -238,8 +254,10 @@ class _LegendGrid extends StatelessWidget {
                           ),
                           Text(
                             '$percentage% · ${CurrencyFormatter.format(entry.value)}',
+                            // ADR-0079: bump fontSize 10 → 12 cho % readability.
+                            // Pre-fix quá nhỏ + textSecondary → user khó đọc.
                             style: const TextStyle(
-                              fontSize: 10,
+                              fontSize: 12,
                               color: AppColors.textSecondary,
                             ),
                             maxLines: 1,

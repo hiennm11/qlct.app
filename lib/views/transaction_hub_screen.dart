@@ -15,7 +15,14 @@ class TransactionHubScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Giao dịch'),
       ),
-      body: const TransactionListWidget(),
+      // ADR-0078: wrap body trong ListView. TransactionListWidget internal
+      // dùng shrinkWrap: true + NeverScrollableScrollPhysics (ADR-0076) →
+      // không tự scroll → cần parent scrollable. Pre-0078 fix:
+      // body: const TransactionListWidget() → RenderFlex overflow 1642px
+      // ở 24 transactions vì Scaffold.body không scroll.
+      body: ListView(
+        children: const [TransactionListWidget()],
+      ),
     );
   }
 }
