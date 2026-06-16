@@ -94,6 +94,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   .setAutoPurgeEnabled(v),
             ),
           ),
+          // ADR-0067: chip count cho NoteEntry quick chip strip. ListTile với
+          // SegmentedButton 3 options (3 / 4 / 5). Reactive qua Selector
+          // (ADR-0050 pattern).
+          Selector<AppSettingsViewModel, int>(
+            selector: (_, s) => s.quickTemplateChipCount,
+            builder: (context, count, _) => ListTile(
+              key: const Key('state-chip-count-row'),
+              title: const Text('Số mẫu nhanh'),
+              subtitle: const Text(
+                'Số lượng chip mẫu nhanh hiển thị trên thanh nhập liệu chính.',
+              ),
+              trailing: SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 3, label: Text('3')),
+                  ButtonSegment(value: 4, label: Text('4')),
+                  ButtonSegment(value: 5, label: Text('5')),
+                ],
+                selected: {count},
+                onSelectionChanged: (s) => context
+                    .read<AppSettingsViewModel>()
+                    .setQuickTemplateChipCount(s.first),
+              ),
+            ),
+          ),
           // ADR-0049: App version display section.
           // Section header mirrors the 'Dữ liệu' pattern (line 52-70) for
           // visual consistency. Row is ListTile enabled:false — read-only info,

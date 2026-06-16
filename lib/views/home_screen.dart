@@ -5,23 +5,26 @@ import '../viewmodels/expense_viewmodel.dart';
 import '../viewmodels/recurring_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../viewmodels/weekly_review_viewmodel.dart';
-import '../widgets/stats_widget.dart';
-import '../widgets/transaction_list_widget.dart';
-import '../widgets/chart_widget.dart';
 import '../widgets/budget_overview_widget.dart';
-import '../widgets/recurring_overview_widget.dart';
-import '../widgets/weekly_review_card.dart';
 import '../widgets/month_close_banner.dart';
-import '../widgets/quick_add_bar.dart';
-import '../widgets/quick_templates_strip.dart';
+import '../widgets/note_entry.dart';
+import '../widgets/recent_transactions_card.dart';
+import '../widgets/today_strip.dart';
+import '../widgets/transaction_list_widget.dart';
+import '../widgets/weekly_review_card.dart';
 import '../core/constants.dart';
 import '../core/theme.dart';
+import 'account_hub_screen.dart';
 import 'backup_restore_screen.dart';
-import 'monthly_review_screen.dart';
-import 'category_management_screen.dart';
-import 'settings_screen.dart';
+import 'budget_hub_screen.dart';
+import 'transaction_hub_screen.dart';
 
-/// Main home screen for the expense tracking app
+/// ADR-0067 (Epic 6 Home — Balanced Note-First): HomeScreen restructured.
+/// Sections (top→bottom): NoteEntry → TodayStrip → BudgetOverviewWidget →
+/// MonthCloseBanner (ADR-0056) → WeeklyReviewCard (ADR-0053) →
+/// RecentTransactionsCard (3 rows + "Xem tất cả") → TransactionListWidget.
+/// Bottom navigation 4-tab (Tổng quan active / Giao dịch / Ngân sách / Tài khoản).
+/// Per grill Q3 option C: hub screens mới (Transaction/Budget/Account).
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -30,30 +33,22 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final ScrollController _scrollController = ScrollController();
   final GlobalKey _transactionListKey = GlobalKey();
-  final GlobalKey _statsKey = GlobalKey();
-  final GlobalKey _recurringKey = GlobalKey();
   String? _lastShownError;
+  int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    // Listen for errors from ExpenseViewModel
     context.read<ExpenseViewModel>().addListener(_onExpenseError);
 
-    // ADR-0055 §Phase C: defer RecurringVM.checkAndGenerate ra 1 frame SAU
-    // first frame (frame 2) để không block first paint. Same-frame postFrame
-    // callback vẫn fires trước frame 1 GPU work complete.
-    // Nest addPostFrameCallback 2 levels: frame 1 paints → callback fires
-    // → schedule frame 2 → callback fires thật sự.
+    // ADR-0055 §Phase C: defer RecurringVM.checkAndGenerate ra frame 2.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      debugPrint('⏱ [Phase C] HomeScreen.initState postFrame 1 (frame 1 painted)');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        debugPrint('⏱ [Phase C] RecurringVM.checkAndGenerate start (frame 2)');
         context.read<RecurringTransactionViewModel>().checkAndGenerate().then((generated) {
-          debugPrint('⏱ [Phase C] RecurringVM.checkAndGenerate done (generated=$generated)');
           if (mounted && generated > 0) {
             context.read<ExpenseViewModel>().refresh();
           }
@@ -65,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     context.read<ExpenseViewModel>().removeListener(_onExpenseError);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -76,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
           duration: const Duration(seconds: 4),
         ),
       );
@@ -84,15 +80,56 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _scrollToSection(GlobalKey key, {double alignment = 0.1}) {
-    final ctx = key.currentContext;
+  void _scrollToTransactionList() {
+    final ctx = _transactionListKey.currentContext;
     if (ctx == null) return;
     Scrollable.ensureVisible(
       ctx,
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOut,
-      alignment: alignment,
+      alignment: 0.1,
     );
+  }
+
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _onTabTapped(int index) {
+    if (index == _currentIndex) {
+      // Tap-to-scroll-top behavior.
+      _scrollToTop();
+      return;
+    }
+    ScaffoldMessenger.of(context).clearSnackBars();
+    switch (index) {
+      case 0:
+        setState(() => _currentIndex = 0);
+        break;
+      case 1:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TransactionHubScreen()),
+        );
+        break;
+      case 2:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BudgetHubScreen()),
+        );
+        break;
+      case 3:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AccountHubScreen()),
+        );
+        break;
+    }
   }
 
   void _showAboutDialog() {
@@ -104,44 +141,6 @@ class _HomeScreenState extends State<HomeScreen> {
       children: const [
         Text('Ứng dụng quản lý chi tiêu cá nhân với tính năng theo dõi chi tiêu, ngân sách và giao dịch định kỳ.'),
       ],
-    );
-  }
-
-  Widget _buildJumpBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _JumpButton(
-            icon: Icons.bar_chart,
-            label: 'Tổng quan',
-            onTap: () => _scrollToSection(_statsKey),
-          ),
-          _JumpButton(
-            icon: Icons.history,
-            label: 'Lịch sử',
-            onTap: () => _scrollToSection(_transactionListKey),
-          ),
-          _JumpButton(
-            icon: Icons.repeat,
-            label: 'Định kỳ',
-            onTap: () => _scrollToSection(_recurringKey),
-          ),
-        ],
-      ),
     );
   }
 
@@ -182,12 +181,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       builder: (_) => const BackupRestoreScreen(),
                     ),
                   );
-                  break;
-                case 'category_management':
-                  CategoryManagementScreen.navigateTo(context);
-                  break;
-                case 'settings':
-                  SettingsScreen.navigateTo(context);
                   break;
                 case 'about':
                   _showAboutDialog();
@@ -230,24 +223,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const PopupMenuItem(
-                  value: 'category_management',
-                  child: ListTile(
-                    leading: Icon(Icons.category),
-                    title: Text('Quản lý danh mục'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-                // ADR-0047 (P3 #4): Settings screen entry. Move auto-purge
-                // switch từ CategoryManagement sang đây (FAB + bug fix kèm).
-                const PopupMenuItem(
-                  value: 'settings',
-                  child: ListTile(
-                    leading: Icon(Icons.settings),
-                    title: Text('Cài đặt'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
                 const PopupMenuDivider(),
                 const PopupMenuItem(
                   value: 'about',
@@ -262,247 +237,161 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          RefreshIndicator(
-            onRefresh: () async {
-              await context.read<ExpenseViewModel>().refresh();
-            },
-            // ADR-0017 Slice 3 D3.1: CustomScrollView with slivers enables
-            // lazy building of the transaction list and proper element
-            // recycling for the whole screen.
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                // Top padding (replaces the SingleChildScrollView padding top)
-                const SliverPadding(
-                  padding: EdgeInsets.only(top: 16),
-                  sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
-                ),
-
-                // Quick add bar
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: const QuickAddBar(),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 8),
-                ),
-
-                // Quick templates strip (ADR-0019)
-                const SliverToBoxAdapter(
-                  child: QuickTemplatesStrip(),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 20),
-                ),
-
-                // Budget overview
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: BudgetOverviewWidget(
-                      onCategoryTap: (categoryName) {
-                        context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
-                        _scrollToSection(_transactionListKey);
-                      },
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 20),
-                ),
-
-                // Month Close Banner (ADR-0056, Epic 5). Placement: giữa
-                // BudgetOverviewWidget và WeeklyReviewCard. Entry rule
-                // dayOfMonth >= 25 + per-month dismiss key. Selector wrap
-                // internally để chỉ rebuild khi dismiss flag thay đổi.
-                const SliverToBoxAdapter(
-                  child: MonthCloseBanner(),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 12),
-                ),
-
-                // Weekly Review card (ADR-0053, Epic 4). Placement: giữa
-                // BudgetOverviewWidget và TransactionListWidget (grill
-                // Option 1). Tap-through mirror StatsWidget.onTapWeek.
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: WeeklyReviewCard(
-                      onCtaTap: () {
-                        final vm = context.read<ExpenseViewModel>();
-                        vm.clearFilters();
-                        final now = DateTime.now();
-                        final startOfWeek =
-                            now.subtract(Duration(days: now.weekday - 1));
-                        vm.setDateRangeFilter(
-                          DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
-                          DateTime(now.year, now.month, now.day),
-                        );
-                        _scrollToSection(_transactionListKey);
-                      },
-                      onTopCategoryTap: () {
-                        final weeklyVM = context.read<WeeklyReviewViewModel>();
-                        final categoryId = weeklyVM.data?.topCategoryId;
-                        if (categoryId == null) return;
-                        final catVM = context.read<CategoryViewModel>();
-                        final cat = catVM.activeCategories
-                            .where((c) => c.id == categoryId)
-                            .firstOrNull;
-                        final vm = context.read<ExpenseViewModel>();
-                        vm.clearFilters();
-                        final now = DateTime.now();
-                        final startOfWeek =
-                            now.subtract(Duration(days: now.weekday - 1));
-                        vm.setDateRangeFilter(
-                          DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
-                          DateTime(now.year, now.month, now.day),
-                        );
-                        if (cat != null) {
-                          // Resolve categoryId → categoryName (filter uses name)
-                          vm.setCategoryFilter(cat.name);
-                        }
-                        _scrollToSection(_transactionListKey);
-                      },
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 20),
-                ),
-
-                // Transactions list (keeps its own bounded height for lazy build)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      key: _transactionListKey,
-                      child: const TransactionListWidget(),
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 20),
-                ),
-
-                // Stats section
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      key: _statsKey,
-                      child: StatsWidget(
-                        onTapToday: () {
-                          final vm = context.read<ExpenseViewModel>();
-                          vm.clearFilters();
-                          vm.setDateFilter(DateTime.now());
-                          _scrollToSection(_transactionListKey);
-                        },
-                        onTapWeek: () {
-                          final vm = context.read<ExpenseViewModel>();
-                          vm.clearFilters();
-                          final now = DateTime.now();
-                          final startOfWeek =
-                              now.subtract(Duration(days: now.weekday - 1));
-                          vm.setDateRangeFilter(
-                            DateTime(
-                                startOfWeek.year, startOfWeek.month, startOfWeek.day),
-                            DateTime(now.year, now.month, now.day),
-                          );
-                          _scrollToSection(_transactionListKey);
-                        },
-                        onTapMonth: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MonthlyReviewScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 20),
-                ),
-
-                // Chart
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    // ADR-0036: ChartWidget needs the live category catalog
-                    // to resolve categoryId → name/emoji/color. Watch
-                    // CategoryViewModel so renames reflect immediately.
-                    child: Consumer<CategoryViewModel>(
-                      builder: (context, categoryVM, _) =>
-                          ChartWidget(activeCategories: categoryVM.activeCategories),
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 20),
-                ),
-
-                // Recurring transactions
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      key: _recurringKey,
-                      child: const RecurringOverviewWidget(),
-                    ),
-                  ),
-                ),
-
-                // Bottom padding (replaces SingleChildScrollView padding bottom)
-                const SliverPadding(
-                  padding: EdgeInsets.only(bottom: 80),
-                  sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
-                ),
-              ],
-            ),
+      // ADR-0067 §5: BottomNavigationBar 4-tab.
+      bottomNavigationBar: NavigationBar(
+        key: const Key('home-bottom-nav'),
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onTabTapped,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Tổng quan',
           ),
-          // Jump bar — positioned at bottom center
-          Positioned(
-            bottom: 16,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: _buildJumpBar(),
-            ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'Giao dịch',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.pie_chart_outline),
+            selectedIcon: Icon(Icons.pie_chart),
+            label: 'Ngân sách',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Tài khoản',
           ),
         ],
       ),
-    );
-  }
-}
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await context.read<ExpenseViewModel>().refresh();
+        },
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            const SliverPadding(
+              padding: EdgeInsets.only(top: 16),
+              sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
+            ),
 
-class _JumpButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  const _JumpButton({required this.icon, required this.label, required this.onTap});
+            // NoteEntry (ADR-0067 §2) — replaces QuickAddBar.
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: NoteEntry(),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: AppColors.primary),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
+            // TodayStrip (ADR-0067 §3) — at-a-glance spending vs remaining.
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: TodayStrip(),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+            // BudgetOverviewWidget (kept per grill Q1+2 keep MonthCloseBanner/WeeklyReview).
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: BudgetOverviewWidget(
+                  onCategoryTap: (categoryName) {
+                    context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
+                    _scrollToTransactionList();
+                  },
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+            // MonthCloseBanner (ADR-0056) — kept.
+            const SliverToBoxAdapter(
+              child: MonthCloseBanner(),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+            // WeeklyReviewCard (ADR-0053) — kept.
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: WeeklyReviewCard(
+                  onCtaTap: () {
+                    final vm = context.read<ExpenseViewModel>();
+                    vm.clearFilters();
+                    final now = DateTime.now();
+                    final startOfWeek =
+                        now.subtract(Duration(days: now.weekday - 1));
+                    vm.setDateRangeFilter(
+                      DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
+                      DateTime(now.year, now.month, now.day),
+                    );
+                    _scrollToTransactionList();
+                  },
+                  onTopCategoryTap: () {
+                    final weeklyVM = context.read<WeeklyReviewViewModel>();
+                    final categoryId = weeklyVM.data?.topCategoryId;
+                    if (categoryId == null) return;
+                    final catVM = context.read<CategoryViewModel>();
+                    final cat = catVM.activeCategories
+                        .where((c) => c.id == categoryId)
+                        .firstOrNull;
+                    final vm = context.read<ExpenseViewModel>();
+                    vm.clearFilters();
+                    final now = DateTime.now();
+                    final startOfWeek =
+                        now.subtract(Duration(days: now.weekday - 1));
+                    vm.setDateRangeFilter(
+                      DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
+                      DateTime(now.year, now.month, now.day),
+                    );
+                    if (cat != null) {
+                      vm.setCategoryFilter(cat.name);
+                    }
+                    _scrollToTransactionList();
+                  },
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+            // RecentTransactionsCard (ADR-0067 §4) — 3 rows + "Xem tất cả".
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: RecentTransactionsCard(
+                  onSeeAllTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const TransactionHubScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+            // Full TransactionListWidget (kept inline on Home for tap-through).
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  key: _transactionListKey,
+                  child: const TransactionListWidget(),
+                ),
+              ),
+            ),
+
+            const SliverPadding(
+              padding: EdgeInsets.only(bottom: 24),
+              sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
             ),
           ],
         ),

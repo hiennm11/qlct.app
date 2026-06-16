@@ -23,6 +23,13 @@ class AppSettingsViewModel extends ChangeNotifier {
   static const _kAutoPurgeEnabledKey = 'auto_purge_enabled';
   static const _kLastPurgeDateKey = 'last_purge_date';
 
+  // ADR-0067 (Epic 6 Home — Balanced Note-First): user-configurable chip
+  // count cho NoteEntry quick chip strip. Range [3, 5], default 3.
+  static const _kQuickTemplateChipCountKey = 'quick_template_chip_count';
+  static const _kQuickTemplateChipCountMin = 3;
+  static const _kQuickTemplateChipCountMax = 5;
+  static const _kQuickTemplateChipCountDefault = 3;
+
   // ADR-0056 (Epic 5 — month close flow): per-month dismiss key cho
   // MonthCloseBanner. Suffix = previousMonthYYYYMM (tháng cần chốt), không
   // phải current month. Sang tháng mới tự nhiên reset vì check previousMonth
@@ -41,8 +48,11 @@ class AppSettingsViewModel extends ChangeNotifier {
   // build. Lazy-init qua _ensureDismissedMap() trong getDismissedMonthClose.
   final Map<String, bool> _dismissedMonths = {};
 
+  int _quickTemplateChipCount = _kQuickTemplateChipCountDefault;
+
   bool get autoPurgeEnabled => _autoPurgeEnabled;
   String? get lastPurgeDate => _lastPurgeDate;
+  int get quickTemplateChipCount => _quickTemplateChipCount;
 
   /// Read persisted values từ [StorageService] và notify listeners. Idempotent —
   /// gọi nhiều lần chỉ re-read 1 lần (cached sau first load). Wire từ
@@ -51,6 +61,9 @@ class AppSettingsViewModel extends ChangeNotifier {
     final enabled = _storage.loadValue<bool>(_kAutoPurgeEnabledKey);
     _autoPurgeEnabled = enabled ?? true;
     _lastPurgeDate = _storage.loadValue<String>(_kLastPurgeDateKey);
+    final chipCountRaw = _storage.loadValue<int>(_kQuickTemplateChipCountKey);
+    _quickTemplateChipCount = (chipCountRaw ?? _kQuickTemplateChipCountDefault)
+        .clamp(_kQuickTemplateChipCountMin, _kQuickTemplateChipCountMax);
     notifyListeners();
   }
 
@@ -108,6 +121,19 @@ class AppSettingsViewModel extends ChangeNotifier {
     if (_lastPurgeDate == dateStr) return;
     _lastPurgeDate = dateStr;
     await _storage.saveValue(_kLastPurgeDateKey, dateStr);
+    notifyListeners();
+  }
+
+  /// ADR-0067: set chip count cho NoteEntry quick chip strip. Clamp to
+  /// [3, 5] trước khi write. Notify để NoteEntry rebuild.
+  Future<void> setQuickTemplateChipCount(int value) async {
+    final clamped = value.clamp(
+      _kQuickTemplateChipCountMin,
+      _kQuickTemplateChipCountMax,
+    );
+    if (clamped == _quickTemplateChipCount) return;
+    _quickTemplateChipCount = clamped;
+    await _storage.saveValue(_kQuickTemplateChipCountKey, clamped);
     notifyListeners();
   }
 }

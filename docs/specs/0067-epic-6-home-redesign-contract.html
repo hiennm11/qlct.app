@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>ADR-0067 — Epic 6 Home: Balanced Note-First + Bottom Nav 4-tab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">ADR-0067 — Epic 6 Home redesign</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Thay thế Home hiện tại bằng <strong>"Balanced Note-First"</strong> (Stitch screen
+    <code>9620c19063e74a1399efa4440f5ebb99</code>, teal-balanced variant
+    <code>31cf0f4a151d45f6a88c36f0b577bdba</code>). Entry point: large note textarea + 3-5 quick
+    chips + circular mic button. Hôm nay strip inline (spent + remaining + progress). Recent tx 3
+    rows compact. Bottom nav 4-tab (Tổng quan / Giao dịch / Ngân sách / Tài khoản) thay cho
+    JumpBar floating 3-tab. Version bump: <strong>1.7.1 → 1.8.0+YYYYMMDDxx</strong> (MINOR — new
+    navigation structure + 3 hub screens, không breaking data layer).
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- §1 — Context -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§1 — Context: vì sao redesign Home</h2>
+  <p class="text-sm text-gray-700">
+    Epic 5 (month close) + Epic 4 (weekly review) đã add 2 cards trên Home. Home hiện đang dày đặc,
+    JumpBar 3-tab floating chiếm diện tích. Stitch variant teal-balanced đã được user confirm (turn
+    trước, 9 câu grill resolved) làm visual direction. Epic này ship entry-point + navigation để
+    mỗi tab trở thành hub chuyên biệt (Overview = at-a-glance, Transactions = full list, Budget =
+    monthly plan, Account = settings/profile).
+  </p>
+</section>
+
+<!-- §2 — NoteEntry widget -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§2 — NoteEntry widget (file mới <code>lib/widgets/note_entry.dart</code>)</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Thay thế <code>QuickAddBar</code> 3-column compact hiện tại. Layout 4 hàng dọc:
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="note-entry-layout">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// NoteEntry — note-first entry point trên Home.
+// Tap mic → SpeechCoordinator (giữ logic ADR-0022 voice).
+// Tap chip → pre-fill textarea + submit.
+// Tap "Lưu" → ExpenseViewModel.addTransaction() với parsed note.
+//
+// Khi voice active, textarea collapse 1 hàng + show interim transcript ở
+// placeholder. Voice fallback: nếu permission denied → show modal
+// (theo grill Q5 option B).
+Column(
+  crossAxisAlignment: CrossAxisAlignment.stretch,
+  children: [
+    TextField(
+      key: const Key('note-entry-textarea'),
+      maxLines: 3,
+      minLines: 2,
+      textInputAction: TextInputAction.newline,
+      decoration: InputDecoration(
+        hintText: 'Ghi chú nhanh...',
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    ),
+    const SizedBox(height: 12),
+    Row(
+      children: [
+        // Quick chips strip: load từ QuickTemplateViewModel.pinnedTemplates(),
+        // max = AppSettingsViewModel.quickTemplateChipCount (default 3, user
+        // config 3-5 trong Settings).
+        Expanded(child: _QuickChipStrip(key: const Key('note-entry-chips'))),
+        const SizedBox(width: 8),
+        _MicButton(
+          key: const Key('note-entry-mic'),
+          onTap: _handleMicTap,
+        ),
+        const SizedBox(width: 8),
+        FilledButton(
+          key: const Key('note-entry-save'),
+          onPressed: _handleSave,
+          child: const Text('Lưu'),
+        ),
+      ],
+    ),
+  ],
+)</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>State machine:</b>
+    <code>idle → typing | recording | parsing → idle</code>.
+    <code>parsing</code> chạy qua <code>TransactionParser</code> hiện có (parse note → amount/category).
+    Submit trigger: "Lưu" button, hoặc Ctrl+Enter, hoặc voice result.
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Mic button:</b> circular 48px, primary color, mic icon. Active state = pulse animation + red tint.
+    Long-press = manual stop. Tap-and-hold giữ logic ADR-0022.
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Voice fallback (Q5 option B):</b> khi permission denied hoặc speech_to_text unavailable,
+    show modal <code>showDialog&lt;String&gt;</code> thay vì inline error. Modal title:
+    "Nhập tay", body: same textarea, submit OK. Rationale: per griller, modal keeps note-first
+    intent intact; inline error dễ miss ở small viewport.
+  </p>
+</section>
+
+<!-- §3 — Today strip -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§3 — Today strip (file mới <code>lib/widgets/today_strip.dart</code>)</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Inline summary ngay dưới NoteEntry. 3 phần: spent (label) + remaining (label) + progress bar.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="today-strip">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// TodayStrip — at-a-glance spending vs remaining budget for today.
+// Source: ExpenseViewModel.todayExpense (spending only, exclude investment).
+//         BudgetViewModel.monthRemaining (current month total budget - spent).
+//         todayProgress = clamp01(todayExpense / dailyAllowance).
+//         dailyAllowance = monthRemaining / daysLeftInMonth.
+class TodayStrip extends StatelessWidget {
+  const TodayStrip({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer2<ExpenseViewModel, BudgetViewModel>(
+      builder: (context, expVM, budVM, _) {
+        final todaySpent = expVM.todayExpense;       // double, VND
+        final monthRem = budVM.monthRemaining;        // double, VND
+        final daysLeft = budVM.daysLeftInMonth;       // int
+        final dailyAllowance = daysLeft > 0 ? monthRem / daysLeft : 0.0;
+        final progress = dailyAllowance > 0
+            ? (todaySpent / dailyAllowance).clamp(0.0, 1.0)
+            : 0.0;
+
+        return Card(
+          key: const Key('today-strip'),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hôm nay -${CurrencyFormatter.format(todaySpent)}',
+                  key: const Key('today-strip-spent'),
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Còn lại ${CurrencyFormatter.format(monthRem)}',
+                  key: const Key('today-strip-remaining'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    key: const Key('today-strip-progress'),
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: AppColors.gray100,
+                    valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Edge cases:</b>
+  </p>
+  <ul class="list-disc pl-6 text-xs text-gray-600 space-y-1">
+    <li><code>daysLeft == 0</code> (last day of month) → progress = 0, no div-by-zero.</li>
+    <li><code>dailyAllowance == 0</code> (no budget set) → progress = 0, strip renders neutral (not red).</li>
+    <li><code>monthRem < 0</code> (overspent) → progress = 1.0 max-clamped, show "Vượt X" label (toán: <code>monthRem.abs()</code>).</li>
+    <li><code>todaySpent == 0</code> → show "Chưa chi hôm nay" thay "Hôm nay -0đ".</li>
+  </ul>
+</section>
+
+<!-- §4 — Recent transactions card -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§4 — Recent transactions card (compact 3 rows)</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Inline trên Home. Load 3 transaction gần nhất từ <code>ExpenseViewModel.allTransactions.take(3)</code>.
+    Tap row → <code>TransactionDetailSheet</code>. Tap "Xem tất cả" → navigate to TransactionHubScreen.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="recent-tx-card">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// RecentTransactionsCard — 3 most recent tx on Home, "Xem tất cả" CTA.
+class RecentTransactionsCard extends StatelessWidget {
+  const RecentTransactionsCard({super.key, required this.onSeeAllTap});
+  final VoidCallback onSeeAllTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ExpenseViewModel>(
+      builder: (context, vm, _) {
+        final recent = vm.allTransactions.take(3).toList();
+        if (recent.isEmpty) {
+          return const SizedBox.shrink(key: Key('recent-tx-empty'));
+        }
+        return Card(
+          key: const Key('recent-tx-card'),
+          child: Column(
+            children: [
+              ...recent.map((tx) => _RecentRow(tx: tx)),
+              if (vm.allTransactions.length > 3)
+                TextButton(
+                  key: const Key('recent-tx-see-all'),
+                  onPressed: onSeeAllTap,
+                  child: const Text('Xem tất cả'),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Row layout:</b> 56px height, emoji 32px + category name (1 line, ellipsis) + amount right-aligned.
+    Per-row tap target ≥48dp (a11y). 0 separator — dùng border bottom 1px AppColors.border.
+  </p>
+</section>
+
+<!-- §5 — Bottom nav 4-tab -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§5 — Bottom navigation 4-tab (replace JumpBar)</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Thay thế <code>JumpBar</code> floating 3-tab (Home / Transactions / Settings) bằng
+    <code>BottomNavigationBar</code> 4-tab trong HomeScreen <code>Scaffold.bottomNavigationBar</code>.
+  </p>
+
+  <table class="w-full text-sm border-collapse bg-white border border-gray-200 rounded" data-test="bottom-nav-tabs">
+    <thead>
+      <tr class="bg-gray-100 text-left">
+        <th class="p-2">Index</th>
+        <th class="p-2">Label (vi)</th>
+        <th class="p-2">Icon</th>
+        <th class="p-2">Hub screen</th>
+        <th class="p-2">Tap action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="border-t"><td class="p-2">0</td><td class="p-2">Tổng quan</td><td class="p-2"><code>Icons.home_outlined</code> / <code>Icons.home</code></td><td class="p-2">HomeScreen (current)</td><td class="p-2">Always index 0 (overview)</td></tr>
+      <tr class="border-t"><td class="p-2">1</td><td class="p-2">Giao dịch</td><td class="p-2"><code>Icons.receipt_long_outlined</code> / <code>Icons.receipt_long</code></td><td class="p-2">TransactionHubScreen (NEW)</td><td class="p-2">Push full list, filter/search</td></tr>
+      <tr class="border-t"><td class="p-2">2</td><td class="p-2">Ngân sách</td><td class="p-2"><code>Icons.pie_chart_outline</code> / <code>Icons.pie_chart</code></td><td class="p-2">BudgetHubScreen (NEW)</td><td class="p-2">Push current month plan + BudgetOverviewWidget + MonthlyPlan shortcut</td></tr>
+      <tr class="border-t"><td class="p-2">3</td><td class="p-2">Tài khoản</td><td class="p-2"><code>Icons.person_outline</code> / <code>Icons.person</code></td><td class="p-2">AccountHubScreen (NEW)</td><td class="p-2">Push SettingsScreen (current) + Category management + Backup</td></tr>
+    </tbody>
+  </table>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Active state:</b> primary color tint cho icon + label, soft 4px top border 2px (per ADR-0066
+    pill vs soft hierarchy: tab = soft, button = pill).
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Tap-to-scroll-to-top:</b> tap tab đang active → scroll controller về top (mirror pattern
+    ADR-0008 tap-through). Dùng <code>ScaffoldMessenger.of(context).clearSnackBars()</code> để
+    clear any in-flight SnackBar khi switch tab.
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Index persistence:</b> lưu <code>_currentIndex</code> trong HomeScreen state (per ADR-0050
+    pattern — không persist cross-session cho 1.8.0, luôn reset về 0 khi launch).
+  </p>
+</section>
+
+<!-- §6 — 3 new hub screens -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§6 — 3 hub screens mới</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Mapping theo grill Q3 (Hub screens option C):
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="hub-screen-mapping">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// TransactionHubScreen — push từ bottom nav index 1.
+// = full TransactionListWidget (existing), search/filter top, không có note entry.
+// Existing widgets reused: TransactionListWidget + search bar + filter row.
+// AppBar: "Giao dịch" + IconButton(filter advanced) + IconButton(add manual).
+class TransactionHubScreen extends StatelessWidget {
+  const TransactionHubScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      key: const Key('hub-transaction'),
+      appBar: AppBar(
+        title: const Text('Giao dịch'),
+        actions: [
+          IconButton(
+            key: const Key('hub-transaction-add'),
+            icon: const Icon(Icons.add),
+            tooltip: 'Thêm giao dịch',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TransactionEditDialog(),  // wrap in screen?
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: const Column(
+        children: [
+          SearchBar(),         // existing
+          FilterRow(),          // existing
+          Expanded(child: TransactionListWidget()),
+        ],
+      ),
+    );
+  }
+}
+
+// BudgetHubScreen — push từ bottom nav index 2.
+// Sections: BudgetOverviewWidget (current month status) + MonthlyPlan shortcut card +
+//           Recent snapshots (last 3 months) + MonthlyReviewScreen entry.
+class BudgetHubScreen extends StatelessWidget {
+  // ... build similar scaffold
+}
+
+// AccountHubScreen — push từ bottom nav index 3.
+// = SettingsScreen (existing ADR-0047) + Category management entry + Backup entry.
+class AccountHubScreen extends StatelessWidget {
+  // ... build similar scaffold
+}</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Schema impact:</b> 0. Hub screens = UI navigation, không persist state ngoài index nav.
+    <code>ExpenseViewModel</code> / <code>BudgetViewModel</code> / <code>CategoryViewModel</code>
+    đã có sẵn — chỉ render với filter rộng hơn.
+  </p>
+</section>
+
+<!-- §7 — AppSettingsViewModel field mới -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§7 — AppSettingsViewModel: thêm <code>quickTemplateChipCount</code></h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Per grill Q6 (config flexible 3-5 chip thay vì cứng 3): user pin chip count trong Settings.
+    Field mới thêm vào <code>AppSettingsViewModel</code>:
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="appsettings-field">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// lib/viewmodels/app_settings_viewmodel.dart — add field
+class AppSettingsViewModel extends ChangeNotifier {
+  // ... existing autoPurgeEnabled (ADR-0050) ...
+
+  static const int _chipCountMin = 3;
+  static const int _chipCountMax = 5;
+  static const int _chipCountDefault = 3;
+  static const String _prefsKey = 'quick_template_chip_count';
+
+  int _quickTemplateChipCount = _chipCountDefault;
+  int get quickTemplateChipCount => _quickTemplateChipCount;
+
+  /// Clamp to [3, 5] trước khi write.
+  Future<void> setQuickTemplateChipCount(int value) async {
+    final clamped = value.clamp(_chipCountMin, _chipCountMax);
+    if (clamped == _quickTemplateChipCount) return;
+    _quickTemplateChipCount = clamped;
+    await _storage.setInt(_prefsKey, clamped);
+    notifyListeners();
+  }
+}</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Settings ListTile (Q6 reply):</b> thêm vào <code>SettingsScreen</code> section "Dữ liệu"
+    (ADR-0047): <code>Slider</code> hoặc <code>ListTile</code> với 3 options (3 / 4 / 5 chip).
+    Reactive qua <code>Selector&lt;AppSettingsViewModel, int&gt;</code> (ADR-0050 pattern).
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Migration:</b> 0 schema. SharedPreferences key mới default = 3. Existing user auto-migrate
+    on first read.
+  </p>
+</section>
+
+<!-- §8 — Removal list -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§8 — Loại bỏ (explicit remove)</h2>
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-2">
+    <li>
+      <b>JumpBar (3-tab floating)</b> — file <code>lib/widgets/jump_bar.dart</code>. Thay thế bằng
+      <code>BottomNavigationBar</code> 4-tab trong HomeScreen. Test remove <code>find.byType(JumpBar)</code>
+      → <code>findsNothing</code>.
+    </li>
+    <li>
+      <b>QuickTemplatesStrip</b> — file <code>lib/widgets/quick_templates_strip.dart</code>. Thay
+      thế bằng <code>NoteEntry</code> chip strip inline (max 5 chip, config qua setting §7). Quick
+      template global list vẫn dùng cho TransactionDetailSheet "Lưu làm mẫu" (ADR-0019 invariant).
+    </li>
+    <li>
+      <b>ChartWidget</b> — file <code>lib/widgets/chart_widget.dart</code>. 0 user-visible data
+      ở chart (hầu hết zero-data). Move to <code>BudgetHubScreen</code> dưới dạng "Biểu đồ danh
+      mục" 1 card (conditional: chỉ render khi monthExpense > 0).
+    </li>
+    <li>
+      <b>PopupMenu "Quản lý danh mục" + "Cài đặt"</b> trên HomeScreen AppBar. 2 actions này chuyển
+      vào AccountHubScreen (tab 3) dưới dạng ListTile leading icon. Gear menu giữ export CSV/JSON
+      + backup/restore (vẫn cần shortcut).
+    </li>
+    <li>
+      <b>StatsWidget</b> — file <code>lib/widgets/stats_widget.dart</code>. Inline "Hôm nay" +
+      "Tuần này" + "Tháng này" đã có trong TodayStrip (§3) + WeeklyReviewCard (giữ nguyên) +
+      BudgetOverviewWidget. Remove top-level card, các sub-section khác move to respective hub.
+    </li>
+  </ol>
+</section>
+
+<!-- §9 — Test surface -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§9 — Test surface</h2>
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-2">
+    <li>
+      <b>NoteEntry widget test</b> (<code>test/widgets/note_entry_test.dart</code>, new):
+      <ul class="list-disc pl-6 text-xs mt-1 space-y-1">
+        <li>Render → find textarea + 3 chip + mic button + save button.</li>
+        <li>Tap chip "Cà phê 25k" → textarea pre-fill "Cà phê 25k".</li>
+        <li>Tap mic → voice coordinator trigger (mock). Verify onVoiceStart callback fires.</li>
+        <li>Tap save with valid note → ExpenseViewModel.addTransaction called with parsed data.</li>
+        <li>Voice permission denied → modal fallback shows (grill Q5 option B).</li>
+        <li>Chip count = 5 (max) → render 5 chips, overflow test (setSurfaceSize 400×560).</li>
+      </ul>
+    </li>
+    <li>
+      <b>TodayStrip test</b> (<code>test/widgets/today_strip_test.dart</code>, new):
+      <ul class="list-disc pl-6 text-xs mt-1 space-y-1">
+        <li>Render with todayExpense=0 → "Chưa chi hôm nay" label.</li>
+        <li>Render with todayExpense=170000, dailyAllowance=200000 → progress=0.85.</li>
+        <li>Render with monthRem=0 → progress=0, no div-by-zero.</li>
+        <li>Render with monthRem=-100000 (overspent) → progress=1.0, "Vượt 100.000đ" label.</li>
+      </ul>
+    </li>
+    <li>
+      <b>RecentTransactionsCard test</b> (<code>test/widgets/recent_tx_card_test.dart</code>, new):
+      <ul class="list-disc pl-6 text-xs mt-1 space-y-1">
+        <li>Render with 5 tx → show 3 + "Xem tất cả" button visible.</li>
+        <li>Render with 0 tx → SizedBox.shrink, no card.</li>
+        <li>Tap row → TransactionDetailSheet pushed.</li>
+        <li>Tap "Xem tất cả" → TransactionHubScreen pushed.</li>
+      </ul>
+    </li>
+    <li>
+      <b>Bottom nav test</b> (<code>test/widgets/bottom_nav_test.dart</code>, new):
+      <ul class="list-disc pl-6 text-xs mt-1 space-y-1">
+        <li>Render HomeScreen → 4 NavigationDestination visible.</li>
+        <li>Tap "Ngân sách" → BudgetHubScreen pushed, index=2.</li>
+        <li>Tap "Tài khoản" → AccountHubScreen pushed, index=3.</li>
+        <li>Tap tab đang active 2x → scroll controller = 0.</li>
+      </ul>
+    </li>
+    <li>
+      <b>AppSettings.quickTemplateChipCount test</b> (<code>test/unit/app_settings_test.dart</code>, add):
+      <ul class="list-disc pl-6 text-xs mt-1 space-y-1">
+        <li>Default value = 3.</li>
+        <li>Set 5 → read back 5, notifyListeners fired.</li>
+        <li>Set 6 → clamp to 5.</li>
+        <li>Set 2 → clamp to 3.</li>
+      </ul>
+    </li>
+    <li>
+      <b>Removal regression</b>:
+      <ul class="list-disc pl-6 text-xs mt-1 space-y-1">
+        <li><code>grep -r 'JumpBar' lib/</code> → 0 hit (post-remove).</li>
+        <li><code>grep -r 'QuickTemplatesStrip' lib/</code> → 0 hit except test removal check.</li>
+        <li><code>grep -r 'ChartWidget' lib/</code> → 0 hit except BudgetHubScreen reference.</li>
+        <li>Existing home_screen_test.dart: cập nhật assertion cho layout mới (NoteEntry + TodayStrip + Recent + Weekly + MonthCloseBanner).</li>
+      </ul>
+    </li>
+  </ol>
+</section>
+
+<!-- §10 — Files touched -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§10 — Files touched</h2>
+  <ul class="list-disc pl-6 text-sm text-gray-700 space-y-1">
+    <li><b>New</b> — <code>lib/widgets/note_entry.dart</code> (NoteEntry widget)</li>
+    <li><b>New</b> — <code>lib/widgets/today_strip.dart</code> (TodayStrip widget)</li>
+    <li><b>New</b> — <code>lib/widgets/recent_transactions_card.dart</code> (Recent card widget)</li>
+    <li><b>New</b> — <code>lib/views/transaction_hub_screen.dart</code></li>
+    <li><b>New</b> — <code>lib/views/budget_hub_screen.dart</code></li>
+    <li><b>New</b> — <code>lib/views/account_hub_screen.dart</code></li>
+    <li><b>Modify</b> — <code>lib/views/home_screen.dart</code> (remove JumpBar, add BottomNav, replace QuickAddBar → NoteEntry + TodayStrip + Recent)</li>
+    <li><b>Modify</b> — <code>lib/viewmodels/app_settings_viewmodel.dart</code> (add <code>quickTemplateChipCount</code>)</li>
+    <li><b>Modify</b> — <code>lib/views/settings_screen.dart</code> (add ListTile cho chip count 3/4/5)</li>
+    <li><b>Delete</b> — <code>lib/widgets/jump_bar.dart</code></li>
+    <li><b>Delete</b> — <code>lib/widgets/quick_templates_strip.dart</code> (chỉ trên Home, vẫn giữ QuickTemplate model + viewmodel + template edit sheets)</li>
+    <li><b>Delete</b> — <code>lib/widgets/chart_widget.dart</code> (move logic to BudgetHubScreen inline)</li>
+    <li><b>Delete</b> — <code>lib/widgets/stats_widget.dart</code> (sections move to TodayStrip + hub screens)</li>
+    <li><b>Modify</b> — <code>pubspec.yaml</code> (bump version 1.7.1 → 1.8.0+YYYYMMDDxx)</li>
+    <li><b>New tests</b> — <code>test/widgets/note_entry_test.dart</code>, <code>test/widgets/today_strip_test.dart</code>, <code>test/widgets/recent_tx_card_test.dart</code>, <code>test/widgets/bottom_nav_test.dart</code></li>
+    <li><b>Modify</b> — <code>test/unit/app_settings_test.dart</code> (add chip count test)</li>
+    <li><b>Modify</b> — <code>test/widget_test.dart</code> + <code>test/widgets/home_screen_test.dart</code> (update layout assertions)</li>
+    <li><b>New</b> — <code>docs/adr/0067-epic-6-home-redesign-2026-06-16.md</code></li>
+    <li><b>New</b> — <code>docs/specs/0067-epic-6-home-redesign-contract.html</code> (file này)</li>
+  </ul>
+</section>
+
+<!-- §11 — Out of scope (defer) -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§11 — Out of scope (defer)</h2>
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-1">
+    <li>
+      <b>Category-specific chip tints</b> (theo Stitch design system "Categories: small chips with
+      a light tint of the category color") — 11-color palette contrast vs 4px soft chip boundary
+      cần design iteration riêng. P+.
+    </li>
+    <li>
+      <b>Display-currency typography 32px / 700 / -0.02em</b> — Stitch design system spec cho
+      "display-currency" token. Apply trong TodayStrip/StatsWidget lần lượt. P+.
+    </li>
+    <li>
+      <b>Bottom nav gesture (swipe between tabs)</b> — Flutter <code>NavigationBar</code> + custom
+      PageView có thể add nhưng cần test animation conflict. Defer.
+    </li>
+    <li>
+      <b>Persistent tab index across sessions</b> — hiện tại reset về 0 mỗi launch. P+ nếu user
+      request.
+    </li>
+    <li>
+      <b>Hub screen search across hub</b> (Budget search by name, Account search settings) —
+      P+ khi data lớn.
+    </li>
+  </ol>
+</section>
+
+<!-- §12 — Version bump + release gate -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§12 — Version bump + release gate</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    <b>Version:</b> 1.7.1+20260616001 → <strong>1.8.0+YYYYMMDDxx</strong> (MINOR per ADR-0024 §1 — new
+    feature: bottom nav + 3 hub screens, không breaking data layer).
+  </p>
+  <p class="text-sm text-gray-700 mb-3">
+    <b>Release gate (ADR-0024 §3):</b>
+  </p>
+  <ul class="list-disc pl-6 text-sm text-gray-700 space-y-1">
+    <li><b>App Stable:</b> bottom nav + 3 hub screens = UI restructure, không data layer.</li>
+    <li><b>Migration Safe:</b> 0 schema change. <code>AppSettingsViewModel</code> thêm 1 prefs key, default = 3 (auto-migrate).</li>
+    <li><b>Backup Safe:</b> 0 backup format change.</li>
+    <li><b>Restore Safe:</b> 0 restore path change.</li>
+    <li><b>Test Device:</b> install + navigate toàn bộ 4 tab + add tx mới + verify QuickTemplate chip render đúng số lượng config.</li>
+  </ul>
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Risk profile:</b> trung bình. UI restructure rộng (5 file delete, 6 file new, 4 file modify)
+    nhưng 0 schema, 0 backup, 0 migration. Nếu bug visual, fallback = git revert commit 2, về
+    theme commit 1 (1.7.1). Không có data corruption risk.
+  </p>
+</section>
+
+</main>
+</body>
+</html>
