@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>ADR-0066 — Theme alignment với Vietnamese Personal Finance System (Stitch design system)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">ADR-0066 — Theme alignment với Vietnamese Personal Finance System</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Contract artifact. Pin <code>lib/core/theme.dart</code> với design tokens của
+    Stitch asset <code>bf4384c15c6f45aea9fc24bd84013643</code> ("Vietnamese Personal Finance System").
+    Bundle Inter font qua <code>assets/fonts/</code> thay vì <code>google_fonts</code> online dep.
+    Material 3 ColorScheme auto-derive cho <code>primaryContainer</code> (không pin cứng).
+    Version bump: <strong>1.7.0 → 1.7.1+YYYYMMDDxx</strong> (PATCH — UI polish, không breaking).
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- ============================================================ -->
+<!-- §1 — Context: Stitch design system vs current codebase         -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§1 — Context: design system audit</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Stitch project <code>5354040668774200860</code> bind design system asset
+    <code>bf4384c15c6f45aea9fc24bd84013643</code> ("Vietnamese Personal Finance System") — đã được dùng
+    làm base cho 8 home variant đã generate (v2/v3/v4/balanced/minimal/voice-first/high-density/smart-modern).
+    Audit design system vs <code>lib/core/theme.dart</code>:
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="token-audit">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="bg-gray-100 text-left">
+          <th class="p-2">Token</th>
+          <th class="p-2">Stitch design system</th>
+          <th class="p-2">Codebase (<code>AppColors</code>)</th>
+          <th class="p-2">Match?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-t"><td class="p-2">primary</td><td class="p-2"><code>#208091</code></td><td class="p-2"><code>Color(0xFF208091)</code></td><td class="p-2 text-green-700">✓</td></tr>
+        <tr class="border-t"><td class="p-2">background</td><td class="p-2"><code>#F5F5F5</code></td><td class="p-2"><code>Color(0xFFF5F5F5)</code></td><td class="p-2 text-green-700">✓</td></tr>
+        <tr class="border-t"><td class="p-2">surface</td><td class="p-2"><code>#FFFFFF</code></td><td class="p-2"><code>Color(0xFFFFFFFF)</code></td><td class="p-2 text-green-700">✓</td></tr>
+        <tr class="border-t"><td class="p-2">border</td><td class="p-2"><code>#E0E0E0</code></td><td class="p-2"><code>Color(0xFFE0E0E0)</code></td><td class="p-2 text-green-700">✓</td></tr>
+        <tr class="border-t"><td class="p-2">error</td><td class="p-2"><code>#BA1A1A</code></td><td class="p-2"><code>Color(0xFFFF5459)</code> (named <code>error</code>, but lighter red)</td><td class="p-2 text-amber-700">⚠ hex drift</td></tr>
+        <tr class="border-t"><td class="p-2">card radius</td><td class="p-2">12px</td><td class="p-2">12px (BorderRadius.circular(12))</td><td class="p-2 text-green-700">✓</td></tr>
+        <tr class="border-t"><td class="p-2">button shape</td><td class="p-2">pill (rounded-full)</td><td class="p-2">8px (BorderRadius.circular(8))</td><td class="p-2 text-amber-700">⚠ not pill</td></tr>
+        <tr class="border-t"><td class="p-2">chip shape</td><td class="p-2">4px (soft)</td><td class="p-2">ActionChip default (stadium ~20px)</td><td class="p-2 text-amber-700">⚠ not soft</td></tr>
+        <tr class="border-t"><td class="p-2">typography font</td><td class="p-2">Inter 400/500/600/700</td><td class="p-2">Material default (Roboto/SF)</td><td class="p-2 text-amber-700">⚠ not Inter</td></tr>
+        <tr class="border-t"><td class="p-2">primaryContainer</td><td class="p-2"><code>#208091</code></td><td class="p-2">Material 3 auto-derive (lighter tone)</td><td class="p-2 text-amber-700">⚠ derived, not pinned</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Drift summary:</b> 4 tokens khớp (primary/background/surface/border), 5 tokens lệch. Scope epic
+    này fix 4 trong 5 lệch (error/button/chip/font). <code>primaryContainer</code> giữ Material 3 auto-derive
+    (rationale §6).
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §2 — Decision: bundle Inter .ttf (not google_fonts online)     -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§2 — Decision: bundle Inter qua assets/fonts</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Pin Inter làm default font. Lý do bundle <code>.ttf</code> thay vì <code>google_fonts</code>:
+  </p>
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-2">
+    <li>
+      <b>ADR-0055 ceiling 1.8s cold start</b> — đã chứng minh native ceiling không thể optimize thêm
+      từ Dart. Online font fetch + cache miss thêm 200-500ms flicker là budget không afford được.
+    </li>
+    <li>
+      <b>Offline-first constraint</b> — personal finance app, user dùng offline thường xuyên (xe ôm,
+      metro). Inter phải render 100% kể cả khi mất mạng.
+    </li>
+    <li>
+      <b>APK size negligible</b> — qLCT.app 58.4MB release, thêm 4 file .ttf (~250KB) = 0.4% growth.
+    </li>
+    <li>
+      <b>Predictable release gate</b> — ADR-0024 §3 không yêu cầu test offline, nhưng thêm external
+      dep = thêm 1 failure mode chưa có mitigation. Bundle 1 lần, 0 network, 0 surprise.
+    </li>
+  </ol>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="pubspec-fonts">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code># pubspec.yaml — flutter.fonts section
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>File nguồn:</b> download Inter v4.0 từ <a href="https://github.com/rsms/inter/releases"
+    class="text-blue-600 underline">github.com/rsms/inter</a> (SIL Open Font License 1.1 — free cho
+    commercial). Chỉ lấy 4 weight (400/500/600/700) khớp Stitch design system typography scale.
+    Không include Inter Italic (codebase không dùng italic body).
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §3 — AppColors additions (error color pin)                     -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§3 — AppColors: pin <code>error</code> = #BA1A1A</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Codebase hiện <code>AppColors.error = Color(0xFFFF5459)</code> (lighter red, ~"salmon"). Stitch design
+    system dùng <code>#BA1A1A</code> (Material 3 standard error). Drift này đã ship 1.7.0 nhưng chưa có
+    user-visible complaint (chỉ dùng cho error SnackBar background + error icon tint, ít visible).
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="app-colors-pin">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// lib/core/theme.dart — diff (AppColors class)
+class AppColors {
+  AppColors._();
+
+  // Existing (giữ nguyên — đã match Stitch):
+  static const Color primary = Color(0xFF208091);
+  static const Color background = Color(0xFFF5F5F5);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color border = Color(0xFFE0E0E0);
+
+  // CHANGED: pin error = Material 3 standard
+- static const Color error = Color(0xFFFF5459);
++ static const Color error = Color(0xFFBA1A1A);
+
+  // Existing (giữ nguyên):
+  static const Color success = Color(0xFF2BB85C);
+  static const Color warning = Color(0xFFE6814F);
+  // ... (gray100/gray200/gray300/categoryColors unchanged)
+}</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Không bump schema, không backup impact.</b> <code>error</code> chỉ dùng cho UI tint — không persist
+    giá trị hex nào trong SQLite hay backup JSON. Đổi hex chỉ thay đổi visual, không data integrity risk.
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Regression check:</b> grep <code>AppColors.error</code> across <code>lib/</code> → chỉ dùng trong
+    <code>theme.dart</code> ColorScheme + 4-5 sites (SnackBar background, Icon tint). Visual diff chấp nhận được
+    (đậm hơn 1 tone, semantic "error" rõ hơn).
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §4 — Button shape: pill (StadiumBorder)                        -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§4 — ElevatedButton shape: pill</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Stitch design system định nghĩa button = <em>"fully rounded (pill) shape for primary actions to make
+    them highly tappable"</em>. Codebase hiện dùng <code>BorderRadius.circular(8)</code> (8px rounded, không pill).
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="button-shape">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// lib/core/theme.dart — diff (elevatedButtonTheme)
+elevatedButtonTheme: ElevatedButtonThemeData(
+  style: ElevatedButton.styleFrom(
+    backgroundColor: AppColors.primary,
+    foregroundColor: Colors.white,
+    elevation: 0,
+    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+-   shape: RoundedRectangleBorder(
+-     borderRadius: BorderRadius.circular(8),
+-   ),
++   shape: const StadiumBorder(),
+  ),
+),</code></pre>
+  </div>
+
+  <p class="bg-amber-50 border border-amber-200 rounded p-3 mt-3 text-xs text-amber-900" data-test="button-tradeoff">
+    <b>Trade-off:</b> 1 site sẽ visually lệch — <code>RecurringEditDialog</code> / <code>BudgetBulkEditDialog</code>
+    / <code>TransactionEditDialog</code> primary button từ 8px rounded → full pill. Padding ngang có thể tăng
+    4-8px (pill tự nới rộng theo content + padding). Test visual sau khi land: install trên test device,
+    mở 3 dialogs verify không overflow button text.
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Key binding:</b> không cần Key mới (button không có state phụ thuộc). Test qua <code>find.byType(ElevatedButton)</code>
+    + visual regression checklist trong release smoke test.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §5 — Chip shape: soft 4px (RoundedRectangleBorder 4)           -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§5 — ActionChip shape: soft 4px</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Stitch design system định nghĩa chip = <em>"4px (Soft) radius to differentiate from larger
+    interactive components"</em>. Codebase dùng <code>ActionChip</code> default = StadiumBorder (~20px
+    = pill). Drift đáng kể — chip hiện tại trông "bo tròn hoàn toàn" trong khi Stitch design muốn "vuông nhẹ".
+  </p>
+
+  <p class="text-sm text-gray-700 mb-3">
+    <b>Caveat:</b> <code>ActionChip</code> không có global theme override như button. Phải sửa
+    trực tiếp trong <code>ChipThemeData</code> của <code>ThemeData</code>:
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="chip-shape">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// lib/core/theme.dart — diff (add ChipThemeData to ThemeData)
+return ThemeData(
+  useMaterial3: true,
+  colorScheme: ...,
+  // ... existing
++ chipTheme: ChipThemeData(
++   shape: RoundedRectangleBorder(
++     borderRadius: BorderRadius.circular(4),
++   ),
++   side: const BorderSide(color: AppColors.border),
++   backgroundColor: AppColors.surface,
++ ),
+  elevatedButtonTheme: ...,
+  // ... rest
+);</code></pre>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Scope check:</b> grep <code>ActionChip(</code> + <code>Chip(</code> across <code>lib/</code> → tất cả
+    sites dùng chip (QuickAddBar category chip, QuickTemplatesStrip template chip, transaction filter chip, voice
+    result chip) đều pick up ChipThemeData override. 0 site hardcode <code>shape:</code> trực tiếp.
+  </p>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Visual diff:</b> chip từ "pill hoàn toàn" → "vuông 4px nhẹ". Side border 1px #E0E0E0. Backdrop
+    surface white. Kết hợp với button pill (§4) tạo visual hierarchy rõ: button = pill (primary action),
+    chip = soft 4px (secondary/filter).
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §6 — primaryContainer: M3 auto-derive (không pin)              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§6 — primaryContainer: Material 3 auto-derive</h2>
+
+  <p class="text-sm text-gray-700 mb-3">
+    Stitch design system dùng <code>primaryContainer: #208091</code> (= primary solid, container tone
+    same as primary). Codebase hiện KHÔNG pin <code>primaryContainer</code> — <code>ColorScheme.light()</code>
+    tự derive lighter tone từ primary seed.
+  </p>
+
+  <p class="text-sm text-gray-700 mb-3">
+    <b>Decision: giữ M3 auto-derive.</b> Lý do:
+  </p>
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-2">
+    <li>
+      <b>1 site coupled hiện tại:</b> <code>MonthCloseBanner</code> (ADR-0056) dùng
+      <code>colorScheme.primaryContainer</code> cho banner background. Đã ship 1.7.0, chưa có bug
+      report. Pin cứng = lock banner vào 1 tone.
+    </li>
+    <li>
+      <b>Dark mode future-proof:</b> nếu ship dark mode sau (P+ candidate ADR-0047 §3), M3 derive tự
+      adapt — pin cứng phải duplicate cho dark scheme.
+    </li>
+    <li>
+      <b>Trade-off aware:</b> derive có thể produce tone hơi khác Stitch design system. Acceptable —
+      banner vẫn teal family, contrast OK cho <code>onPrimaryContainer</code> text.
+    </li>
+  </ol>
+
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Code change:</b> 0 dòng. Status quo. Document trong ADR để future contributor không over-pin.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- §7 — Test surface                                              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§7 — Test surface</h2>
+
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-3">
+    <li>
+      <b>Theme unit test</b> (<code>test/unit/theme_test.dart</code>, new file):
+      <ul class="list-disc pl-6 mt-1 text-xs text-gray-600 space-y-1">
+        <li><code>AppColors.error</code> assert <code>== Color(0xFFBA1A1A)</code> (regression guard sau pin).</li>
+        <li><code>AppColors.primary</code> assert <code>== Color(0xFF208091)</code> (không regress).</li>
+        <li><code>AppTheme.lightTheme.colorScheme.error</code> assert equal <code>AppColors.error</code>.</li>
+      </ul>
+    </li>
+    <li>
+      <b>Font asset test</b> (<code>test/unit/theme_test.dart</code>, same file):
+      <ul class="list-disc pl-6 mt-1 text-xs text-gray-600 space-y-1">
+        <li>Verify <code>AppTheme.lightTheme.textTheme.bodyMedium?.fontFamily</code> == <code>'Inter'</code>.</li>
+        <li>Verify <code>AppTheme.lightTheme.textTheme.headlineMedium?.fontWeight</code> == <code>FontWeight.w600</code>.</li>
+        <li>Verify 4 weights (400/500/600/700) registered trong TextTheme dùng cùng <code>'Inter'</code> family.</li>
+      </ul>
+    </li>
+    <li>
+      <b>Button shape test</b> (<code>test/unit/theme_test.dart</code>):
+      <ul class="list-disc pl-6 mt-1 text-xs text-gray-600 space-y-1">
+        <li>Verify <code>AppTheme.lightTheme.elevatedButtonTheme.style?.shape</code> runtime type == <code>StadiumBorder</code>.</li>
+      </ul>
+    </li>
+    <li>
+      <b>Chip shape test</b> (<code>test/unit/theme_test.dart</code>):
+      <ul class="list-disc pl-6 mt-1 text-xs text-gray-600 space-y-1">
+        <li>Verify <code>AppTheme.lightTheme.chipTheme.shape</code> == <code>RoundedRectangleBorder(BorderRadius.circular(4))</code>.</li>
+      </ul>
+    </li>
+    <li>
+      <b>Visual smoke test</b> (release gate, manual on test device):
+      <ul class="list-disc pl-6 mt-1 text-xs text-gray-600 space-y-1">
+        <li>Launch app — body text + AppBar title + section headers render bằng Inter (visual: gọn hơn Roboto).</li>
+        <li>Open TransactionEditDialog — "Lưu" button = pill (full rounded), không 8px corner.</li>
+        <li>Open QuickAddBar — category chips = soft 4px vuông, không pill.</li>
+        <li>Trigger error (e.g. invalid backup file) — error SnackBar background = darker red (#BA1A1A family).</li>
+        <li>Open MonthCloseBanner (day >= 25) — banner background = M3 derived teal (lighter than primary).</li>
+      </ul>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================================ -->
+<!-- §8 — Files touched                                             -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§8 — Files touched</h2>
+  <ul class="list-disc pl-6 text-sm text-gray-700 space-y-1">
+    <li><b>New</b> — <code>assets/fonts/Inter-Regular.ttf</code> (download từ rsms/inter v4.0)</li>
+    <li><b>New</b> — <code>assets/fonts/Inter-Medium.ttf</code></li>
+    <li><b>New</b> — <code>assets/fonts/Inter-SemiBold.ttf</code></li>
+    <li><b>New</b> — <code>assets/fonts/Inter-Bold.ttf</code></li>
+    <li><b>Modify</b> — <code>pubspec.yaml</code> (add <code>flutter.fonts</code> section, bump version 1.7.0 → 1.7.1+YYYYMMDDxx)</li>
+    <li><b>Modify</b> — <code>lib/core/theme.dart</code> (pin error #BA1A1A, Inter fontFamily in textTheme, StadiumBorder button, ChipThemeData)</li>
+    <li><b>New</b> — <code>test/unit/theme_test.dart</code></li>
+    <li><b>New</b> — <code>docs/adr/0066-theme-alignment-2026-06-16.md</code></li>
+    <li><b>New</b> — <code>docs/specs/0066-theme-alignment-contract.html</code> (file này)</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<!-- §9 — Out of scope (explicit defer)                             -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§9 — Out of scope (explicit defer)</h2>
+  <ol class="list-decimal pl-6 text-sm text-gray-700 space-y-1">
+    <li>
+      <b>Dark mode.</b> P+ candidate (ADR-0047 §3). Theme alignment epic này giữ light only.
+      Khi ship dark, M3 derive tự adapt (rationale §6). Pin <code>primaryContainer</code> chỉ cần
+      revisit nếu user complaint về banner contrast ở dark.
+    </li>
+    <li>
+      <b>Category-specific chip colors (3 tầng xanh/đỏ/vàng).</b> Stitch design system có
+      <em>"Categories: Small chips with a light tint of the category color"</em> — implement sau Epic 6
+      khi Home redesign (câu 6, Plan: cần check feasibility với 11-color palette).
+    </li>
+    <li>
+      <b>Custom font cho currency display (display-currency typography).</b> Stitch có
+      <code>display-currency: 32px / 700 / -0.02em letterSpacing</code>. Codebase hiện dùng default
+      <code>headlineMedium</code> (24px). Apply trong Epic 6 StatsWidget / today strip refresh.
+    </li>
+    <li>
+      <b>Soft-delete <code>MonthCloseBanner</code> runtime check cho theme contrast regression.</b>
+      Banner dùng M3 derive primaryContainer. Nếu theme alignment đổi primary seed trong tương lai,
+      cần audit banner contrast. Out of scope ngay (1-time verification đủ).
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================================ -->
+<!-- §10 — Version bump + release gate                              -->
+<!-- ============================================================ -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§10 — Version bump + release gate</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    <b>Version:</b> 1.7.0+20260615xx → <strong>1.7.1+YYYYMMDDxx</strong> (PATCH — UI polish per ADR-0024 §1).
+  </p>
+  <p class="text-sm text-gray-700 mb-3">
+    <b>Release gate (ADR-0024 §3):</b> App Stable + Migration Safe + Backup Safe + Restore Safe + Test
+    Device Passed. Theme alignment impact:
+  </p>
+  <ul class="list-disc pl-6 text-sm text-gray-700 space-y-1">
+    <li><b>App Stable:</b> Inter font bundled = no network. Color + shape changes = visual only, no crash risk.</li>
+    <li><b>Migration Safe:</b> 0 schema change. <code>flutter pub get</code> pulls font assets into APK.</li>
+    <li><b>Backup Safe:</b> 0 backup format change.</li>
+    <li><b>Restore Safe:</b> 0 restore path change.</li>
+    <li><b>Test Device:</b> install + visual smoke test (§7 test 5) trên test device trước main device promotion.</li>
+  </ul>
+  <p class="text-xs text-gray-500 mt-2">
+    <b>Risk profile:</b> thấp. Tất cả thay đổi là visual (font/color/shape), không data. Trong trường hợp
+    theme có vấn đề, fallback an toàn: revert commit, theme cũ (Roboto + 8px button) khôi phục.
+  </p>
+</section>
+
+</main>
+</body>
+</html>

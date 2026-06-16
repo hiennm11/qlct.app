@@ -10,7 +10,8 @@ class AppColors {
   static const Color secondary = Color(0xFF32B8C6);
   static const Color success = Color(0xFF2BB85C);
   static const Color warning = Color(0xFFE6814F);
-  static const Color error = Color(0xFFFF5459);
+  // ADR-0066: pin Material 3 standard error (was #FF5459 salmon, see 1.7.0).
+  static const Color error = Color(0xFFBA1A1A);
   static const Color background = Color(0xFFF5F5F5);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color textPrimary = Color(0xFF1F2121);
@@ -68,15 +69,14 @@ class AppTheme {
         ),
         color: AppColors.surface,
       ),
+      // ADR-0066: pill button (StadiumBorder) thay cho 8px rounded.
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: const StadiumBorder(),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -96,41 +96,64 @@ class AppTheme {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
+      // ADR-0066: soft 4px chip (override ActionChip default StadiumBorder).
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+        side: const BorderSide(color: AppColors.border),
+        backgroundColor: AppColors.surface,
+        selectedColor: AppColors.primary.withValues(alpha: 0.12),
+        labelStyle: const TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 13,
+          color: AppColors.textPrimary,
+        ),
+      ),
+      // ADR-0066: pin Inter làm default font (bundle qua assets/fonts/).
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 28,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
         ),
         headlineMedium: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 24,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
         headlineSmall: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
         titleLarge: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 18,
           fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
         ),
         titleMedium: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 16,
           fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
         ),
         bodyLarge: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 16,
           color: AppColors.textPrimary,
         ),
         bodyMedium: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 14,
           color: AppColors.textPrimary,
         ),
         bodySmall: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 12,
           color: AppColors.textSecondary,
         ),
