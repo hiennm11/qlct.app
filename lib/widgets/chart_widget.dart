@@ -14,6 +14,11 @@ import 'section_header.dart';
 /// pre-resolved `List<Category>` from the parent and maps id → display
 /// (name, emoji, color). Same categoryId always gets the same color via
 /// `id.hashCode.abs() % palette.length`.
+///
+/// ADR-0070: bug fix — (a) SizedBox 250→280 + wrap legend in
+/// SingleChildScrollView để fix RenderFlex overflow dọc, (b) drop inline
+/// PieChartSectionData.title (%) để fix label bị cắt/chồng trong slice
+/// nhỏ — % chuyển vào legend row.
 class ChartWidget extends StatefulWidget {
   final List<Category> activeCategories;
 
@@ -44,6 +49,7 @@ class _ChartWidgetState extends State<ChartWidget> {
           _lastCategories = null;
           _cachedSections = null;
           return const Card(
+            key: Key('chart-loading'),
             child: Padding(
               padding: EdgeInsets.all(32),
               child: Center(
@@ -58,6 +64,7 @@ class _ChartWidgetState extends State<ChartWidget> {
           _lastCategories = null;
           _cachedSections = null;
           return const Card(
+            key: Key('chart-empty'),
             child: Padding(
               padding: EdgeInsets.all(32),
               child: Center(
@@ -87,6 +94,7 @@ class _ChartWidgetState extends State<ChartWidget> {
         }
 
         return Card(
+          key: const Key('chart-loaded'),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -94,8 +102,10 @@ class _ChartWidgetState extends State<ChartWidget> {
               children: [
                 SectionHeader(emoji: '📊', title: 'Chi tiêu theo danh mục'),
                 const SizedBox(height: 24),
+                // ADR-0070 §2: SizedBox 250→280 (+30px headroom) + legend
+                // wrap trong SingleChildScrollView.
                 SizedBox(
-                  height: 250,
+                  height: 280,
                   child: Row(
                     children: [
                       Expanded(
@@ -110,9 +120,14 @@ class _ChartWidgetState extends State<ChartWidget> {
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: _Legend(
-                          categoryTotals: categoryTotals,
-                          activeCategories: widget.activeCategories,
+                        child: SingleChildScrollView(
+                          // ADR-0052 §3.2 mirror: nested scroll trong
+                          // CustomScrollView của HomeScreen.
+                          physics: const ClampingScrollPhysics(),
+                          child: _Legend(
+                            categoryTotals: categoryTotals,
+                            activeCategories: widget.activeCategories,
+                          ),
                         ),
                       ),
                     ],
@@ -130,25 +145,22 @@ class _ChartWidgetState extends State<ChartWidget> {
     Map<String, int> categoryTotals,
     List<Category> activeCategories,
   ) {
-    final total = categoryTotals.values.fold(0, (sum, val) => sum + val);
     final colors = AppColors.categoryColors;
 
     return categoryTotals.entries.map((entry) {
-      final percentage = (entry.value / total * 100).toStringAsFixed(1);
       // ADR-0036: deterministic color by categoryId hash. Same id always
       // gets the same color regardless of iteration order.
       final color = colors[entry.key.hashCode.abs() % colors.length];
 
       return PieChartSectionData(
         value: entry.value.toDouble(),
-        title: '$percentage%',
+        // ADR-0070 §3 fix: PHẢI set showTitle=false.
+        // fl_chart default: title = value.toString() (raw amount) khi title null.
+        // Bug pre-fix: slice vẫn hiển thị "12000000.0", "34000.0" vì fl_chart
+        // tự sinh title từ value. Drop title thôi không đủ — phải tắt showTitle.
+        showTitle: false,
         color: color,
         radius: 80,
-        titleStyle: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
       );
     }).toList();
   }
@@ -167,17 +179,25 @@ class _Legend extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AppColors.categoryColors;
     final categoriesById = {for (final c in activeCategories) c.id: c};
+    final total =
+        categoryTotals.values.fold<int>(0, (sum, val) => sum + val);
 
     return ListView(
       shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       children: categoryTotals.entries.map((entry) {
         // ADR-0036: stable color by id hash, name from catalog.
         final color = colors[entry.key.hashCode.abs() % colors.length];
         final cat = categoriesById[entry.key];
         final displayName = cat?.name ?? 'Khác';
         final emoji = cat?.emoji ?? '📌';
+        // ADR-0070 §3: % inline cạnh amount.
+        final percentage = total > 0
+            ? (entry.value / total * 100).toStringAsFixed(1)
+            : '0.0';
 
         return Padding(
+          key: Key('legend-row-${entry.key}'),
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
@@ -201,11 +221,13 @@ class _Legend extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      CurrencyFormatter.format(entry.value),
+                      '$percentage% · ${CurrencyFormatter.format(entry.value)}',
                       style: const TextStyle(
                         fontSize: 10,
                         color: AppColors.textSecondary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

@@ -146,4 +146,191 @@ void main() {
       completer.complete([]);
     });
   });
+
+  group('ADR-0070 ChartWidget - overflow + label fix', () {
+    testWidgets('renders chart-loaded key khi có data', (tester) async {
+      final now = DateTime.now();
+      final tx = Transaction(
+        id: 'tx-1',
+        amount: 50000,
+        category: 'Ăn ngoài',
+        categoryId: 'food_out',
+        emoji: '🍔',
+        date: now,
+        note: '',
+      );
+      final vm = makeVm([tx]);
+
+      await tester.pumpWidget(wrap(vm));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('chart-loaded')), findsOneWidget);
+    });
+
+    testWidgets('legend row key bind đúng categoryId', (tester) async {
+      final now = DateTime.now();
+      final tx1 = Transaction(
+        id: 'tx-1',
+        amount: 50000,
+        category: 'Ăn ngoài',
+        categoryId: 'food_out',
+        emoji: '🍔',
+        date: now,
+        note: '',
+      );
+      final tx2 = Transaction(
+        id: 'tx-2',
+        amount: 30000,
+        category: 'Cà phê',
+        categoryId: 'coffee',
+        emoji: '☕',
+        date: now,
+        note: '',
+      );
+      final vm = makeVm([tx1, tx2]);
+
+      await tester.pumpWidget(wrap(vm));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('legend-row-food_out')), findsOneWidget);
+      expect(find.byKey(const Key('legend-row-coffee')), findsOneWidget);
+    });
+
+    testWidgets('legend row hiển thị % inline cạnh amount', (tester) async {
+      final now = DateTime.now();
+      final tx1 = Transaction(
+        id: 'tx-1',
+        amount: 75000,
+        category: 'Ăn ngoài',
+        categoryId: 'food_out',
+        emoji: '🍔',
+        date: now,
+        note: '',
+      );
+      final tx2 = Transaction(
+        id: 'tx-2',
+        amount: 25000,
+        category: 'Cà phê',
+        categoryId: 'coffee',
+        emoji: '☕',
+        date: now,
+        note: '',
+      );
+      final vm = makeVm([tx1, tx2]);
+
+      await tester.pumpWidget(wrap(vm));
+      await tester.pumpAndSettle();
+
+      // food_out = 75% of 100k, coffee = 25% of 100k.
+      expect(find.textContaining('75.0%'), findsOneWidget);
+      expect(find.textContaining('25.0%'), findsOneWidget);
+    });
+
+    testWidgets('không có inline title trong PieChart slice (showTitle: false)',
+        (tester) async {
+      final now = DateTime.now();
+      // 5 small slices để stress test label crowding.
+      final txs = [
+        Transaction(
+          id: 'tx-1',
+          amount: 10000,
+          category: 'Ăn ngoài',
+          categoryId: 'food_out',
+          emoji: '🍔',
+          date: now,
+          note: '',
+        ),
+        Transaction(
+          id: 'tx-2',
+          amount: 8000,
+          category: 'Cà phê',
+          categoryId: 'coffee',
+          emoji: '☕',
+          date: now,
+          note: '',
+        ),
+        Transaction(
+          id: 'tx-3',
+          amount: 5000,
+          category: 'Đi lại',
+          categoryId: 'transport',
+          emoji: '🚌',
+          date: now,
+          note: '',
+        ),
+        Transaction(
+          id: 'tx-4',
+          amount: 3000,
+          category: 'Mua sắm',
+          categoryId: 'shopping',
+          emoji: '🛍️',
+          date: now,
+          note: '',
+        ),
+        Transaction(
+          id: 'tx-5',
+          amount: 2000,
+          category: 'Khác',
+          categoryId: 'other',
+          emoji: '📌',
+          date: now,
+          note: '',
+        ),
+      ];
+      final vm = makeVm(txs);
+
+      await tester.pumpWidget(wrap(vm));
+      await tester.pumpAndSettle();
+
+      // Bug A: pre-fix, fl_chart mặc định title=value.toString() (raw amount).
+      // 5 slice → 5 raw amount text trong chart. Post-fix showTitle: false →
+      // 0 raw amount text trong chart, % chỉ trong 5 legend rows.
+      // Verify: tất cả text "10000.0" / "8000.0" / "5000.0" / "3000.0" / "2000.0"
+      // KHÔNG xuất hiện (không phải raw amount inline).
+      expect(find.text('10000.0'), findsNothing);
+      expect(find.text('8000.0'), findsNothing);
+      expect(find.text('5000.0'), findsNothing);
+      expect(find.text('3000.0'), findsNothing);
+      expect(find.text('2000.0'), findsNothing);
+      // % chỉ trong legend rows (5 widgets).
+      expect(find.textContaining('%'), findsNWidgets(5));
+    });
+
+    testWidgets('8 danh mục không overflow ở viewport 400x560 (regression guard)',
+        (tester) async {
+      final now = DateTime.now();
+      final categories = [
+        ('food_out', 'Ăn ngoài', '🍔'),
+        ('coffee', 'Cà phê', '☕'),
+        ('transport', 'Đi lại', '🚌'),
+        ('shopping', 'Mua sắm', '🛍️'),
+        ('entertainment', 'Giải trí', '🎮'),
+        ('health', 'Sức khỏe', '💊'),
+        ('bills', 'Hóa đơn', '🧾'),
+        ('other', 'Khác', '📌'),
+      ];
+      final txs = List.generate(
+        categories.length,
+        (i) => Transaction(
+          id: 'tx-$i',
+          amount: 10000 * (i + 1),
+          category: categories[i].$2,
+          categoryId: categories[i].$1,
+          emoji: categories[i].$3,
+          date: now,
+          note: '',
+        ),
+      );
+      final vm = makeVm(txs);
+
+      await tester.binding.setSurfaceSize(const Size(400, 560));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(wrap(vm));
+      await tester.pumpAndSettle();
+
+      // No RenderFlex overflow exception.
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

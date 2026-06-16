@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>ADR-0070 — Chart overflow + label fix contract</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  pre { background: #f1f5f9; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  .data-key { font-family: monospace; background: #e0f2fe; padding: 2px 6px; border-radius: 4px; color: #075985; }
+  .bug-before { border-left: 4px solid #ef4444; background: #fef2f2; padding: 12px; }
+  .bug-after { border-left: 4px solid #10b981; background: #f0fdf4; padding: 12px; }
+  .fake-chart { width: 200px; height: 200px; border-radius: 50%; background: conic-gradient(
+    #208091 0deg 130deg,
+    #32B8C6 130deg 200deg,
+    #f59e0b 200deg 250deg,
+    #10b981 250deg 290deg,
+    #8b5cf6 290deg 330deg,
+    #ec4899 330deg 360deg
+  ); }
+  .fake-chart-clean { width: 200px; height: 200px; border-radius: 50%; background: conic-gradient(
+    #208091 0deg 130deg,
+    #32B8C6 130deg 200deg,
+    #f59e0b 200deg 250deg,
+    #10b981 250deg 290deg,
+    #8b5cf6 290deg 330deg,
+    #ec4899 330deg 360deg
+  ); }
+</style>
+</head>
+<body class="bg-slate-50 p-8 max-w-4xl mx-auto">
+
+<header class="mb-8">
+  <h1 class="text-3xl font-bold text-slate-900">ADR-0070 — Chart overflow + label fix</h1>
+  <p class="text-slate-600 mt-2">Contract HTML · Epic 6.2 · 2026-06-16</p>
+  <div class="mt-3 flex gap-2 text-sm">
+    <span class="bg-teal-100 text-teal-800 px-3 py-1 rounded">contract-ref</span>
+    <span class="bg-amber-100 text-amber-800 px-3 py-1 rounded">fix 2 bugs</span>
+  </div>
+</header>
+
+<nav class="bg-white p-4 rounded-lg shadow-sm mb-6">
+  <h2 class="font-bold text-slate-800 mb-2">Mục lục</h2>
+  <ol class="list-decimal list-inside text-slate-700 space-y-1 text-sm">
+    <li>Context</li>
+    <li>Bug #1 — RenderFlex overflow dọc (legend &gt; 250-24=226px)</li>
+    <li>Bug #2 — Inline % label bị cắt/chồng trong slice nhỏ</li>
+    <li>Layout structure (after fix)</li>
+    <li>Legend scroll policy</li>
+    <li>_createSections rule (drop inline title)</li>
+    <li>Removed components</li>
+    <li>Kept components</li>
+    <li>Trade-offs</li>
+    <li>Edge cases</li>
+    <li>data-* key mapping</li>
+  </ol>
+</nav>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§1 Context</h2>
+  <p class="text-slate-700">Sau Epic 6 user báo chart trên Home "vỡ hình". Audit 2026-06-16 tìm ra 2 bug ở <code class="bg-slate-100 px-1 rounded">lib/widgets/chart_widget.dart</code>:</p>
+  <ul class="list-disc list-inside mt-2 text-slate-700 space-y-1">
+    <li><strong>Bug A</strong>: Legend bên phải (Row flex 1) có height bị constraint = 250-24=226px (từ <code class="bg-slate-100 px-1 rounded">SizedBox(height: 250)</code> + <code class="bg-slate-100 px-1 rounded">SizedBox(height: 24)</code> trên header). User có 8-12 danh mục thật → legend content &gt; 226px → RenderFlex overflow dọc.</li>
+    <li><strong>Bug D</strong>: <code class="bg-slate-100 px-1 rounded">PieChartSectionData.title</code> = "12.5%" inline trong slice. Slice nhỏ (vd 1-3% = góc 3.6-10.8°) thì text fontSize 12 bold rộng hơn slice góc → bị cắt/chồng lên slice khác.</li>
+  </ul>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§2 Bug #1 — RenderFlex overflow dọc</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bug-before">
+      <h3 class="font-bold mb-2">❌ Before</h3>
+      <pre>SizedBox(height: 250)
+  → Row
+      → Expanded flex 2 (PieChart)
+      → SizedBox(width: 16)
+      → Expanded flex 1 (_Legend ListView shrinkWrap)
+                       ↑ height = 250 - 24 (header) = 226px
+                       ↑ legend content > 226px → OVERFLOW</pre>
+    </div>
+    <div class="bug-after">
+      <h3 class="font-bold mb-2">✅ After</h3>
+      <pre>SizedBox(height: 280)
+  → Row
+      → Expanded flex 2 (PieChart)
+      → SizedBox(width: 16)
+      → Expanded flex 1
+          → SingleChildScrollView
+              → _Legend content (Column)
+                               ↑ scroll khi > 256px</pre>
+    </div>
+  </div>
+  <p class="text-slate-700 mt-3"><strong>Fix</strong>: (a) bump <code class="bg-slate-100 px-1 rounded">SizedBox</code> 250→280px (thêm 30px headroom cho 1-2 danh mục extra). (b) Wrap legend content trong <code class="bg-slate-100 px-1 rounded">SingleChildScrollView</code> để scroll dọc khi content &gt; available height. Pattern mirror ADR-0052 §3.2 (small-height viewport audit).</p>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§3 Bug #2 — Inline % label bị cắt/chồng</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bug-before">
+      <h3 class="font-bold mb-2">❌ Before — 8 danh mục, 1.5% slice</h3>
+      <div class="flex justify-center my-3">
+        <div class="fake-chart relative flex items-center justify-center">
+          <span class="absolute text-white font-bold text-xs" style="top: 25%; left: 30%;">1.5%</span>
+          <span class="absolute text-white font-bold text-xs" style="top: 50%; left: 45%;">12.5%</span>
+          <span class="absolute text-white font-bold text-xs" style="top: 70%; right: 20%;">8.0%</span>
+        </div>
+      </div>
+      <p class="text-xs text-slate-600 text-center">Slice 1.5% góc 5.4° → text "1.5%" rộng ~25px tràn ra ngoài</p>
+    </div>
+    <div class="bug-after">
+      <h3 class="font-bold mb-2">✅ After — clean slice, % chỉ trong legend</h3>
+      <div class="flex justify-center my-3">
+        <div class="fake-chart-clean"></div>
+      </div>
+      <p class="text-xs text-slate-600 text-center">Slice chỉ có color, legend hiện "🍔 Ăn ngoài — 1.5% — 50.000 ₫"</p>
+    </div>
+  </div>
+  <p class="text-slate-700 mt-3"><strong>Fix</strong>: Drop <code class="bg-slate-100 px-1 rounded">PieChartSectionData.title</code> inline. Slices chỉ có color (visual cue). Percentage hiển thị trong <code class="bg-slate-100 px-1 rounded">_Legend</code> row bên cạnh amount (vd <code class="bg-slate-100 px-1 rounded">"1.5% · 50.000 ₫"</code>). Logic tính % giữ nguyên (<code class="bg-slate-100 px-1 rounded">(value / total * 100).toStringAsFixed(1)</code>).</p>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§4 Layout structure (after fix)</h2>
+  <pre class="text-xs">ChartWidget
+└── Card
+    └── Padding(16)
+        └── Column
+            ├── SectionHeader(emoji: '📊', title: 'Chi tiêu theo danh mục')
+            ├── SizedBox(height: 24)
+            └── SizedBox(height: 280)          ← was 250
+                └── Row
+                    ├── Expanded(flex: 2)
+                    │   └── PieChart
+                    │       └── sections: clean color slices (no inline title)
+                    │       centerSpaceRadius: 40, sectionsSpace: 2
+                    ├── SizedBox(width: 16)
+                    └── Expanded(flex: 1)
+                        └── SingleChildScrollView              ← NEW
+                            └── _Legend
+                                └── Padding children
+                                    ├── Color circle 16x16
+                                    ├── SizedBox(width: 8)
+                                    └── Expanded
+                                        └── Column
+                                            ├── Text "$emoji $name" (12px, ellipsis)
+                                            └── Text "$percentage% · $amount" (10px, secondary)
+                                                                     ↑ NEW % inline</pre>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§5 Legend scroll policy</h2>
+  <ul class="list-disc list-inside text-slate-700 space-y-1">
+    <li>Scroll direction: vertical (default <code class="bg-slate-100 px-1 rounded">SingleChildScrollView</code>).</li>
+    <li>Physics: <code class="bg-slate-100 px-1 rounded">ClampingScrollPhysics()</code> cho nested scroll trong CustomScrollView của HomeScreen.</li>
+    <li>Không có "Xem thêm" button — toàn bộ danh mục scroll được, không cap.</li>
+    <li>Empty state khi <code class="bg-slate-100 px-1 rounded">categoryTotals.isEmpty</code>: render centered "Chưa có dữ liệu" card, không có chart (giữ nguyên ADR-0016 D5).</li>
+  </ul>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§6 _createSections rule (drop inline title)</h2>
+  <pre class="text-xs">List&lt;PieChartSectionData&gt; _createSections(
+  Map&lt;String, int&gt; categoryTotals,
+  List&lt;Category&gt; activeCategories,
+) {
+  final total = categoryTotals.values.fold(0, (sum, val) => sum + val);
+  final colors = AppColors.categoryColors;
+
+  return categoryTotals.entries.map((entry) {
+    // ADR-0036: deterministic color by categoryId hash.
+    final color = colors[entry.key.hashCode.abs() % colors.length];
+
+    return PieChartSectionData(
+      value: entry.value.toDouble(),
+      // No `title` field — slice clean, only color. % moved to legend.
+      color: color,
+      radius: 80,
+    );
+  }).toList();
+}</pre>
+  <p class="text-slate-700 mt-2 text-sm"><strong>Lưu ý</strong>: Giữ nguyên memoization logic (ADR-0017 D5.2). <code class="bg-slate-100 px-1 rounded">_cachedSections</code> chỉ recompute khi stats hoặc active categories đổi.</p>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§7 Removed components</h2>
+  <ul class="list-disc list-inside text-slate-700 space-y-1">
+    <li><code class="bg-slate-100 px-1 rounded">title: '$percentage%'</code> trên <code class="bg-slate-100 px-1 rounded">PieChartSectionData</code> (gây cắt/chồng).</li>
+    <li><code class="bg-slate-100 px-1 rounded">titleStyle: TextStyle(fontSize: 12, fontWeight: bold, color: white)</code> (chỉ dùng kèm title).</li>
+  </ul>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§8 Kept components</h2>
+  <ul class="list-disc list-inside text-slate-700 space-y-1">
+    <li>SectionHeader (ADR-0011) — emoji + title, no action.</li>
+    <li>Empty state (ADR-0016 D5) — 48px emoji + message khi không có data.</li>
+    <li>Loading state (ADR-0016 D5) — CircularProgressIndicator khi <code class="bg-slate-100 px-1 rounded">isLoading</code>.</li>
+    <li>Memoization cache (ADR-0017 D5.2) — <code class="bg-slate-100 px-1 rounded">_cachedSections</code> skip recompute.</li>
+    <li>Color by id hash (ADR-0036) — stable color qua runs.</li>
+    <li>ADR-0066 theme — Card + Padding(16) + SectionHeader style.</li>
+  </ul>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§9 Trade-offs</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="bg-amber-50 border-l-4 border-amber-400 p-3">
+      <h4 class="font-bold">Trade-off 1: Drop inline %</h4>
+      <p class="text-sm text-slate-700">User mất glance % trên chart → phải map slice→legend để biết %. Trade-off chấp nhận được vì (a) chart giờ clean hơn, (b) legend có % inline cạnh amount nên tra cứu 1-tap.</p>
+    </div>
+    <div class="bg-amber-50 border-l-4 border-amber-400 p-3">
+      <h4 class="font-bold">Trade-off 2: SizedBox 250→280</h4>
+      <p class="text-sm text-slate-700">Chart block trên Home cao hơn 30px → scroll xuống phải nhiều hơn. Trade-off chấp nhận được vì giải quyết overflow dứt điểm, không cần giải pháp phức tạp hơn (aspect ratio, dynamic height).</p>
+    </div>
+  </div>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§10 Edge cases</h2>
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100">
+      <tr><th class="text-left p-2">Case</th><th class="text-left p-2">Behavior</th></tr>
+    </thead>
+    <tbody class="text-slate-700">
+      <tr><td class="p-2">0 danh mục (empty)</td><td class="p-2">Empty state card, không render chart.</td></tr>
+      <tr><td class="p-2">1 danh mục (100%)</td><td class="p-2">Pie 100% 1 màu, legend 1 row "100.0% · X ₫".</td></tr>
+      <tr><td class="p-2">2-5 danh mục</td><td class="p-2">Legend fit trong 280px không scroll.</td></tr>
+      <tr><td class="p-2">6-12 danh mục</td><td class="p-2">Legend scroll dọc, user thấy color slice đầy đủ.</td></tr>
+      <tr><td class="p-2">13+ danh mục (edge)</td><td class="p-2">Scroll vẫn work, performance OK (không virtualize nhưng list 13-15 rows nhẹ).</td></tr>
+      <tr><td class="p-2">Loading state</td><td class="p-2">Spinner, không render chart.</td></tr>
+      <tr><td class="p-2">Reload data (refresh)</td><td class="p-2">Memoization check — recompute sections nếu stats đổi.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="bg-white p-6 rounded-lg shadow-sm mb-6">
+  <h2 class="text-2xl font-bold mb-3">§11 data-* key mapping</h2>
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100">
+      <tr><th class="text-left p-2">Key</th><th class="text-left p-2">Widget</th><th class="text-left p-2">Test</th></tr>
+    </thead>
+    <tbody class="text-slate-700">
+      <tr><td class="p-2"><span class="data-key">data-state="chart-loaded"</span></td><td class="p-2">Card chứa PieChart khi data OK</td><td class="p-2">find.byKey(Key('chart-loaded'))</td></tr>
+      <tr><td class="p-2"><span class="data-key">data-state="chart-empty"</span></td><td class="p-2">Card "Chưa có dữ liệu" khi rỗng</td><td class="p-2">find.byKey(Key('chart-empty'))</td></tr>
+      <tr><td class="p-2"><span class="data-key">data-state="chart-loading"</span></td><td class="p-2">Spinner khi isLoading</td><td class="p-2">find.byKey(Key('chart-loading'))</td></tr>
+      <tr><td class="p-2"><span class="data-key">data-legend-row="cat-id"</span></td><td class="p-2">Mỗi row legend (Circle + emoji name + % + amount)</td><td class="p-2">find.byKey(Key('legend-row-food_out'))</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="text-center text-slate-500 text-sm mt-8">
+  <p>ADR-0070 · contract-ref · no schema/dependency/release policy change</p>
+  <p>Phase 2 of 5-phase workflow (CLAUDE.md)</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>ADR-0069 — Epic 6.1 Home: Super-Input (5 methods trên 1 screen)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">ADR-0069 — Epic 6.1 Home: Super-Input</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Tập trung <strong>5 input methods</strong> (NoteEntry text + Voice + Quick template + Custom input + Quick category chip) lên 1
+    screen duy nhất, scroll dọc. Bỏ RecentTransactionsCard ở Home (vì user note liên tục → list update realtime = redundant). 1 nút
+    Lưu chung sticky bottom. Bottom nav 4-tab + 3 hub screens giữ nguyên (ADR-0067 quyết định trước đó). Version bump:
+    <strong>1.8.0+2026061603 → 1.9.0+YYYYMMDDxx</strong> (MINOR — UX redesign Home, 0 breaking data layer).
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- §1 — Context -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§1 — Context: vì sao "super-input" Home</h2>
+  <p class="text-sm text-gray-700">
+    Sau Epic 6, user feedback 2026-06-16:
+    (1) Home "chuối" vì TodayStrip + RecentTransactionsCard + NoteEntry cùng tồn tại, layout dày.
+    (2) RecentTransactionsCard duplicate với TransactionHubScreen full list.
+    (3) NoteEntry size quá nhỏ (maxLines=3), user muốn gõ nhiều hơn.
+    (4) Note-first chưa thật sự "first" — QuickAddBar cũ 3-column compact có 3 mode (voice/quick/custom) bị loại bỏ ở Epic 6,
+    user muốn restore nhưng không trở lại 3-column cũ — gộp tất cả 5 input methods thành 1 super-input trên Home.
+    (5) Bottom nav 4-tab + 3 hub giữ nguyên vì user đã quen.
+  </p>
+</section>
+
+<!-- §2 — Layout tổng quan -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§2 — Layout tổng quan</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Home = 1 SingleChildScrollView với 5 sections stack theo thứ tự ưu tiên (top = primary input).
+    Sticky bottom = 1 nút Lưu chung.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="super-input-layout">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>// HomeScreen body — Epic 6.1 super-input.
+// 5 sections stack, scroll dọc. Sticky bottom = Lưu button.
+// Remove: RecentTransactionsCard, TodayStrip (move budget summary
+//         xuống 1 inline card nhỏ giữa NoteEntry và Custom Input).
+Column(
+  children: [
+    // 1. NoteEntry — primary input, full width, 5 dòng.
+    NoteEntry(
+      key: const Key('super-input-note-entry'),
+      maxLines: 5,
+      minLines: 3,
+      hint: 'Ghi chú nhanh — gõ, ví dụ: 50k cơm xóm',
+      onChanged: (text) { _noteText = text; },
+    ),
+    const SizedBox(height: 12),
+
+    // 2. Row 2: Quick category chip + mic 48px.
+    // 5 chip category, mic circular 48px ở cuối row.
+    Row(
+      key: const Key('super-input-row-2'),
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              key: const Key('super-input-quick-chips'),
+              children: [
+                for (final c in _quickCategories)
+                  ChoiceChip(
+                    key: Key('quick-chip-${c.id}'),
+                    label: Text('${c.emoji} ${c.name}'),
+                    onSelected: (_) {
+                      _selectedCategory = c;
+                      // Auto-fill amount = category default nếu _amount rỗng.
+                      if (_amount.isEmpty) _amount = c.defaultAmount;
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton.filled(
+          key: const Key('super-input-mic'),
+          iconSize: 24,
+          onPressed: _startVoice,
+          icon: const Icon(Icons.mic),
+        ),
+      ],
+    ),
+    const SizedBox(height: 12),
+
+    // 3. Quick Templates strip — scroll ngang ≤6 templates.
+    QuickTemplatesStrip(
+      key: const Key('super-input-templates'),
+      maxVisible: 6,
+      onTap: (t) {
+        _noteText = t.title;
+        _amount = t.amount;
+        _selectedCategory = catalog.findById(t.categoryId);
+        // Tap template = chưa Lưu, fill NoteEntry để user review trước.
+      },
+      onSeeAll: () => _showAllTemplates(),
+    ),
+    const SizedBox(height: 12),
+
+    // 4. Custom Input — compact 1 hàng.
+    // [Amount TextField] [Category Dropdown] [+ Note button]
+    Row(
+      key: const Key('super-input-custom-input'),
+      children: [
+        SizedBox(
+          width: 120,
+          child: TextField(
+            key: const Key('super-input-amount'),
+            keyboardType: TextInputType.number,
+            inputFormatters: [ThousandSeparatorFormatter()],
+            decoration: const InputDecoration(
+              labelText: 'Số tiền',
+              prefixText: 'đ ',
+            ),
+            onChanged: (v) { _amount = v; },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: DropdownButtonFormField<Category>(
+            key: const Key('super-input-category-dropdown'),
+            value: _selectedCategory,
+            items: catalog.all
+                .map((c) => DropdownMenuItem(
+                      key: Key('dropdown-cat-${c.id}'),
+                      value: c,
+                      child: Text('${c.emoji} ${c.name}'),
+                    ))
+                .toList(),
+            decoration: const InputDecoration(labelText: 'Danh mục'),
+            onChanged: (c) { _selectedCategory = c; },
+          ),
+        ),
+        IconButton(
+          key: const Key('super-input-custom-note-button'),
+          icon: const Icon(Icons.note_add_outlined),
+          tooltip: 'Thêm ghi chú',
+          onPressed: () {
+            // Focus NoteEntry + scroll to top.
+            _noteEntryFocus.requestFocus();
+            _scrollToTop();
+          },
+        ),
+      ],
+    ),
+    const SizedBox(height: 12),
+
+    // 5. Budget summary inline — giữ từ Epic 6 TodayStrip nhưng compact.
+    // "Hôm nay -X · Còn lại Y · progress bar"
+    TodayStrip(
+      key: const Key('super-input-budget-summary'),
+      compact: true, // 1 dòng thay vì 2-3 dòng.
+    ),
+  ],
+)
+
+// Sticky bottom — 1 nút Lưu chung.
+bottomSheet: SafeArea(
+  child: Padding(
+    padding: const EdgeInsets.all(16),
+    child: FilledButton(
+      key: const Key('super-input-save-button'),
+      onPressed: _canSave ? _save : null,
+      style: FilledButton.styleFrom(
+        shape: const StadiumBorder(), // ADR-0066 pill
+        minimumSize: const Size.fromHeight(48),
+      ),
+      child: const Text('Lưu giao dịch'),
+    ),
+  ),
+)</code></pre>
+  </div>
+</section>
+
+<!-- §3 — _save logic -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§3 — _save logic (1 commit duy nhất)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Parse toàn bộ 5 input sources về 1 Transaction, validate, ExpenseViewModel.addTransaction.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="super-input-save-flow">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>Future&lt;void&gt; _save() async {
+  // 1. Nếu có note text → parse bằng VietnameseNumberParser.
+  //    Nếu không có note text nhưng có _amount + _selectedCategory → dùng trực tiếp.
+  final parsed = _noteText.isNotEmpty
+      ? VietnameseNumberParser.parse(_noteText)
+      : ParsedTransaction.empty();
+
+  final amount = _amount.isNotEmpty
+      ? ThousandSeparatorFormatter.parse(_amount)
+      : parsed.amount;
+  final category = _selectedCategory ?? catalog.findByName(parsed.categoryName);
+  final note = _noteText.isNotEmpty ? _noteText : '';
+
+  // 2. Validate.
+  if (amount == null || amount &lt;= 0) {
+    _showError('Chưa nhập số tiền');
+    return;
+  }
+  if (category == null) {
+    _showError('Chưa chọn danh mục');
+    return;
+  }
+
+  // 3. Build + add.
+  final tx = Transaction(
+    id: const Uuid().v4(),
+    amount: amount,
+    categoryId: category.id,
+    date: DateTime.now(),
+    note: note.isEmpty ? category.name : note,
+  );
+
+  final ok = await context.read&lt;ExpenseViewModel&gt;().addTransaction(tx);
+  if (!ok) {
+    _showError(context.read&lt;ExpenseViewModel&gt;().errorMessage ?? 'Lỗi không xác định');
+    return;
+  }
+
+  // 4. Reset + undo support.
+  _lastSavedTx = tx; // For undo.
+  _resetForm();
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      key: const Key('super-input-save-snackbar'),
+      content: Text('Đã lưu ${formatVnd(amount)} · ${category.name}'),
+      duration: const Duration(seconds: 5),
+      action: SnackBarAction(
+        label: 'Hoàn tác',
+        onPressed: () =&gt; _undoLastSave(),
+      ),
+    ),
+  );
+}</code></pre>
+  </div>
+</section>
+
+<!-- §4 — Voice flow -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§4 — Voice flow (fill vào NoteEntry, user review trước Lưu)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Tap mic → bottom sheet voice modal. Parse xong → transcript fill vào NoteEntry. User có thể
+    edit thêm trước khi bấm Lưu chung.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="super-input-voice-flow">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>Future&lt;void&gt; _startVoice() async {
+  // 1. Check permission. Denied → show modal (ADR-0067 Q5 option B).
+  final granted = await SpeechCoordinator.ensurePermission();
+  if (!granted) {
+    await showDialog&lt;String&gt;(
+      context: context,
+      builder: (_) =&gt; VoicePermissionDeniedDialog(),
+    );
+    return;
+  }
+
+  // 2. Open voice modal — same UX as Epic 6 (full screen, pulsing mic,
+  //    interim transcript).
+  final result = await showModalBottomSheet&lt;VoiceParseResult&gt;(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) =&gt; const VoiceInputModal(),
+  );
+
+  // 3. Parse result → fill NoteEntry, KHÔNG auto-save.
+  if (result != null) {
+    setState(() {
+      _noteText = result.transcript;
+      // Optional: pre-fill amount + category nếu parser detect.
+      if (result.amount != null) _amount = formatVnd(result.amount);
+      if (result.categoryId != null) {
+        _selectedCategory = catalog.findById(result.categoryId);
+      }
+    });
+    // Focus NoteEntry để user edit tiếp.
+    _noteEntryFocus.requestFocus();
+  }
+}</code></pre>
+  </div>
+</section>
+
+<!-- §5 — State machine -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§5 — State machine (HomeScreen _SuperInputState)</h2>
+
+  <table class="w-full text-xs" data-test="super-input-state-machine">
+    <thead class="bg-gray-100">
+      <tr><th class="text-left p-2">State</th><th class="text-left p-2">Trigger</th><th class="text-left p-2">Transition</th></tr>
+    </thead>
+    <tbody>
+      <tr class="border-t"><td class="p-2"><code>idle</code></td><td class="p-2">Initial / sau _resetForm</td><td class="p-2">→ <code>editing</code> nếu user gõ NoteEntry</td></tr>
+      <tr class="border-t"><td class="p-2"><code>editing</code></td><td class="p-2">User gõ vào NoteEntry / Amount / Category</td><td class="p-2">→ <code>voice-modal</code> nếu tap mic; → <code>saving</code> nếu tap Lưu</td></tr>
+      <tr class="border-t"><td class="p-2"><code>voice-modal</code></td><td class="p-2">Tap mic ở row 2</td><td class="p-2">→ <code>editing</code> khi voice modal đóng (fill NoteEntry)</td></tr>
+      <tr class="border-t"><td class="p-2"><code>saving</code></td><td class="p-2">Tap Lưu (validate OK)</td><td class="p-2">→ <code>snackbar</code> (5s undo window) → <code>idle</code></td></tr>
+      <tr class="border-t"><td class="p-2"><code>error</code></td><td class="p-2">Validate fail (amount &lt;= 0 / category null)</td><td class="p-2">→ <code>editing</code> (giữ form state, hiện snackbar lỗi)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- §6 — _canSave predicate -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§6 — _canSave predicate (Lưu button enable)</h2>
+  <p class="text-sm text-gray-700 mb-3">
+    Lưu button enable khi có ÍT NHẤT 1 trong 3: amount hợp lệ / category đã chọn / note text parse được amount+category.
+  </p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="super-input-can-save">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>bool get _canSave {
+  if (_amount.isNotEmpty) {
+    final v = ThousandSeparatorFormatter.parse(_amount);
+    if (v != null &amp;&amp; v &gt; 0) return true;
+  }
+  if (_selectedCategory != null) return true; // Category + amount rỗng nhưng note parse ra amount
+  if (_noteText.isNotEmpty) {
+    final p = VietnameseNumberParser.parse(_noteText);
+    if (p.amount != null &amp;&amp; p.amount! &gt; 0) return true;
+  }
+  return false;
+}</code></pre>
+  </div>
+</section>
+
+<!-- §7 — Removed components -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§7 — Components bị xoá khỏi Home</h2>
+  <ul class="text-sm text-gray-700 list-disc list-inside space-y-1">
+    <li><code>RecentTransactionsCard</code> — bỏ hoàn toàn (user note liên tục → list update realtime = redundant).</li>
+    <li><code>QuickAddBar</code> — đã bỏ ở Epic 6, không restore.</li>
+    <li><code>StatsWidget</code> — đã bỏ ở Epic 6, không restore.</li>
+  </ul>
+  <p class="text-sm text-gray-700 mt-2">
+    <code>TodayStrip</code> được giữ lại ở dạng <code>compact: true</code> (1 dòng), đặt ở section 5 dưới Custom Input.
+    Nội dung vẫn là "Hôm nay -X · Còn lại Y · progress bar 6px" như Epic 6. Source data giữ nguyên.
+  </p>
+</section>
+
+<!-- §8 — Kept components -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§8 — Components giữ nguyên</h2>
+  <ul class="text-sm text-gray-700 list-disc list-inside space-y-1">
+    <li><code>QuickAddBar</code>, <code>StatsWidget</code>, <code>JumpBar</code> — đã bỏ ở Epic 6 (giữ nguyên quyết định).</li>
+    <li>4 bottom nav tabs + 3 hub screens (TransactionHubScreen / BudgetHubScreen / AccountHubScreen).</li>
+    <li>ADR-0066 theme (teal pill, soft chip, Inter font).</li>
+  </ul>
+</section>
+
+<!-- §9 — Trade-offs -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§9 — Trade-offs</h2>
+  <ul class="text-sm text-gray-700 list-disc list-inside space-y-1">
+    <li><strong>Home tràn dọc</strong> (full screen ~3-4 lần viewport): user phải scroll để thấy budget summary. Trade-off acceptable vì primary use case = ghi chép liên tục, summary chỉ glance nhanh.</li>
+    <li><strong>1 Lưu chung</strong>: trade-off giữa tốc độ (per-method auto-save) vs clarity (1 CTA). Chọn 1 CTA, user luôn biết bấm gì.</li>
+    <li><strong>Voice fill NoteEntry thay vì summary card</strong>: tăng flexibility (user edit trước khi Lưu), trade-off là thêm 1-2s cho user scan/edit.</li>
+    <li><strong>Quick category chip row 2 chung với mic</strong>: cluster "quick action" (1 tap = commit gần như xong). Trade-off: chip dễ bị mic che nếu 5+ chip — clamp max 5.</li>
+    <li><strong>Remove RecentTransactionsCard</strong>: giảm redundancy. Trade-off: user không thấy "đã lưu" visual trên Home. Bù bằng snackbar "Đã lưu X" + 5s undo (Q10).</li>
+  </ul>
+</section>
+
+<!-- §10 — Edge cases -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§10 — Edge cases</h2>
+  <ul class="text-sm text-gray-700 list-disc list-inside space-y-1">
+    <li><strong>Voice permission denied</strong>: show modal <code>VoicePermissionDeniedDialog</code> (ADR-0067 Q5 option B), không disable mic button.</li>
+    <li><strong>Quick templates empty</strong>: render <code>EmptyTemplateStrip</code> với 1 button "+ Tạo mẫu nhanh" mở <code>TemplateCreateSheet</code>.</li>
+    <li><strong>Custom input note button</strong>: focus NoteEntry + scroll to top. Nếu NoteEntry đã focused → no-op.</li>
+    <li><strong>Snackbar undo lúc đang gõ tiếp</strong>: undo restore form state, không conflict với input mới (dùng timestamp compare).</li>
+    <li><strong>Form dirty + user back gesture</strong>: show confirm "Bạn có muốn huỷ giao dịch đang nhập?". Nếu không dirty → back bình thường.</li>
+    <li><strong>Amount parse fail trong note text</strong>: vd "ăn cơm" → amount = null. _canSave false (trừ khi user nhập amount riêng). Snackbar lỗi khi tap Lưu.</li>
+  </ul>
+</section>
+
+<!-- §11 — Data-* key mapping -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§11 — data-* key mapping (Flutter Key binding)</h2>
+  <table class="w-full text-xs" data-test="super-input-key-binding">
+    <thead class="bg-gray-100">
+      <tr><th class="text-left p-2">HTML data-test</th><th class="text-left p-2">Flutter Key</th><th class="text-left p-2">Test selector</th></tr>
+    </thead>
+    <tbody>
+      <tr class="border-t"><td class="p-2"><code>super-input-layout</code></td><td class="p-2">n/a (container)</td><td class="p-2">find.byType(HomeScreen)</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-note-entry</code></td><td class="p-2"><code>Key('super-input-note-entry')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-quick-chips</code></td><td class="p-2"><code>Key('super-input-quick-chips')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>quick-chip-{id}</code></td><td class="p-2"><code>Key('quick-chip-${c.id}')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-mic</code></td><td class="p-2"><code>Key('super-input-mic')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-templates</code></td><td class="p-2"><code>Key('super-input-templates')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-amount</code></td><td class="p-2"><code>Key('super-input-amount')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-category-dropdown</code></td><td class="p-2"><code>Key('super-input-category-dropdown')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>dropdown-cat-{id}</code></td><td class="p-2"><code>Key('dropdown-cat-${c.id}')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-custom-note-button</code></td><td class="p-2"><code>Key('super-input-custom-note-button')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-budget-summary</code></td><td class="p-2"><code>Key('super-input-budget-summary')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-save-button</code></td><td class="p-2"><code>Key('super-input-save-button')</code></td><td class="p-2">find.byKey</td></tr>
+      <tr class="border-t"><td class="p-2"><code>super-input-save-snackbar</code></td><td class="p-2"><code>Key('super-input-save-snackbar')</code></td><td class="p-2">find.byKey</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer class="bg-white border-t border-gray-200 p-6 text-xs text-gray-500">
+  <p>Phase 2 contract — to be implemented in Phase 4 after Phase 3 ADR passes.</p>
+  <p>Spec hash: 0069. Trade-off: Home tràn dọc (acceptable cho note-first use case).</p>
+</footer>
+
+</body>
+</html>
