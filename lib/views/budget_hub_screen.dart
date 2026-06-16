@@ -91,8 +91,13 @@ class BudgetHubScreen extends StatelessWidget {
                           ],
                         ),
                       ),
+                      // ADR-0074: bump host constraint 220 → 420.
+                      // ChartWidget internal layout redesigned to vertical
+                      // stack (pie 180×180 on top + 2-col Wrap legend) — fits
+                      // 5-8 categories in 3-4 rows of legend. 12+ cats
+                      // (stress edge) overflow documented.
                       SizedBox(
-                        height: 220,
+                        height: 420,
                         child: ChartWidget(
                           activeCategories: categoryVM.activeCategories,
                         ),

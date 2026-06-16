@@ -6,7 +6,6 @@ import '../models/category.dart';
 import '../viewmodels/expense_viewmodel.dart';
 import '../core/theme.dart';
 import '../core/formatters.dart';
-import 'section_header.dart';
 
 /// Widget displaying expense chart by category.
 ///
@@ -19,6 +18,12 @@ import 'section_header.dart';
 /// SingleChildScrollView để fix RenderFlex overflow dọc, (b) drop inline
 /// PieChartSectionData.title (%) để fix label bị cắt/chồng trong slice
 /// nhỏ — % chuyển vào legend row.
+///
+/// ADR-0074: layout redesign — replace side-by-side `Row` (pie 2x + scroll
+/// legend) với vertical stack: PieChart on top (LayoutBuilder, max 200×200,
+/// 1:1 aspect, centered) + 2-col `Wrap` legend bên dưới. Host
+/// `budget_hub_screen.dart` constraint bump 220→360. Trade-off: 5–8 cats
+/// fit in 3–4 rows, predictable height; 12+ stress edge documented.
 class ChartWidget extends StatefulWidget {
   final List<Category> activeCategories;
 
@@ -104,36 +109,36 @@ class _ChartWidgetState extends State<ChartWidget> {
                 // bị duplicate với '📊 Biểu đồ danh mục' manual header ở
                 // budget_hub_screen.dart:78-93. Host screen đã render title
                 // rồi, ChartWidget chỉ render chart + legend.
-                // ADR-0070 §2: SizedBox 250→280 (+30px headroom) + legend
-                // wrap trong SingleChildScrollView.
-                SizedBox(
-                  height: 280,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
+                //
+                // ADR-0074: vertical stack layout — pie chart on top
+                // (LayoutBuilder caps at min(maxWidth, 180) for 1:1 aspect),
+                // legend 2-col Wrap bên dưới. Replaces ADR-0070 §2 side-by-side
+                // Row (pie flex 2 + scroll legend) which overflowed 220px host
+                // constraint in budget_hub_screen.dart. Pie 180 (was 200 in
+                // plan sketch) để fit 4 rows legend + Card padding trong 400
+                // host budget.
+                LayoutBuilder(
+                  builder: (context, c) {
+                    final pieSize = c.maxWidth < 180 ? c.maxWidth : 180.0;
+                    return Center(
+                      child: SizedBox(
+                        width: pieSize,
+                        height: pieSize,
                         child: PieChart(
                           PieChartData(
                             sections: _cachedSections!,
-                            centerSpaceRadius: 40,
+                            centerSpaceRadius: pieSize * 0.2,
                             sectionsSpace: 2,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          // ADR-0052 §3.2 mirror: nested scroll trong
-                          // CustomScrollView của HomeScreen.
-                          physics: const ClampingScrollPhysics(),
-                          child: _Legend(
-                            categoryTotals: categoryTotals,
-                            activeCategories: widget.activeCategories,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                _LegendGrid(
+                  categoryTotals: categoryTotals,
+                  activeCategories: widget.activeCategories,
                 ),
               ],
             ),
@@ -168,11 +173,11 @@ class _ChartWidgetState extends State<ChartWidget> {
   }
 }
 
-class _Legend extends StatelessWidget {
+class _LegendGrid extends StatelessWidget {
   final Map<String, int> categoryTotals;
   final List<Category> activeCategories;
 
-  const _Legend({
+  const _LegendGrid({
     required this.categoryTotals,
     required this.activeCategories,
   });
@@ -184,60 +189,72 @@ class _Legend extends StatelessWidget {
     final total =
         categoryTotals.values.fold<int>(0, (sum, val) => sum + val);
 
-    return ListView(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      children: categoryTotals.entries.map((entry) {
-        // ADR-0036: stable color by id hash, name from catalog.
-        final color = colors[entry.key.hashCode.abs() % colors.length];
-        final cat = categoriesById[entry.key];
-        final displayName = cat?.name ?? 'Khác';
-        final emoji = cat?.emoji ?? '📌';
-        // ADR-0070 §3: % inline cạnh amount.
-        final percentage = total > 0
-            ? (entry.value / total * 100).toStringAsFixed(1)
-            : '0.0';
+    // ADR-0074: 2-col Wrap grid. LayoutBuilder computes cell width =
+    // (maxWidth - spacing) / 2. Wrap flow tự động scale với category count:
+    // 5-8 cats → 3-4 rows, 12+ cats → 6+ rows (overflow host, documented).
+    return LayoutBuilder(
+      builder: (context, c) {
+        const spacing = 8.0;
+        final cellW = (c.maxWidth - spacing) / 2;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: categoryTotals.entries.map((entry) {
+            // ADR-0036: stable color by id hash, name from catalog.
+            final color = colors[entry.key.hashCode.abs() % colors.length];
+            final cat = categoriesById[entry.key];
+            final displayName = cat?.name ?? 'Khác';
+            final emoji = cat?.emoji ?? '📌';
+            // ADR-0070 §3: % inline cạnh amount.
+            final percentage = total > 0
+                ? (entry.value / total * 100).toStringAsFixed(1)
+                : '0.0';
 
-        return Padding(
-          key: Key('legend-row-${entry.key}'),
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            children: [
-              Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            return SizedBox(
+              width: cellW,
+              child: Padding(
+                key: Key('legend-row-${entry.key}'),
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
                   children: [
-                    Text(
-                      '$emoji $displayName',
-                      style: const TextStyle(fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '$percentage% · ${CurrencyFormatter.format(entry.value)}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$emoji $displayName',
+                            style: const TextStyle(fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '$percentage% · ${CurrencyFormatter.format(entry.value)}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
   }
 }

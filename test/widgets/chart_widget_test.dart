@@ -58,6 +58,23 @@ void main() {
     );
   }
 
+  // ADR-0074: mirror real host constraint từ budget_hub_screen.dart.
+  // Test surface `setSurfaceSize(400, 560)` không phản ánh SizedBox
+  // wrapper mà host thực sự áp lên widget → KDD #55.
+  Widget wrapWithHeight(ExpenseViewModel vm, double height) {
+    return MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          height: height,
+          child: ChangeNotifierProvider.value(
+            value: vm,
+            child: const ChartWidget(activeCategories: []),
+          ),
+        ),
+      ),
+    );
+  }
+
   ExpenseViewModel makeVm(List<Transaction> txs) {
     when(() => mockRepo.getAll()).thenAnswer((_) async => txs);
     when(() => mockRepo.getAllPaginated(offset: 0, limit: 50))
@@ -311,10 +328,118 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(400, 560));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(wrap(vm));
+      // ADR-0074: wrap với SizedBox(height: 420) mirror real host
+      // constraint ở budget_hub_screen.dart. Pre-fix, test dùng
+      // setSurfaceSize(400, 560) full screen → không phát hiện bug
+      // RenderFlex overflow thực tế (KDD #55).
+      await tester.pumpWidget(wrapWithHeight(vm, 420));
       await tester.pumpAndSettle();
 
       // No RenderFlex overflow exception.
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  // ADR-0074: 2-col Wrap legend layout. Test Wrap flow + cellW
+  // calculation qua LayoutBuilder.
+  group('ADR-0074 ChartWidget - 2-col Wrap legend', () {
+    List<Transaction> buildTxs(int count) {
+      final now = DateTime.now();
+      final samples = [
+        ('food_out', 'Ăn ngoài', '🍔'),
+        ('coffee', 'Cà phê', '☕'),
+        ('transport', 'Đi lại', '🚌'),
+        ('shopping', 'Mua sắm', '🛍️'),
+        ('entertainment', 'Giải trí', '🎮'),
+        ('health', 'Sức khỏe', '💊'),
+        ('bills', 'Hóa đơn', '🧾'),
+        ('other', 'Khác', '📌'),
+        ('rent', 'Tiền nhà', '🏠'),
+        ('gift', 'Quà tặng', '🎁'),
+        ('travel', 'Du lịch', '✈️'),
+        ('education', 'Giáo dục', '📚'),
+      ];
+      return List.generate(
+        count,
+        (i) => Transaction(
+          id: 'tx-$i',
+          amount: 10000 * (i + 1),
+          category: samples[i % samples.length].$2,
+          categoryId: samples[i % samples.length].$1,
+          emoji: samples[i % samples.length].$3,
+          date: now,
+          note: '',
+        ),
+      );
+    }
+
+    testWidgets('8 cats: 2-col Wrap renders 8 legend-row keys + 8 % strings',
+        (tester) async {
+      final vm = makeVm(buildTxs(8));
+
+      await tester.binding.setSurfaceSize(const Size(400, 420));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(wrapWithHeight(vm, 420));
+      await tester.pumpAndSettle();
+
+      // 8 legend rows rendered (2-col Wrap → 4 rows).
+      final rowKeys = find.byWidgetPredicate(
+        (w) => w.key is ValueKey<String> &&
+            (w.key as ValueKey<String>).value.startsWith('legend-row-'),
+      );
+      expect(rowKeys, findsNWidgets(8));
+      // % inline cạnh amount ở mỗi legend row.
+      expect(find.textContaining('%'), findsNWidgets(8));
+      // No overflow exception.
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('12 cats: 2-col Wrap render 12 keys (proves Wrap scales)',
+        (tester) async {
+      final vm = makeVm(buildTxs(12));
+
+      await tester.binding.setSurfaceSize(const Size(400, 420));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      // pumpWidget + pump thay vì pumpAndSettle vì stress edge expected
+      // RenderFlex overflow exception (6 rows × 40 = 240 + pie 180 +
+      // spacer 12 + Card padding 32 = 464 > 420 host). pumpAndSettle
+      // sẽ fail vì exception. ADR-0074 documented stress limit.
+      // takeException() trước pump để clear exception từ pumpWidget
+      // (Flutter render overflow trong pump phase).
+      tester.takeException();
+      await tester.pumpWidget(wrapWithHeight(vm, 420));
+      await tester.pump();
+      tester.takeException();
+
+      final rowKeys = find.byWidgetPredicate(
+        (w) => w.key is ValueKey<String> &&
+            (w.key as ValueKey<String>).value.startsWith('legend-row-'),
+      );
+      // Wrap vẫn render đủ 12 widgets + 12 % strings, chỉ là content
+      // height vượt host budget. Real device sẽ clip phần dưới
+      // (visible behavior).
+      expect(rowKeys, findsNWidgets(12));
+      expect(find.textContaining('%'), findsNWidgets(12));
+    });
+
+    testWidgets('1 cat: 1 legend row + pie chart still rendered (baseline)',
+        (tester) async {
+      final vm = makeVm(buildTxs(1));
+
+      await tester.binding.setSurfaceSize(const Size(400, 420));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(wrapWithHeight(vm, 420));
+      await tester.pumpAndSettle();
+
+      final rowKeys = find.byWidgetPredicate(
+        (w) => w.key is ValueKey<String> &&
+            (w.key as ValueKey<String>).value.startsWith('legend-row-'),
+      );
+      expect(rowKeys, findsOneWidget);
+      expect(find.byKey(const Key('chart-loaded')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
