@@ -396,6 +396,10 @@ class SuperInputCardState extends State<SuperInputCard> {
                         return ListView.separated(
                           key: const Key('super-input-quick-chips'),
                           scrollDirection: Axis.horizontal,
+                          // ADR-0077: 4px breathing room giữa last chip và mic button.
+                          // 3 chips ~290px + ChoiceChip padding 8,12 ~310px tổng
+                          // trong 312px Expanded slot → chip 3 sát mic, clip ở edge.
+                          padding: const EdgeInsets.only(right: 4),
                           itemCount: cats.length,
                           separatorBuilder: (_, _) => const SizedBox(width: 6),
                           itemBuilder: (context, i) {
@@ -522,6 +526,10 @@ class SuperInputCardState extends State<SuperInputCard> {
                         // ignore: deprecated_member_use
                         value: _selectedCategory,
                         isDense: true,
+                        // ADR-0075: clamp intrinsic width to Expanded parent.
+                        // Mặc định isExpanded=false → width = widest item
+                        // ("🏠 Nhà (Điện, nước, wifi)" > 192px slot) → overflow 103px.
+                        isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Danh mục',
                           isDense: true,

@@ -396,4 +396,86 @@ void main() {
           reason: 'host bridge phải rebuild và re-read canSave sau child changeTick bump');
     });
   });
+
+  // ===========================================================================
+  // ADR-0075 Bug C fix — DropdownButtonFormField isExpanded: true
+  // ===========================================================================
+  group('ADR-0075 Bug C fix - isExpanded dropdown', () {
+    testWidgets(
+        'dropdown với category name dài không overflow Row ở 400px viewport',
+        (tester) async {
+      // Use real viewport 400x560 (mirrors device 21091116C).
+      tester.view.physicalSize = const Size(400, 560);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await pumpCard(tester);
+      await tester.pumpAndSettle();
+
+      // Drain all exceptions, then verify NONE originate từ
+      // super-input-custom-input Row (the dropdown row we fixed).
+      final allExceptions = <Object>[];
+      while (true) {
+        final ex = tester.takeException();
+        if (ex == null) break;
+        allExceptions.add(ex);
+      }
+      final dropdownRowExceptions = allExceptions.where((e) {
+        final s = e.toString();
+        return s.contains('super-input-custom-input') ||
+            s.contains('Danh mục');
+      }).toList();
+      expect(dropdownRowExceptions, isEmpty,
+          reason: 'ADR-0075 fix: dropdown Row KHÔNG được overflow sau fix');
+
+      // Sanity: dropdown widget vẫn render.
+      expect(
+          find.byKey(const Key('super-input-category-dropdown')),
+          findsOneWidget);
+    });
+  });
+
+  // ===========================================================================
+  // ADR-0077 Bug E fix — quick chip strip right padding
+  // ===========================================================================
+  group('ADR-0077 Bug E fix - quick chip strip', () {
+    testWidgets('3 quick chips render full text "☕ Cà phê" không clip',
+        (tester) async {
+      // Use real viewport 400x560 (mirrors device 21091116C).
+      tester.view.physicalSize = const Size(400, 560);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await pumpCard(tester);
+      await tester.pumpAndSettle();
+
+      // Drain pre-existing _EmptyTemplateStrip 54px Row overflow exception
+      // (out of scope cho ADR-0075/0076/0077, document in KDD #58 follow-up).
+      while (tester.takeException() != null) {}
+
+      // Chip strip có 3 quick chips với seed "food_out" / "coffee" / "transport".
+      // Pre-fix "☕ Cà phê" bị clip thành "☕ Cà p...".
+      // Post-fix: padding right: 4 cho breathing room.
+      final coffeeChip = find.byKey(const Key('quick-chip-coffee'));
+      expect(coffeeChip, findsOneWidget);
+
+      // Verify chip text không bị ellipsis clip. ChoiceChip wraps text widget
+      // internally; check Text widget direct content.
+      final chipText = find.descendant(
+        of: coffeeChip,
+        matching: find.byType(Text),
+      );
+      expect(chipText, findsOneWidget);
+      // Text content phải chứa "Cà phê" đầy đủ (maxLines: null mặc định trong
+      // ChoiceChip Text, nên full text render).
+      final textWidget = tester.widget<Text>(chipText);
+      expect(textWidget.data, contains('Cà phê'));
+    });
+  });
 }

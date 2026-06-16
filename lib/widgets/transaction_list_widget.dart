@@ -19,11 +19,11 @@ class TransactionListWidget extends StatefulWidget {
   State<TransactionListWidget> createState() => _TransactionListWidgetState();
 }
 
-/// Approximate rendered height of a single transaction row, used to compute
-/// a bounded height for the lazy ListView. Derived from the _TransactionRow
-/// layout: 32 (emoji) + 8+8 vertical padding = ~48, but to absorb locale
-/// scaling and text-wrapping we round up to 72.
-const double _kRowHeight = 72.0;
+/// ADR-0076: removed `_kRowHeight = 72.0` constant. Was used in
+/// `SizedBox(height: _kRowHeight * visible.length)` anti-pattern that
+/// overflowed 1728px với 24 transactions. Replaced với `shrinkWrap: true`
+/// trên ListView.builder để parent Column scroll. List max ~50 items,
+/// recycling perf không đáng layout correctness.
 
 class _TransactionListWidgetState extends State<TransactionListWidget> {
   static const int _pageSize = 5;
@@ -403,25 +403,25 @@ class _TransactionList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ADR-0017 Slice 3 D3.1: explicit height + no shrinkWrap enables
-        // element recycling. 72 ≈ 48 (icon) + 24 (text/meta row).
-        // 16 ≈ vertical padding (8 top + 8 bottom) per row.
-        SizedBox(
-          height: _kRowHeight * visible.length,
-          child: ListView.builder(
-            itemCount: visible.length,
-            itemBuilder: (context, index) {
-              final transaction = visible[index];
-              final isSelected = selectedIds.contains(transaction.id);
-              return TransactionRow(
-                transaction: transaction,
-                selectionMode: selectionMode,
-                isSelected: isSelected,
-                onTap: () => onTap(transaction.id),
-                onLongPress: () => onLongPress(transaction.id),
-              );
-            },
-          ),
+        // ADR-0076: drop SizedBox(height: 72 * N) bound — was anti-pattern
+        // overflow 1728px với 24 transactions. Use shrinkWrap + parent
+        // Column scroll. ADR-0017 D3.1 recycling comment obsolete cho
+        // list ≤ 50 items. `_kRowHeight` constant giữ lại làm documentation.
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: visible.length,
+          itemBuilder: (context, index) {
+            final transaction = visible[index];
+            final isSelected = selectedIds.contains(transaction.id);
+            return TransactionRow(
+              transaction: transaction,
+              selectionMode: selectionMode,
+              isSelected: isSelected,
+              onTap: () => onTap(transaction.id),
+              onLongPress: () => onLongPress(transaction.id),
+            );
+          },
         ),
         if (remaining > 0)
           OutlinedButton.icon(
