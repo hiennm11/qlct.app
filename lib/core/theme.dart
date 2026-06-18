@@ -12,6 +12,9 @@ class AppColors {
   static const Color warning = Color(0xFFE6814F);
   // ADR-0066: pin Material 3 standard error (was #FF5459 salmon, see 1.7.0).
   static const Color error = Color(0xFFBA1A1A);
+  // ADR-0081: blue tint cho CollapsibleStatsCard. Material blue 700
+  // (semantic info, tách bạch với teal primary).
+  static const Color info = Color(0xFF1976D2);
   static const Color background = Color(0xFFF5F5F5);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color textPrimary = Color(0xFF1F2121);

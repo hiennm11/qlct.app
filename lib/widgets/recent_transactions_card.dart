@@ -11,6 +11,9 @@ import 'transaction_detail_sheet.dart';
 /// inline trên Home. Load 3 tx gần nhất. Tap row → TransactionDetailSheet.
 /// Tap "Xem tất cả" → onSeeAllTap callback (HomeScreen navigate to
 /// TransactionHubScreen). Empty → SizedBox.shrink.
+///
+/// ADR-0081 (Epic 6.3 Home — 4 Tinted Cards): restyle sang tinted orange
+/// (warning @ 0.08 + 1.5px border), đồng bộ với 3 card tinted còn lại.
 class RecentTransactionsCard extends StatelessWidget {
   const RecentTransactionsCard({super.key, required this.onSeeAllTap});
 
@@ -29,6 +32,12 @@ class RecentTransactionsCard extends StatelessWidget {
         final recent = all.take(_maxRows).toList();
         return Card(
           key: const Key('recent-tx-card'),
+          color: AppColors.warning.withValues(alpha: 0.08),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppColors.warning, width: 1.5),
+          ),
           child: Column(
             children: [
               ...recent.map((tx) => _RecentRow(

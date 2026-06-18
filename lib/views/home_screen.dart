@@ -3,15 +3,11 @@ import 'package:provider/provider.dart';
 import '../viewmodels/expense_viewmodel.dart';
 
 import '../viewmodels/recurring_viewmodel.dart';
-import '../viewmodels/weekly_review_viewmodel.dart';
-import '../widgets/budget_overview_widget.dart';
 import '../widgets/collapsible_recurring_card.dart';
 import '../widgets/collapsible_stats_card.dart';
-import '../widgets/month_close_banner.dart';
+import '../widgets/home_today_card.dart';
 import '../widgets/recent_transactions_card.dart';
 import '../widgets/super_input_card.dart';
-import '../widgets/transaction_list_widget.dart';
-import '../widgets/weekly_review_card.dart';
 import '../core/constants.dart';
 import '../core/theme.dart';
 import 'account_hub_screen.dart';
@@ -20,24 +16,25 @@ import 'budget_hub_screen.dart';
 import 'transaction_hub_screen.dart';
 import '../widgets/quick_templates_strip.dart';
 
-/// ADR-0069 (Epic 6.1 Home — Super-Input): Home restructured thành
-/// 1 super-input card (5 methods) + sticky Lưu chung. Bỏ RecentTransactionsCard
-/// (redundant với TransactionHubScreen) và inline TodayStrip. Budget summary
-/// di chuyển xuống section 5 của SuperInputCard (compact 1 dòng).
-///
-/// Sections (top→bottom): SuperInputCard → BudgetOverviewWidget →
-/// MonthCloseBanner (ADR-0056) → WeeklyReviewCard (ADR-0053) →
-/// RecentTransactionsCard (3 tx + "Xem tất cả") →
-/// CollapsibleStatsCard (Hôm nay / Tuần này / Tháng này) →
-/// CollapsibleRecurringCard (≤5 rules) → TransactionListWidget.
+/// ADR-0081 (Epic 6.3 Home — 4 Tinted Cards): Home restructured thành
+/// 4 card đồng bộ style "tinted Material You" — mỗi card 1 accent color
+/// riêng, layout đơn giản hơn reference image user gửi 2026-06-17:
+/// 1. **Hôm nay** (teal primary @ 0.08) — `HomeTodayCard` mới, compact
+///    1 dòng + progress bar monthly
+/// 2. **Gần đây** (orange warning @ 0.08) — `RecentTransactionsCard` có
+///    sẵn, restyle
+/// 3. **Thống kê** (blue info @ 0.08) — `CollapsibleStatsCard` wrap
+///    `StatsWidget` 3 stat
+/// 4. **Giao dịch định kỳ** (green success @ 0.08) — `CollapsibleRecurringCard`
 ///
 /// Bottom navigation 4-tab (Tổng quan active / Giao dịch / Ngân sách / Tài khoản).
 ///
-/// ADR-0080 (Epic 6.2 Home restore): restore Stats + Recurring + Recent
-/// từ reference image user gửi 2026-06-16. Stats/Recurring render dạng
-/// collapsible (chevron toggle) để tiết kiệm viewport budget. Stats
-/// onTap wires today/week/month filter + scroll-to-tx-list, mirror
-/// WeeklyReviewCard.onCtaTap pattern.
+/// Trước (ADR-0069/0080): Home có 8 slivers bao gồm BudgetOverviewWidget +
+/// MonthCloseBanner + WeeklyReviewCard + inline TransactionListWidget +
+/// 3 collapsible card. User feedback 2026-06-17: "tao k thấy các widget
+/// đẹp giống hình, mày chỉ đơn giản là nhét các widget có sẵn" → strip
+/// 4 widget nặng sang Budget Tab (xem BudgetHubScreen), giữ Home focused
+/// vào input + glance.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -47,7 +44,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _transactionListKey = GlobalKey();
   final GlobalKey<SuperInputCardState> _superInputKey =
       GlobalKey<SuperInputCardState>();
   // ADR-0073 (Bug B v3): host-owned proxy ValueNotifier. Pre-v3, host
@@ -129,17 +125,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _scrollToTransactionList() {
-    final ctx = _transactionListKey.currentContext;
-    if (ctx == null) return;
-    Scrollable.ensureVisible(
-      ctx,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-      alignment: 0.1,
-    );
-  }
-
   void _scrollToTop() {
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
@@ -201,6 +186,13 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => const ManageTemplatesSheet(),
+    );
+  }
+
+  void _openTransactionHub() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TransactionHubScreen()),
     );
   }
 
@@ -366,145 +358,44 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // BudgetOverviewWidget (kept per grill Q1+2 keep MonthCloseBanner/WeeklyReview).
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: BudgetOverviewWidget(
-                  onCategoryTap: (categoryName) {
-                    context.read<ExpenseViewModel>().setCategoryFilter(categoryName);
-                    _scrollToTransactionList();
-                  },
-                ),
-              ),
-            ),
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-            // MonthCloseBanner (ADR-0056) — kept.
+            // ADR-0081: Hôm nay — compact 1 dòng + progress bar monthly
+            // (teal tinted). Mới, thay thế 3-stat layout cũ của StatsWidget
+            // ở vị trí top-of-Home. onTap: null cho initial commit — không
+            // còn target scroll-to-tx-list (TransactionListWidget bỏ khỏi
+            // Home, user đi qua "Xem tất cả" → TransactionHub).
             const SliverToBoxAdapter(
-              child: MonthCloseBanner(),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // WeeklyReviewCard (ADR-0053) — kept.
-            SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: WeeklyReviewCard(
-                  onCtaTap: () {
-                    final vm = context.read<ExpenseViewModel>();
-                    vm.clearFilters();
-                    final now = DateTime.now();
-                    final startOfWeek =
-                        now.subtract(Duration(days: now.weekday - 1));
-                    vm.setDateRangeFilter(
-                      DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
-                      DateTime(now.year, now.month, now.day),
-                    );
-                    _scrollToTransactionList();
-                  },
-                  onTopCategoryTap: () {
-                    final weeklyVM = context.read<WeeklyReviewViewModel>();
-                    final categoryId = weeklyVM.data?.topCategoryId;
-                    if (categoryId == null) return;
-                    final vm = context.read<ExpenseViewModel>();
-                    vm.clearFilters();
-                    final now = DateTime.now();
-                    final startOfWeek =
-                        now.subtract(Duration(days: now.weekday - 1));
-                    vm.setDateRangeFilter(
-                      DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
-                      DateTime(now.year, now.month, now.day),
-                    );
-                    _scrollToTransactionList();
-                  },
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-            // Full TransactionListWidget (kept inline on Home for tap-through).
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  key: _transactionListKey,
-                  child: const TransactionListWidget(),
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: HomeTodayCard(),
               ),
             ),
 
-            // ADR-0080: RecentTransactionsCard (3 tx + "Xem tất cả").
-            // Reference image 2026-06-16 yêu cầu restore section này.
-            // onSeeAllTap navigate sang TransactionHubScreen.
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            // Gần đây — RecentTransactionsCard (orange tinted), luôn hiển thị.
+            // Tap "Xem tất cả" → TransactionHub.
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: RecentTransactionsCard(
-                  onSeeAllTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const TransactionHubScreen(),
-                    ),
-                  ),
-                ),
+                child: RecentTransactionsCard(onSeeAllTap: _openTransactionHub),
               ),
             ),
 
-            // ADR-0080: CollapsibleStatsCard. StatsWidget bị drop khỏi
-            // Home trong Epic 6 (ADR-0067/0069), không relocate. Restore
-            // dạng collapsible (chevron toggle) — mặc định chỉ thấy
-            // header row, expand mới hiện 3 stat cards. onTap wires
-            // setDateRangeFilter(today/week/month) + _scrollToTransactionList,
-            // mirror WeeklyReviewCard.onCtaTap pattern ở L385-396.
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            // Thống kê — CollapsibleStatsCard (blue tinted), mặc định
+            // collapsed. onTap today/week/month: null (không còn target
+            // scroll-to-tx-list; user mở TransactionHub qua tab "Giao dịch"
+            // hoặc "Xem tất cả" của Recent).
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: CollapsibleStatsCard(
-                  onTapToday: () {
-                    final vm = context.read<ExpenseViewModel>();
-                    vm.clearFilters();
-                    final now = DateTime.now();
-                    vm.setDateRangeFilter(
-                      DateTime(now.year, now.month, now.day),
-                      DateTime(now.year, now.month, now.day, 23, 59, 59),
-                    );
-                    _scrollToTransactionList();
-                  },
-                  onTapWeek: () {
-                    final vm = context.read<ExpenseViewModel>();
-                    vm.clearFilters();
-                    final now = DateTime.now();
-                    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-                    vm.setDateRangeFilter(
-                      DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day),
-                      DateTime(now.year, now.month, now.day, 23, 59, 59),
-                    );
-                    _scrollToTransactionList();
-                  },
-                  onTapMonth: () {
-                    final vm = context.read<ExpenseViewModel>();
-                    vm.clearFilters();
-                    final now = DateTime.now();
-                    final firstOfMonth = DateTime(now.year, now.month, 1);
-                    final firstOfNextMonth = DateTime(now.year, now.month + 1, 1);
-                    final lastOfMonth = firstOfNextMonth.subtract(const Duration(seconds: 1));
-                    vm.setDateRangeFilter(firstOfMonth, lastOfMonth);
-                    _scrollToTransactionList();
-                  },
-                ),
+                child: const CollapsibleStatsCard(),
               ),
             ),
 
-            // ADR-0080: CollapsibleRecurringCard. RecurringOverviewWidget
-            // bị drop khỏi Home trong Epic 6, không relocate. Restore dạng
-            // collapsible. Widget owns add/edit/dismiss/sheet flows
-            // internally — không cần callback ở host.
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            // Giao dịch định kỳ — CollapsibleRecurringCard (green tinted).
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
