@@ -5,18 +5,30 @@ import '../core/formatters.dart';
 import '../core/theme.dart';
 import 'section_header.dart';
 
-/// Widget displaying expense statistics cards
+/// Widget displaying expense statistics cards.
+///
+/// ADR-0082: thêm [showHeader] để tránh duplicate title khi wrap trong
+/// CollapsibleStatsCard (đã có header "Thống kê" ở tinted blue card). Khi
+/// `showHeader: false` → skip `SectionHeader` + outer `Card` trắng + `Padding(16)`
+/// — caller (collapsible wrapper) đã cung cấp background + padding.
 class StatsWidget extends StatelessWidget {
   const StatsWidget({
     super.key,
     this.onTapToday,
     this.onTapWeek,
     this.onTapMonth,
+    this.showHeader = true,
   });
 
   final VoidCallback? onTapToday;
   final VoidCallback? onTapWeek;
   final VoidCallback? onTapMonth;
+
+  /// True (default): render SectionHeader("Thống kê") + outer Card trắng —
+  /// dùng khi widget đứng standalone.
+  /// False: skip header + outer Card — dùng khi widget wrap trong card khác
+  /// (CollapsibleStatsCard).
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -29,111 +41,123 @@ class StatsWidget extends StatelessWidget {
             stats.monthExpense == 0;
 
         if (isLoading) {
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showHeader) ...[
+                const SectionHeader(emoji: '💰', title: 'Thống kê'),
+                const SizedBox(height: 16),
+              ],
+              Row(
+                children: [
+                  Expanded(child: _LoadingStatCard()),
+                  const SizedBox(width: 12),
+                  Expanded(child: _LoadingStatCard()),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: _LoadingStatCard(),
+              ),
+            ],
+          );
+          if (!showHeader) return content;
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SectionHeader(emoji: '💰', title: 'Thống kê'),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(child: _LoadingStatCard()),
-                      const SizedBox(width: 12),
-                      Expanded(child: _LoadingStatCard()),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: _LoadingStatCard(),
-                  ),
-                ],
-              ),
+              child: content,
             ),
           );
         }
 
         if (isEmpty) {
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showHeader) ...[
+                const SectionHeader(emoji: '💰', title: 'Thống kê'),
+                const SizedBox(height: 32),
+              ],
+              Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.receipt_long, size: 40, color: Colors.grey[400]),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Chưa có chi tiêu tháng này',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+              if (showHeader) const SizedBox(height: 32),
+            ],
+          );
+          if (!showHeader) return content;
           return Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SectionHeader(emoji: '💰', title: 'Thống kê'),
-                  const SizedBox(height: 32),
-                  Center(
-                    child: Column(
-                      children: [
-                        Icon(Icons.receipt_long, size: 40, color: Colors.grey[400]),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Chưa có chi tiêu tháng này',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                ],
-              ),
+              child: content,
             ),
           );
         }
 
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        final content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showHeader) ...[
+              const SectionHeader(emoji: '💰', title: 'Thống kê'),
+              const SizedBox(height: 16),
+            ],
+            Row(
               children: [
-const SectionHeader(emoji: '💰', title: 'Thống kê'),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                        label: 'Hôm nay',
-                        amount: stats.todayExpense,
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primary, AppColors.secondary],
-                        ),
-                        onTap: onTapToday,
-                        showTapIndicator: onTapToday != null,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _StatCard(
-                        label: 'Tuần này',
-                        amount: stats.weekExpense,
-                        gradient: const LinearGradient(
-                          colors: [AppColors.secondary, AppColors.success],
-                        ),
-                        onTap: onTapWeek,
-                        showTapIndicator: onTapWeek != null,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
+                Expanded(
                   child: _StatCard(
-                    label: 'Tháng này',
-                    amount: stats.monthExpense,
+                    label: 'Hôm nay',
+                    amount: stats.todayExpense,
                     gradient: const LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryHover],
+                      colors: [AppColors.primary, AppColors.secondary],
                     ),
-                    isWide: true,
-                    onTap: onTapMonth,
-                    showTapIndicator: onTapMonth != null,
+                    onTap: onTapToday,
+                    showTapIndicator: onTapToday != null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    label: 'Tuần này',
+                    amount: stats.weekExpense,
+                    gradient: const LinearGradient(
+                      colors: [AppColors.secondary, AppColors.success],
+                    ),
+                    onTap: onTapWeek,
+                    showTapIndicator: onTapWeek != null,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: _StatCard(
+                label: 'Tháng này',
+                amount: stats.monthExpense,
+                gradient: const LinearGradient(
+                  colors: [AppColors.primary, AppColors.primaryHover],
+                ),
+                isWide: true,
+                onTap: onTapMonth,
+                showTapIndicator: onTapMonth != null,
+              ),
+            ),
+          ],
+        );
+        if (!showHeader) return content;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: content,
           ),
         );
       },

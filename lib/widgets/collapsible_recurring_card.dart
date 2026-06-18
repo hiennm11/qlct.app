@@ -82,7 +82,12 @@ class _CollapsibleRecurringCardState extends State<CollapsibleRecurringCard> {
             child: _expanded
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: const RecurringOverviewWidget(),
+                    child: const RecurringOverviewWidget(
+                      // ADR-0082: skip duplicate SectionHeader + outer Card
+                      // trắng — header card ngoài đã có "Giao dịch định kỳ"
+                      // rồi. Cũng skip `+` button (chỉ trong SectionHeader).
+                      showHeader: false,
+                    ),
                   )
                 : const SizedBox.shrink(),
           ),

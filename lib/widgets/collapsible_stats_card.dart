@@ -93,6 +93,9 @@ class _CollapsibleStatsCardState extends State<CollapsibleStatsCard> {
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: StatsWidget(
+                      // ADR-0082: skip duplicate SectionHeader + outer Card
+                      // trắng — header card ngoài đã có "Thống kê" rồi.
+                      showHeader: false,
                       onTapToday: widget.onTapToday,
                       onTapWeek: widget.onTapWeek,
                       onTapMonth: widget.onTapMonth,
