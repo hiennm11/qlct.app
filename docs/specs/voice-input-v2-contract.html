@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>0083 — Voice Input v2: UX Pass + Fuzzy Parser + Realtime STT</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --qlct-primary: #208091;
+      --qlct-primary-soft: #20809114;
+      --qlct-primary-mid: #2080914d;
+      --qlct-primary-hover: #1A6A76;
+      --qlct-danger: #DC2626;
+      --qlct-danger-soft: #DC262614;
+      --qlct-danger-mid: #DC26264d;
+      --qlct-gray-50: #F9FAFB;
+      --qlct-gray-100: #F3F4F6;
+      --qlct-gray-200: #E5E7EB;
+      --qlct-gray-500: #6B7280;
+      --qlct-gray-600: #4B5563;
+      --qlct-gray-800: #1F2937;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+
+<header class="bg-white border-b border-gray-200 p-6">
+  <h1 class="text-2xl font-semibold">0083 — Voice Input v2: UX Pass</h1>
+  <p class="text-sm text-gray-600 mt-1">
+    Modal redesign (mic icon to 96×96 tap-to-stop + 5 amplitude bars realtime + chip preview append-mode) +
+    parser fuzzy (diacritic-insensitive + length-priority) +
+    STT dictation mode (3s grace + 15s hard cap + vi_VN locale cứng + 4-tier fallback) +
+    bỏ "Xác nhận" button (auto-fill NoteEntry, user bấm "Lưu" chung).
+    <br>
+    <strong>Preserve ADR-0069 "no auto-save"</strong> — voice path KHÔNG gọi
+    <code class="bg-gray-100 px-1 rounded">ExpenseViewModel.addTransaction</code>; fill NoteEntry để user bấm "Lưu" chung.
+    Version bump: <strong>1.9.0+YYYYMMDDxx → 1.10.0+YYYYMMDDxx</strong> (MINOR — UX/parser pass, 0 breaking data layer).
+  </p>
+  <p class="text-sm text-gray-600 mt-1">
+    Parent ADR: <a class="text-blue-600 underline" href="../adr/0083-voice-input-v2-ux-pass-2026-06-18.md">0083-voice-input-v2-ux-pass-2026-06-18.md</a>
+  </p>
+</header>
+
+<main class="max-w-3xl mx-auto p-6 space-y-8">
+
+<!-- §1 — Context -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§1 — Context</h2>
+  <p class="text-sm text-gray-700 mb-2">
+    User feedback 2026-06-18 (sau khi dùng Epic 6.3 Home với mic icon trên SuperInputCard):
+  </p>
+  <ol class="list-decimal list-inside text-sm text-gray-700 space-y-1 ml-2">
+    <li>Modal chỉ có chấm đỏ pulse — không biết mic đang bắt được tiếng hay không.</li>
+    <li>ListenMode <code class="bg-gray-100 px-1 rounded">confirmation</code> cắt quá sớm khi user pause tự nhiên ("ăn ngoài 50 nghìn [pause 3s] và 20k cà phê" → STT chỉ emit 1 final).</li>
+    <li>Parser chỉ exact-match substring → STT bỏ dấu ("an ngoai 50k") → không match "ăn ngoài" (có dấu).</li>
+    <li>Substring bug: phrase "ăn" (Ăn ngoài) thắng "ăn nhà" (Ăn nhà) khi user nói "ăn nhà 50k" vì sortOrder tiebreak không đủ.</li>
+    <li>Phải bấm "Xác nhận" thêm 1 lần trước khi đóng modal — friction thừa.</li>
+    <li>Modal pop rồi show lại 1 lần khi finalResult emit → flicker visible.</li>
+  </ol>
+</section>
+
+<!-- §2 — UI states -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§2 — UI states</h2>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="state-listening" data-state="listening">
+    <p class="text-xs text-gray-500 mb-3 font-mono">state: listening — mic icon to 96×96 (tap = stop) + 5 amplitude bars animate + chip preview realtime partial</p>
+
+    <!-- Visual mockup (Tailwind render thật, user mở browser thấy UI) -->
+    <div class="bg-gray-100 rounded-lg p-6 flex justify-center" data-test="mock-listening">
+      <div class="bg-white rounded-2xl shadow-xl p-6 w-80" data-test="voice-modal">
+        <div class="flex items-center gap-2 mb-8">
+          <svg class="w-5 h-5" style="color: var(--qlct-primary)" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          <span class="text-base font-medium" style="color: var(--qlct-gray-800)">Ghi chép bằng giọng nói</span>
+        </div>
+
+        <!-- Mic icon to 96×96 — tap = stop -->
+        <div class="flex justify-center mb-4">
+          <button data-action="stop-mic" class="rounded-full w-24 h-24 flex items-center justify-center transition-colors" style="background-color: var(--qlct-primary)" aria-label="Dừng mic">
+            <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </button>
+        </div>
+
+        <!-- 5 amplitude bars — height mô phỏng _soundLevel=0.7 -->
+        <div class="flex justify-center items-end gap-1.5 h-8 mb-5" data-test="amplitude-bars">
+          <div class="w-1.5 rounded" style="height: 4px; background-color: var(--qlct-primary)"></div>
+          <div class="w-1.5 rounded" style="height: 14px; background-color: var(--qlct-primary)"></div>
+          <div class="w-1.5 rounded" style="height: 24px; background-color: var(--qlct-primary)"></div>
+          <div class="w-1.5 rounded" style="height: 14px; background-color: var(--qlct-primary)"></div>
+          <div class="w-1.5 rounded" style="height: 4px; background-color: var(--qlct-primary)"></div>
+        </div>
+
+        <!-- Chip preview realtime partial -->
+        <div class="flex justify-center mb-4">
+          <span class="inline-block px-4 py-2 rounded-full text-sm font-medium" style="background-color: var(--qlct-primary-soft); border: 1px solid var(--qlct-primary-mid); color: var(--qlct-gray-800)">ăn ngoài 50 nghìn</span>
+        </div>
+
+        <div class="flex justify-center">
+          <button data-action="cancel" class="text-sm px-4 py-2" style="color: var(--qlct-gray-500)">Hủy bỏ qua</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code snippet (Flutter implementation cho mockup ở trên) -->
+    <details class="mt-4">
+      <summary class="text-xs text-gray-500 cursor-pointer font-mono">Flutter widget tree (implementation)</summary>
+      <pre class="text-xs font-mono whitespace-pre text-gray-800 mt-2"><code>Dialog(
+  key: const Key('voice-modal'),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+  child: Padding(
+    padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(children: [
+          const Icon(Icons.mic, size: 20, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Text('Ghi chép bằng giọng nói',
+            style: Theme.of(context).textTheme.titleMedium),
+        ]),
+        const SizedBox(height: 32),
+
+        // Mic icon to — tap = manual stop (override grace).
+        GestureDetector(
+          key: const Key('voice-modal-mic-stop'),
+          onTap: widget.onStop,
+          child: AnimatedContainer(
+            key: const Key('voice-modal-mic-circle'),
+            duration: const Duration(milliseconds: 120),
+            width: 96, height: 96,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primary
+                  .withValues(alpha: 0.85 + 0.15 * _soundLevel),
+            ),
+            child: const Icon(Icons.mic, size: 48, color: Colors.white),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 5 amplitude bars — height animate 4-32px theo soundLevel.
+        Row(
+          key: const Key('voice-modal-amplitude-bars'),
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(5, (i) {
+            final offset = (i - 2).abs() / 2.0;  // 0, 0.5, 1, 0.5, 0
+            final h = 4 + 28 * _soundLevel * (1.0 - offset);
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              width: 6, height: h,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 20),
+
+        // Chip preview — empty khi STT chưa nhận gì.
+        if (widget.transcript.isEmpty)
+          Text('Đang nghe...',
+            key: const Key('voice-modal-empty-hint'),
+            style: TextStyle(color: Colors.grey[600], fontSize: 14))
+        else
+          Container(
+            key: const Key('voice-modal-chip-preview'),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.30)),
+            ),
+            child: Text(widget.transcript,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          ),
+        const SizedBox(height: 16),
+
+        TextButton(
+          key: const Key('voice-modal-cancel'),
+          onPressed: widget.onCancel,
+          child: const Text('Hủy bỏ qua'),
+        ),
+      ],
+    ),
+  ),
+)</code></pre>
+    </details>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="state-grace" data-state="grace">
+    <p class="text-xs text-gray-500 mb-3 font-mono">state: grace — finalResult đã emit, chờ 800ms xem có partial mới không. Chip preview = transcript stable, xanh primary tint.</p>
+
+    <!-- Visual mockup -->
+    <div class="bg-gray-100 rounded-lg p-6 flex justify-center" data-test="mock-grace">
+      <div class="bg-white rounded-2xl shadow-xl p-6 w-80" data-test="voice-modal">
+        <div class="flex items-center gap-2 mb-8">
+          <svg class="w-5 h-5" style="color: var(--qlct-primary)" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          <span class="text-base font-medium" style="color: var(--qlct-gray-800)">Ghi chép bằng giọng nói</span>
+        </div>
+
+        <div class="flex justify-center mb-4">
+          <button data-action="stop-mic" class="rounded-full w-24 h-24 flex items-center justify-center" style="background-color: var(--qlct-primary)" aria-label="Dừng mic">
+            <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          </button>
+        </div>
+
+        <!-- Bars in grace = low/silent, mic đang chờ user nói tiếp hoặc đóng -->
+        <div class="flex justify-center items-end gap-1.5 h-8 mb-5">
+          <div class="w-1.5 rounded" style="height: 4px; background-color: var(--qlct-primary)"></div>
+          <div class="w-1.5 rounded" style="height: 6px; background-color: var(--qlct-primary)"></div>
+          <div class="w-1.5 rounded" style="height: 8px; background-color: var(--qlct-primary)"></div>
+          <div class="w-1.5 rounded" style="height: 6px; background-color: var(--qlct-primary)"></div>
+          <div class="w-1.5 rounded" style="height: 4px; background-color: var(--qlct-primary)"></div>
+        </div>
+
+        <!-- Chip preview — text stable, xanh đậm hơn (đã final) -->
+        <div class="flex justify-center mb-4">
+          <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold" style="background-color: var(--qlct-primary); color: white">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+            ăn ngoài 50 nghìn
+          </span>
+        </div>
+
+        <div class="flex justify-center">
+          <button data-action="cancel" class="text-sm px-4 py-2" style="color: var(--qlct-gray-500)">Hủy bỏ qua</button>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-xs text-gray-500 mt-3">Cùng widget tree như state-listening, chỉ thay chip preview color (background var(--qlct-primary) solid + white text + checkmark icon). Coordinator setState(_transcript = finalResult) → modal rebuild. GraceTimer 800ms; timer fire → coordinator gọi _closeAndApply().</p>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="state-closing" data-state="closing">
+    <p class="text-xs text-gray-500 mb-3 font-mono">state: closing — modal pop animation, NoteEntry fill, snackbar (nếu empty). Coordinator transition sang idle ngay khi pop complete.</p>
+
+    <!-- Visual mockup: NoteEntry dưới SuperInputCard + optional snackbar -->
+    <div class="bg-gray-100 rounded-lg p-6" data-test="mock-closing">
+      <div class="bg-white rounded-lg shadow p-4 max-w-md mx-auto" data-test="super-input-note-entry">
+        <label class="text-xs text-gray-500 block mb-1">Ghi chú nhanh</label>
+        <textarea class="w-full border border-gray-300 rounded p-2 text-sm" rows="2" readonly>ăn ngoài 50 nghìn</textarea>
+      </div>
+      <!-- Snackbar (Q4-A empty path) -->
+      <div class="mt-4 max-w-md mx-auto bg-gray-800 text-white text-sm px-4 py-2 rounded shadow-lg flex items-center gap-2" data-test="voice-empty-snackbar">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        <span>Không nhận diện được giọng nói, thử lại</span>
+      </div>
+    </div>
+
+    <pre class="text-xs font-mono whitespace-pre text-gray-800 mt-3"><code>// Coordinator._closeAndApply():
+//   1. graceTimer?.cancel() + hardCapTimer?.cancel().
+//   2. _voiceService.stopListening().
+//   3. Nếu _transcript.trim().isEmpty → ScaffoldMessenger.showSnackBar(
+//        'Không nhận diện được giọng nói, thử lại') + Navigator.pop() → return.
+//   4. Ngược lại: parseVoiceTranscript → widget.onResult(result) → Navigator.pop().
+//   5. setState(_phase = VoicePhase.idle).</code></pre>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="state-error" data-state="error">
+    <p class="text-xs text-gray-500 mb-3 font-mono">state: error — STT init fail (4-tier fallback exhausted) hoặc mic permission denied. Coordinator show snackbar; modal KHÔNG mở.</p>
+
+    <!-- Visual mockup: chỉ snackbar, không có modal -->
+    <div class="bg-gray-100 rounded-lg p-6">
+      <!-- Background mờ mô phỏng Home screen (không có modal) -->
+      <div class="bg-white rounded-lg shadow p-4 max-w-md mx-auto opacity-50 mb-3" data-test="home-faded">
+        <div class="text-sm text-gray-400">[Home screen — mic icon available, modal chưa mở]</div>
+      </div>
+      <!-- Snackbar 1: init fail -->
+      <div class="bg-gray-800 text-white text-sm px-4 py-2 rounded shadow-lg max-w-md mx-auto mb-2 flex items-center gap-2" data-test="voice-init-fail-snackbar">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        <span>Thiết bị chưa hỗ trợ nhận diện giọng nói</span>
+      </div>
+      <!-- Snackbar 2: permission denied -->
+      <div class="bg-gray-800 text-white text-sm px-4 py-2 rounded shadow-lg max-w-md mx-auto flex items-center justify-between" data-test="voice-permission-snackbar">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <span>Cần quyền truy cập microphone để dùng voice input</span>
+        </div>
+        <button class="text-sm font-semibold ml-3" style="color: var(--qlct-primary)">Mở Settings</button>
+      </div>
+    </div>
+
+    <pre class="text-xs font-mono whitespace-pre text-gray-800 mt-3"><code>// VoiceInputService.initialize() returns false:
+//   → coordinator SnackBar('Thiết bị chưa hỗ trợ nhận diện giọng nói')
+//   → return early; KHÔNG showDialog.
+//
+// Permission.microphone.isDenied:
+//   → coordinator SnackBar('Cần quyền truy cập microphone để dùng voice input')
+//   →     + action 'Mở Settings' (Permission.openAppSettings())
+//   → return early; KHÔNG showDialog.</code></pre>
+  </div>
+</section>
+
+<!-- §3 — State machine -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§3 — State machine</h2>
+  <div class="bg-white border border-gray-200 rounded p-4">
+    <pre class="text-xs font-mono whitespace-pre text-gray-800"><code>enum VoicePhase { idle, listening, grace, closing }
+
+// Coordinator state (_phase) transitions:
+//   idle → listening         (user tap mic icon — coordinator._startVoiceInput)
+//   listening → listening    (partial emit → append _transcript, reset bars+chip)
+//   listening → grace        (finalResult 1 emit, transcript stable)
+//   grace → listening        (new partial in 800ms → reset graceTimer, _transcript += partial)
+//   grace → closing          (graceTimer fire 800ms no new partial)
+//   listening → closing      (tap mic icon to = manual stop, override grace)
+//   listening → closing      (hardCapTimer fire 15s)
+//   listening → closing      (onError from STT)
+//   closing → idle           (modal pop complete, _phase reset)
+//
+// VoiceInputService internal states (parallel):
+//   uninitialized → initializing (await permission + init locale chain)
+//   initializing → ready (tier 1-3 success) | failed (tier 4)
+//   ready → listening (startListening called)
+//   listening → ready (stopListening OR cancel OR finalResult auto-emit)
+//   ready → uninitialized (dispose — coordinator disposed)
+
+// Per-utterance (single user tap-to-stop) state trace (happy path):
+//   idle (tap) → listening (chip='Đang nghe...')
+//   listening (partial 'ăn ngoài 50') → listening (chip='ăn ngoài 50')
+//   listening (partial 'ăn ngoài 50 nghìn') → listening (chip='ăn ngoài 50 nghìn')
+//   listening (finalResult 'ăn ngoài 50 nghìn') → grace (chip='ăn ngoài 50 nghìn' xanh)
+//   grace (no new partial 800ms) → closing (modal pop, NoteEntry fill)
+//   closing → idle
+
+// Empty path (auto-stop với transcript rỗng — STT timeout/permission bị revoke):
+//   listening (finalResult '') → closing
+//   closing (snackbar 'Không nhận diện...') → idle
+
+// Hard cap path:
+//   listening (15s elapsed) → closing (snackbar 'Quá thời gian tối đa')
+//   → idle</code></pre>
+  </div>
+</section>
+
+<!-- §4 — Interaction flows -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§4 — Interaction flows</h2>
+  <p class="text-sm text-gray-600 mb-3">Mỗi flow = visual mockup (trái) + code flow (phải). Mockup dùng Tailwind render thật, mày mở browser thấy UI của state sau khi action chạy.</p>
+
+  <div class="bg-white border border-gray-200 rounded p-4" data-test="flow-start-listening">
+    <p class="text-xs text-gray-500 mb-3 font-mono">flow: tap mic → start listening (partial realtime → final → grace)</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Visual: 3 trạng thái liên tiếp của chip preview -->
+      <div class="bg-gray-100 rounded-lg p-4 space-y-3" data-test="mock-flow-start">
+        <div class="text-xs text-gray-500 font-mono">t=0s (tap mic)</div>
+        <div class="bg-white rounded-lg p-3 shadow">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-4 h-4" style="color: var(--qlct-primary)" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/></svg>
+            <span class="text-xs font-medium">Ghi chép bằng giọng nói</span>
+          </div>
+          <div class="flex justify-center mb-2">
+            <div class="rounded-full w-12 h-12 flex items-center justify-center" style="background-color: var(--qlct-primary)">
+              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/></svg>
+            </div>
+          </div>
+          <div class="text-center text-xs text-gray-500">Đang nghe...</div>
+        </div>
+        <div class="text-xs text-gray-500 font-mono">t=1s (partial 'ăn ngoài 50 nghìn')</div>
+        <div class="bg-white rounded-lg p-3 shadow">
+          <div class="flex justify-center">
+            <span class="inline-block px-3 py-1 rounded-full text-xs" style="background-color: var(--qlct-primary-soft); border: 1px solid var(--qlct-primary-mid)">ăn ngoài 50 nghìn</span>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 font-mono">t=2s (finalResult → grace, chip xanh đậm)</div>
+        <div class="bg-white rounded-lg p-3 shadow">
+          <div class="flex justify-center">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: var(--qlct-primary)">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+              ăn ngoài 50 nghìn
+            </span>
+          </div>
+        </div>
+      </div>
+      <!-- Code -->
+      <pre class="text-xs font-mono whitespace-pre text-gray-800 bg-gray-50 p-3 rounded overflow-x-auto"><code>// 1. User tap mic icon.
+// 2. _startVoiceInput():
+//    a. setState(_phase = listening, _transcript = '').
+//    b. showDialog(...VoiceInputModal...).
+//    c. _voiceService.startListening(
+//         listenMode: dictation,
+//         partialResults: true,
+//         onSoundLevelChange: (l) =&gt; soundLevel.value = l).
+//    d. arm hardCapTimer(15s).
+// 3. STT partial 'ăn ngoài 50 nghìn':
+//    → _transcript = recognizedWords (REPLACE).
+// 4. STT finalResult 'ăn ngoài 50 nghìn':
+//    → _phase = grace, arm graceTimer(800ms).</code></pre>
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="flow-grace-append">
+    <p class="text-xs text-gray-500 mb-3 font-mono">flow: grace + REPLACE trong grace (Q2-A — pause-and-resume, recognizedWords là full latest không phải delta)</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-gray-100 rounded-lg p-4 space-y-3" data-test="mock-grace-append">
+        <div class="text-xs text-gray-500 font-mono">t=2.5s (grace armed, transcript = 'ăn ngoài 50 nghìn')</div>
+        <div class="bg-white rounded-lg p-3 shadow">
+          <div class="flex justify-center">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: var(--qlct-primary)">
+              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+              ăn ngoài 50 nghìn
+            </span>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 font-mono">t=2.7s (user nói tiếp 'và 20k cà phê', partial mới)</div>
+        <div class="bg-white rounded-lg p-3 shadow">
+          <div class="flex justify-center">
+            <span class="inline-block px-3 py-1 rounded-full text-xs" style="background-color: var(--qlct-primary-soft); border: 1px solid var(--qlct-primary-mid)">ăn ngoài 50 nghìn và 20k cà phê</span>
+          </div>
+          <div class="text-center text-xs text-gray-400 mt-1">(graceTimer reset 800ms)</div>
+        </div>
+        <div class="text-xs text-gray-500 font-mono">t=3.5s (graceTimer fire → close + fill)</div>
+        <div class="bg-white rounded-lg p-3 shadow" style="opacity: 0.5">
+          <div class="text-center text-xs text-gray-400">[modal popped]</div>
+        </div>
+      </div>
+      <pre class="text-xs font-mono whitespace-pre text-gray-800 bg-gray-50 p-3 rounded overflow-x-auto"><code>// Grace phase REPLACE (không append):
+// onResult callback:
+//   _transcript = result.recognizedWords;  // full latest
+//   if (result.finalResult) {
+//     if (_phase == listening) {
+//       _phase = grace;
+//       graceTimer = Timer(800ms, _closeAndApply);
+//     } else {  // _phase == grace
+//       _closeAndApply();  // finalResult 2 emit → close ngay
+//     }
+//   } else {  // partial
+//     // _phase có thể listening hoặc grace
+//     // REPLACE transcript, reset graceTimer nếu grace
+//     if (_phase == grace) {
+//       graceTimer?.cancel();
+//       graceTimer = Timer(800ms, _closeAndApply);
+//     }
+//   }</code></pre>
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="flow-stop">
+    <p class="text-xs text-gray-500 mb-3 font-mono">flow: tap mic icon to (manual stop) — override grace, fill NoteEntry</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-gray-100 rounded-lg p-4 space-y-3" data-test="mock-stop">
+        <div class="text-xs text-gray-500 font-mono">before (state grace, transcript stable)</div>
+        <div class="bg-white rounded-lg p-3 shadow">
+          <div class="flex justify-center">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: var(--qlct-primary)">ăn ngoài 50 nghìn</span>
+          </div>
+        </div>
+        <div class="text-xs text-gray-500 font-mono text-center">↓ tap mic</div>
+        <div class="text-xs text-gray-500 font-mono">after (modal pop, NoteEntry fill, SuperInputCard visible)</div>
+        <div class="bg-white rounded-lg p-3 shadow" data-test="note-entry-filled">
+          <label class="text-xs text-gray-500 block mb-1">Ghi chú nhanh</label>
+          <textarea class="w-full border rounded p-2 text-sm" rows="2" readonly>ăn ngoài 50 nghìn</textarea>
+          <div class="flex gap-2 mt-2 items-center">
+            <div class="text-sm px-2 py-1 rounded border" style="border-color: var(--qlct-primary-mid); color: var(--qlct-primary)">🍜 Ăn ngoài</div>
+            <div class="text-sm px-2 py-1 rounded bg-gray-100">50.000</div>
+          </div>
+        </div>
+      </div>
+      <pre class="text-xs font-mono whitespace-pre text-gray-800 bg-gray-50 p-3 rounded overflow-x-auto"><code>// _onStopTap() → _closeAndApply():
+//   1. graceTimer?.cancel().
+//   2. _voiceService.stopListening().
+//   3. parseVoiceTranscript(_transcript, categories)
+//      → VoiceResult(amount: 50000, category: Ăn ngoài).
+//   4. widget.onResult(result) →
+//      super_input_card._onVoiceResult:
+//        _noteController.text = transcript;
+//        _amountController.text = '50.000';
+//        _selectedCategory = Ăn ngoài;
+//   5. Navigator.pop() → modal dismissed.</code></pre>
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="flow-cancel">
+    <p class="text-xs text-gray-500 mb-3 font-mono">flow: tap "Hủy bỏ qua" — cancel, NoteEntry giữ nguyên</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-gray-100 rounded-lg p-4 space-y-3" data-test="mock-cancel">
+        <div class="text-xs text-gray-500 font-mono">before (NoteEntry có sẵn text từ lần nhập trước)</div>
+        <div class="bg-white rounded-lg p-3 shadow" data-test="note-entry-pre-cancel">
+          <textarea class="w-full border rounded p-2 text-sm" rows="2" readonly>mua rau 30k</textarea>
+        </div>
+        <div class="text-xs text-gray-500 font-mono text-center">↓ tap Hủy bỏ qua trong modal</div>
+        <div class="text-xs text-gray-500 font-mono">after (modal pop, NoteEntry KHÔNG đổi)</div>
+        <div class="bg-white rounded-lg p-3 shadow" data-test="note-entry-post-cancel">
+          <textarea class="w-full border rounded p-2 text-sm" rows="2" readonly>mua rau 30k</textarea>
+          <div class="text-center text-xs text-gray-400 mt-1">(giữ nguyên — không bị voice overwrite)</div>
+        </div>
+      </div>
+      <pre class="text-xs font-mono whitespace-pre text-gray-800 bg-gray-50 p-3 rounded overflow-x-auto"><code>// _onCancelTap():
+//   1. graceTimer?.cancel().
+//   2. _voiceService.cancel() — dừng STT, bỏ transcript.
+//   3. setState(_phase = idle, _transcript = '').
+//   4. Navigator.pop().
+// Consumer KHÔNG nhận onResult callback →
+// NoteEntry giữ nguyên state trước.</code></pre>
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="flow-empty">
+    <p class="text-xs text-gray-500 mb-3 font-mono">flow: empty transcript (Q4-A) — snackbar, KHÔNG fill</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-gray-100 rounded-lg p-4" data-test="mock-empty">
+        <div class="text-xs text-gray-500 font-mono mb-2">after (modal pop + snackbar)</div>
+        <div class="bg-white rounded-lg p-3 shadow mb-3 opacity-50">
+          <textarea class="w-full border rounded p-2 text-sm" rows="2" readonly disabled>— (giữ nguyên state trước)</textarea>
+        </div>
+        <div class="bg-gray-800 text-white text-sm px-4 py-2 rounded shadow-lg flex items-center gap-2" data-test="voice-empty-snackbar">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <span>Không nhận diện được giọng nói, thử lại</span>
+        </div>
+      </div>
+      <pre class="text-xs font-mono whitespace-pre text-gray-800 bg-gray-50 p-3 rounded overflow-x-auto"><code>// _closeAndApply() — empty path:
+//   if (_transcript.trim().isEmpty) {
+//     ScaffoldMessenger.showSnackBar(
+//       'Không nhận diện được giọng nói, thử lại');
+//     Navigator.pop();
+//     setState(_phase = idle);
+//     return;  // KHÔNG gọi onResult
+//   }
+// User có thể gõ tay hoặc tap mic lại.</code></pre>
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="flow-error-init">
+    <p class="text-xs text-gray-500 mb-3 font-mono">flow: STT init fail (4-tier fallback exhausted) — modal KHÔNG mở</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-gray-100 rounded-lg p-4" data-test="mock-error-init">
+        <div class="text-xs text-gray-500 font-mono mb-2">Home screen (mic icon available, modal chưa mở)</div>
+        <div class="bg-white rounded-lg p-3 shadow mb-3">
+          <div class="text-xs text-gray-500">[SuperInputCard — note input + mic icon]</div>
+        </div>
+        <div class="bg-gray-800 text-white text-sm px-4 py-2 rounded shadow-lg flex items-center gap-2" data-test="voice-init-fail-snackbar">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <span>Thiết bị chưa hỗ trợ nhận diện giọng nói</span>
+        </div>
+      </div>
+      <pre class="text-xs font-mono whitespace-pre text-gray-800 bg-gray-50 p-3 rounded overflow-x-auto"><code>// VoiceInputService.initialize() returns false (tier 1-4 fail).
+// startListening():
+//   if (!await initialize()) {
+//     onError('Thiết bị chưa hỗ trợ nhận diện giọng nói');
+//     return;
+//   }
+// Coordinator:
+//   ScaffoldMessenger.showSnackBar(error).
+//   setState(_phase = idle).
+//   KHÔNG showDialog.</code></pre>
+    </div>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded p-4 mt-3" data-test="flow-error-permission">
+    <p class="text-xs text-gray-500 mb-3 font-mono">flow: permission denied — snackbar với CTA "Mở Settings"</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-gray-100 rounded-lg p-4" data-test="mock-error-permission">
+        <div class="bg-gray-800 text-white text-sm px-4 py-2 rounded shadow-lg max-w-md flex items-center justify-between" data-test="voice-permission-snackbar">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <span>Cần quyền truy cập microphone</span>
+          </div>
+          <button class="text-sm font-semibold ml-3 whitespace-nowrap" style="color: var(--qlct-primary)">Mở Settings</button>
+        </div>
+      </div>
+      <pre class="text-xs font-mono whitespace-pre text-gray-800 bg-gray-50 p-3 rounded overflow-x-auto"><code>// Permission.microphone.request() returns !isGranted.
+// Coordinator:
+//   ScaffoldMessenger.showSnackBar(SnackBar(
+//     content: Text('Cần quyền truy cập microphone...'),
+//     action: SnackBarAction(
+//       label: 'Mở Settings',
+//       onPressed: () =&gt; openAppSettings()),
+//   )).
+//   setState(_phase = idle).
+//   KHÔNG showDialog.</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- §5 — Edge cases -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§5 — Edge cases</h2>
+  <p class="text-sm text-gray-600 mb-3">Mỗi card = mini visual state (top) + mô tả behavior (bottom). Giúp dev scan nhanh bound nào rồi dẫn đến test case tương ứng.</p>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-empty-transcript">
+      <div class="text-xs text-gray-500 font-mono mb-2">UI khi fire</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="bg-gray-800 text-white text-xs px-3 py-1 rounded shadow inline-flex items-center gap-1" data-test="voice-empty-snackbar">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          Không nhận diện được giọng nói, thử lại
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Empty transcript</h3>
+      <p class="text-xs text-gray-600">Auto-stop với transcript rỗng → snackbar, modal pop, NoteEntry giữ nguyên state trước.</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-no-amount">
+      <div class="text-xs text-gray-500 font-mono mb-2">NoteEntry sau fill (amount rỗng)</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="bg-white border rounded p-2 text-xs">
+          <textarea class="w-full text-xs" rows="1" readonly>ăn ngoài</textarea>
+          <div class="flex gap-1 mt-1">
+            <span class="text-xs px-2 py-0.5 rounded" style="border: 1px solid var(--qlct-primary-mid); color: var(--qlct-primary)">🍜 Ăn ngoài</span>
+            <span class="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-400">— ₫</span>
+          </div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Có category nhưng không có amount</h3>
+      <p class="text-xs text-gray-600">"ăn ngoài" (no number) → result.amount=null, result.category=Ăn ngoài. Amount field rỗng → user tự nhập số trước khi bấm Lưu.</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-no-category">
+      <div class="text-xs text-gray-500 font-mono mb-2">NoteEntry sau fill (category rỗng)</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="bg-white border rounded p-2 text-xs">
+          <textarea class="w-full text-xs" rows="1" readonly>chi tiêu 100k</textarea>
+          <div class="flex gap-1 mt-1">
+            <span class="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-400">Chọn category</span>
+            <span class="text-xs px-2 py-0.5 rounded bg-gray-100">100.000</span>
+          </div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Có amount nhưng không match category</h3>
+      <p class="text-xs text-gray-600">"chi tiêu 100k" → result.amount=100000, result.category=null. Dropdown rỗng → user tự chọn category.</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-diacritic-stt">
+      <div class="text-xs text-gray-500 font-mono mb-2">STT raw "an ngoai 50k" → chip preview</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="bg-white rounded p-2 shadow">
+          <div class="text-center">
+            <span class="inline-block px-3 py-1 rounded-full text-xs" style="background-color: var(--qlct-primary-soft); border: 1px solid var(--qlct-primary-mid)">an ngoai 50k</span>
+          </div>
+          <div class="text-center text-xs text-gray-500 mt-1">→ match (diacritic stripped)</div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">STT bỏ dấu</h3>
+      <p class="text-xs text-gray-600">Layer 1 exact miss → layer 2 NFD strip → match "ăn ngoài" → result.category=Ăn ngoài.</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-substring-bug">
+      <div class="text-xs text-gray-500 font-mono mb-2">Match candidates (length DESC)</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="space-y-1 text-xs font-mono">
+          <div class="flex items-center gap-2">
+            <span class="line-through text-gray-400">ăn nhà</span>
+            <span class="text-xs text-gray-500">(Ăn nhà, 7 chars — first match, win)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="line-through text-gray-400">ăn</span>
+            <span class="text-xs text-gray-500">(Ăn ngoài, 3 chars — would be wrong)</span>
+          </div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Substring conflict (length-priority)</h3>
+      <p class="text-xs text-gray-600">"ăn nhà 50k" → length-priority DESC → "ăn nhà" thắng "ăn" → result.category=Ăn nhà.</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-hard-cap">
+      <div class="text-xs text-gray-500 font-mono mb-2">Timer counter UI (15s → 0s)</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="bg-white rounded p-2 shadow text-center">
+          <div class="text-2xl font-bold font-mono" style="color: var(--qlct-danger)">00:00</div>
+          <div class="text-xs text-gray-500">(hard cap hit → auto-stop)</div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Hard cap 15s</h3>
+      <p class="text-xs text-gray-600">hardCapTimer fire → _closeAndApply() với transcript hiện tại. Modal luôn close, không bao giờ treo.</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-locale-fallback">
+      <div class="text-xs text-gray-500 font-mono mb-2">Tier chain</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="space-y-1 text-xs font-mono">
+          <div class="flex items-center gap-2">
+            <span class="text-red-500">✗</span><span>vi_VN</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-red-500">✗</span><span>vi_* (bất kỳ)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-green-600 font-bold">✓</span><span class="font-bold">en_US — used</span>
+          </div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Locale fallback chain</h3>
+      <p class="text-xs text-gray-600">tier 3 en_US success → STT en → parser amount work (numeric), category = null (phrase Việt không match). User tự chỉnh.</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-locale-init-fail">
+      <div class="text-xs text-gray-500 font-mono mb-2">All tiers fail</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="space-y-1 text-xs font-mono">
+          <div class="flex items-center gap-2"><span class="text-red-500">✗</span><span>vi_VN</span></div>
+          <div class="flex items-center gap-2"><span class="text-red-500">✗</span><span>vi_*</span></div>
+          <div class="flex items-center gap-2"><span class="text-red-500">✗</span><span>en_US</span></div>
+          <div class="flex items-center gap-2 font-bold text-red-600"><span>⛔</span><span>fail — show snackbar</span></div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Init fail (4-tier exhausted)</h3>
+      <p class="text-xs text-gray-600">vi_VN + vi_* + en_US đều fail → modal KHÔNG mở, snackbar "Thiết bị chưa hỗ trợ nhận diện giọng nói". User fallback gõ tay.</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-other-skip-fuzzy">
+      <div class="text-xs text-gray-500 font-mono mb-2">Fuzzy layer filter</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="space-y-1 text-xs font-mono">
+          <div class="flex items-center gap-2">
+            <span class="text-green-600">✓</span><span>Layer 1 exact: skip "khác"</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-green-600">✓</span><span>Layer 2 diacritic: skip "khác"</span>
+          </div>
+          <div class="flex items-center gap-2 text-red-500">
+            <span>→</span><span>return null</span>
+          </div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Category "khác" skip fuzzy</h3>
+      <p class="text-xs text-gray-600">Layer 1 + layer 2 skip `cat.isOther == true`. Nếu không match gì → return null (caller xử lý, không tự fallback).</p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded p-3" data-test="edge-multi-amount-first-wins">
+      <div class="text-xs text-gray-500 font-mono mb-2">Multi-amount parse</div>
+      <div class="bg-gray-100 rounded p-2 mb-2">
+        <div class="bg-white rounded p-2 text-xs">
+          <textarea class="w-full text-xs" rows="1" readonly>ăn ngoài 50 nghìn và 20k cà phê</textarea>
+          <div class="text-xs text-gray-500 mt-1">
+            <span class="line-through text-gray-400">20k cà phê</span> → amount <span class="font-bold" style="color: var(--qlct-primary)">50.000</span> (first)
+          </div>
+        </div>
+      </div>
+      <h3 class="text-sm font-semibold">Multi-amount first wins</h3>
+      <p class="text-xs text-gray-600">"ăn ngoài 50 nghìn và 20k cà phê" → amount=50000 (first). Phần "20k cà phê" giữ trong NoteEntry text, user tự tách nếu cần.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- §6 — data-* binding table -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§6 — data-* → Flutter Key binding table</h2>
+  <div class="bg-white border border-gray-200 rounded">
+    <table class="w-full text-xs">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="text-left p-2">HTML data-* / state</th>
+          <th class="text-left p-2">Flutter Key / target</th>
+          <th class="text-left p-2">Test assertion</th>
+        </tr>
+      </thead>
+      <tbody class="font-mono">
+        <tr class="border-t">
+          <td class="p-2">data-test="state-listening"</td>
+          <td class="p-2">Key('voice-modal')</td>
+          <td class="p-2">find.byKey(Key('voice-modal')) findsOneWidget</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-state="listening"</td>
+          <td class="p-2">n/a (visual state only)</td>
+          <td class="p-2">n/a — assert via _phase getter on coordinator</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-state="grace"</td>
+          <td class="p-2">n/a (visual state only)</td>
+          <td class="p-2">coordinator._phase == VoicePhase.grace</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-state="closing"</td>
+          <td class="p-2">n/a (modal popping)</td>
+          <td class="p-2">find.byKey(Key('voice-modal')) findsNothing sau pump</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-state="error"</td>
+          <td class="p-2">n/a (modal không mở)</td>
+          <td class="p-2">find.byKey(Key('voice-modal')) findsNothing + snackbar shown</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="state-closing"</td>
+          <td class="p-2">n/a (modal popping)</td>
+          <td class="p-2">find.byKey(Key('voice-modal')) findsNothing sau pump</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="state-error"</td>
+          <td class="p-2">n/a (modal không mở)</td>
+          <td class="p-2">find.byKey(Key('voice-modal')) findsNothing + snackbar shown</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-action="stop-mic"</td>
+          <td class="p-2">Key('voice-modal-mic-stop')</td>
+          <td class="p-2">tester.tap(find.byKey(...)) → coordinator._closeAndApply fire</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">mic icon to 96×96</td>
+          <td class="p-2">Key('voice-modal-mic-circle')</td>
+          <td class="p-2">find.byKey(...) + assert size 96×96 (tester.getSize)</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">5 amplitude bars</td>
+          <td class="p-2">Key('voice-modal-amplitude-bars')</td>
+          <td class="p-2">find.descendant(of: barsKey, matching: find.byType(AnimatedContainer)) → 5 widgets</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-action="cancel"</td>
+          <td class="p-2">Key('voice-modal-cancel')</td>
+          <td class="p-2">tester.tap → coordinator._onCancelTap, modal pop, onResult NOT called</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">chip empty hint</td>
+          <td class="p-2">Key('voice-modal-empty-hint')</td>
+          <td class="p-2">find.text('Đang nghe...') findsOneWidget khi transcript empty</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">chip preview có text</td>
+          <td class="p-2">Key('voice-modal-chip-preview')</td>
+          <td class="p-2">find.byKey(...).evaluate().single.widget.text contains 'ăn ngoài'</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="voice-modal" (root modal container)</td>
+          <td class="p-2">Key('voice-modal')</td>
+          <td class="p-2">find.byKey(Key('voice-modal')) findsOneWidget khi listening/grace</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="home-faded" (faded home behind modal in error state)</td>
+          <td class="p-2">Key('home-faded')</td>
+          <td class="p-2">find.byKey(...) findsOneWidget khi error snackbar hiện (modal không mở)</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="super-input-note-entry" (consumer textarea sau voice fill)</td>
+          <td class="p-2">Key('super-input-note-entry')</td>
+          <td class="p-2">find.text(_noteController.text) == transcript sau _closeAndApply</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="voice-empty-snackbar" (empty transcript snackbar)</td>
+          <td class="p-2">Key('voice-empty-snackbar')</td>
+          <td class="p-2">find.byKey(...) findsOneWidget khi transcript rỗng sau close</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="voice-init-fail-snackbar" (4-tier init fail)</td>
+          <td class="p-2">Key('voice-init-fail-snackbar')</td>
+          <td class="p-2">find.byKey(...) findsOneWidget khi vi_VN + vi_* + en_US fail</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="voice-permission-snackbar" (permission denied CTA)</td>
+          <td class="p-2">Key('voice-permission-snackbar')</td>
+          <td class="p-2">find.byKey(...) + tap "Mở Settings" action → openAppSettings()</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="flow-start-listening" (end-to-end happy path)</td>
+          <td class="p-2">n/a (integration test)</td>
+          <td class="p-2">tap mic → chip preview text 'ăn ngoài 50 nghìn' → tap stop → NoteEntry fill</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="flow-grace-append" (grace + REPLACE partial)</td>
+          <td class="p-2">n/a (integration test)</td>
+          <td class="p-2">finalResult 1 → grace → partial mới replaces transcript → graceTimer reset → finalResult 2 → close</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="flow-stop" (manual stop override grace)</td>
+          <td class="p-2">n/a (integration test)</td>
+          <td class="p-2">grace state + tap mic → modal pop, NoteEntry fill, graceTimer cancelled</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="flow-cancel" (cancel giữ NoteEntry nguyên)</td>
+          <td class="p-2">n/a (integration test)</td>
+          <td class="p-2">tap "Hủy bỏ qua" → modal pop, NoteEntry text KHÔNG đổi so với pre-cancel</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="flow-empty"</td>
+          <td class="p-2">n/a (snackbar text)</td>
+          <td class="p-2">find.text('Không nhận diện được giọng nói, thử lại')</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="flow-error-init"</td>
+          <td class="p-2">n/a (snackbar text)</td>
+          <td class="p-2">find.text('Thiết bị chưa hỗ trợ nhận diện giọng nói')</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="flow-error-permission"</td>
+          <td class="p-2">n/a (snackbar action)</td>
+          <td class="p-2">find.text('Cần quyền truy cập microphone để dùng voice input')</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-empty-transcript" → behavior</td>
+          <td class="p-2">n/a (snackbar text)</td>
+          <td class="p-2">find.text('Không nhận diện được giọng nói, thử lại') findsOneWidget</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-substring-bug" → behavior</td>
+          <td class="p-2">n/a (parser unit test)</td>
+          <td class="p-2">parseVoiceTranscript('ăn nhà 50k').category.name == 'Ăn nhà'</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-diacritic-stt" → behavior</td>
+          <td class="p-2">n/a (parser unit test)</td>
+          <td class="p-2">parseVoiceTranscript('an ngoai 50k').category.name == 'Ăn ngoài'</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-hard-cap" → behavior</td>
+          <td class="p-2">n/a (integration test với fake timer)</td>
+          <td class="p-2">fakeAsync 15s → modal pop, transcript có thể empty</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-locale-fallback" → behavior</td>
+          <td class="p-2">n/a (parser unit test, vi_* → en_US)</td>
+          <td class="p-2">parseVoiceTranscript('coffee 30k').category == null (no match)</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-locale-init-fail" → behavior</td>
+          <td class="p-2">n/a (integration test, fake 3-tier fail)</td>
+          <td class="p-2">mock vi_VN + vi_* + en_US fail → snackbar 'Thiết bị chưa hỗ trợ', modal KHÔNG mở</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-no-amount" → behavior</td>
+          <td class="p-2">n/a (parser unit test)</td>
+          <td class="p-2">parseVoiceTranscript('ăn ngoài').amount == null, category = Ăn ngoài</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-no-category" → behavior</td>
+          <td class="p-2">n/a (parser unit test)</td>
+          <td class="p-2">parseVoiceTranscript('chi tiêu 100k').amount == 100000, category == null</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-other-skip-fuzzy" → behavior</td>
+          <td class="p-2">n/a (parser unit test)</td>
+          <td class="p-2">parseVoiceTranscript('xyz 50k').category == null (khác skipped)</td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">data-test="edge-multi-amount-first-wins" → behavior</td>
+          <td class="p-2">n/a (parser unit test)</td>
+          <td class="p-2">parseVoiceTranscript('ăn ngoài 50 nghìn và 20k cà phê').amount == 50000</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-gray-600 mt-2">
+    Convention: <code class="bg-gray-100 px-1 rounded">data-test="state-*"</code> + <code class="bg-gray-1 00 px-1 rounded">data-state="*"</code> cho state containers;
+    <code class="bg-gray-100 px-1 rounded">data-action="*"</code> cho tap targets; enum/boolean encode trong Key (CLAUDE.md §/implement);
+    dynamic numbers/strings qua VM getter assertion, không qua Key.
+    <br>
+    Mockup sub-attributes (<code class="bg-gray-100 px-1 rounded">data-test="mock-*"</code> và <code class="bg-gray-100 px-1 rounded">data-test="note-entry-*"</code>) là child visual aids bên trong panel cha — không cần Flutter Key riêng, dùng cho screenshot diff và accessibility check; binding đã cover qua panel cha tương ứng ở trên.
+    <br>
+    <code class="bg-gray-100 px-1 rounded">data-state="grace"</code> = visual only, không có row riêng — assertion đi qua <code class="bg-gray-100 px-1 rounded">coordinator._phase == VoicePhase.grace</code>.
+  </p>
+</section>
+
+<!-- §7 — Open questions for implementation -->
+<section>
+  <h2 class="text-lg font-semibold mb-2">§7 — Open questions (for /implement)</h2>
+  <ul class="list-disc list-inside text-sm text-gray-700 space-y-1 ml-2">
+    <li><strong>Append mode in grace</strong> (đã fix ở flow-grace-append): STT recognizedWords là full latest, không phải delta → coordinator dùng REPLACE không APPEND. Confirm hiểu đúng trước khi code.</li>
+    <li><strong>Sound level normalization</strong>: onSoundLevelChange trả raw dB (-2 to 10), cần map về 0.0-1.0 cho alpha + bar height. Formula: <code class="bg-gray-100 px-1 rounded">_soundLevel = ((level + 2) / 12).clamp(0.0, 1.0)</code> — chấp nhận được?</li>
+    <li><strong>Diacritic helper location</strong>: đặt trong <code class="bg-gray-100 px-1 rounded">vietnamese_number_parser.dart</code> (public) hay tạo <code class="bg-gray-100 px-1 rounded">lib/core/text_normalizer.dart</code> mới?</li>
+    <li><strong>quick_input_widget.dart cleanup</strong>: xoá ~70 dòng duplicate coordinator logic cùng đợt, hay tách thành 1 housekeeping commit riêng?</li>
+  </ul>
+</section>
+
+</main>
+</body>
+</html>

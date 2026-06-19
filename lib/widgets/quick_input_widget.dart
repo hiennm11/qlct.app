@@ -7,11 +7,16 @@ import '../models/transaction.dart';
 import '../core/formatters.dart';
 import '../core/theme.dart';
 import '../services/transaction_suggestion_engine.dart';
-import '../services/voice_input_service.dart';
-import '../core/vietnamese_number_parser.dart';
-import 'voice/voice_input_modal.dart';
+import 'voice/voice_coordinator.dart';
+import 'voice/voice_result.dart';
 
-/// Widget for quick transaction input with category sliders
+/// Widget for quick transaction input with category sliders.
+///
+/// ADR-0083: Voice flow dùng [VoiceCoordinator] (mic icon trên mỗi category
+/// card). Coordinator gọi [_onVoiceInput] với [VoiceResult] đã parse — handler
+/// fill amount slider + gọi [ExpenseViewModel.addTransaction] (note: đây là
+/// LEGACY path, ADR-0069 ưu tiên SuperInputCard no-auto-save. Giữ quick
+/// path cho back-compat với QuickAddBar expansion grid.)
 class QuickInputWidget extends StatefulWidget {
   const QuickInputWidget({super.key});
 
@@ -94,129 +99,90 @@ class _QuickInputWidgetState extends State<QuickInputWidget> {
                     itemBuilder: (context, index) {
                       final category = cats[index];
                       return _CategoryCard(
-                    category: category,
-                    amount: _amountFor(category),
-                    onAmountChanged: (value) {
-                      setState(() {
-                        _amounts[category.id] = value;
-                      });
-                    },
-                    onAdd: () async {
-                      final vm = context.read<ExpenseViewModel>();
-                      try {
-                        await vm.addTransaction(
-                          amount: _amountFor(category).toInt(),
-                          category: category.name,
-                          categoryId: category.id,
-                          emoji: category.emoji,
-                        );
-                        if (!context.mounted) return;
-                        if (vm.errorMessage != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(vm.errorMessage!),
-                              backgroundColor: Colors.red,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Đã thêm ${CurrencyFormatter.format(_amountFor(category).toInt())} - ${category.name}',
-                              ),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        debugPrint('Error quick input add: $e');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Không thể thực hiện thao tác. Vui lòng thử lại.'),
-                            backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 4),
-                          ),
-                        );
-                      }
-                    },
-                    onVoiceInput: (transcript) async {
-                      final vm = context.read<ExpenseViewModel>();
-                      final amount = VietnameseNumberParser.extractAmount(
-                        transcript,
+                        category: category,
+                        amount: _amountFor(category),
+                        onAmountChanged: (value) {
+                          setState(() {
+                            _amounts[category.id] = value;
+                          });
+                        },
+                        onAdd: () => _addTransaction(category, _amountFor(category).toInt()),
+                        onVoiceInput: _onVoiceInput,
                       );
-                      if (amount != null) {
-                        setState(() {
-                          _amounts[category.id] = amount.toDouble();
-                        });
-                        try {
-                          await vm.addTransaction(
-                            amount: amount,
-                            category: category.name,
-                            categoryId: category.id,
-                            emoji: category.emoji,
-                            note: transcript,
-                          );
-                          if (!context.mounted) return;
-                          if (vm.errorMessage != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(vm.errorMessage!),
-                                backgroundColor: Colors.red,
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Đã thêm ${CurrencyFormatter.format(amount)} - ${category.name}',
-                                ),
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (!context.mounted) return;
-                          debugPrint('Error quick input voice: $e');
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Không thể thực hiện thao tác. Vui lòng thử lại.'),
-                              backgroundColor: Colors.red,
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                        }
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Không thể nhận diện số tiền từ giọng nói'),
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                      }
                     },
                   );
-                    },
-                  );
-                },
-              ),
+                  },
+                ),
+              ],
             ],
-          ],
+          ),
         ),
-        ),
+      ),
+    );
+  }
+
+  /// LEGACY voice path (ADR-0069 superseded by SuperInputCard no-auto-save,
+  /// nhưng QuickInputWidget mở rộng từ QuickAddBar vẫn dùng). Parse
+  /// [VoiceResult] rồi tạo transaction trực tiếp.
+  Future<void> _onVoiceInput(VoiceResult result) async {
+    final amount = result.amount;
+    if (amount == null) {
+      _showSnack('Không thể nhận diện số tiền từ giọng nói');
+      return;
+    }
+    final category = result.category ??
+        context.read<CategoryViewModel>().categoryById('other');
+    if (category == null) {
+      _showSnack('Không tìm thấy danh mục');
+      return;
+    }
+    setState(() {
+      _amounts[category.id] = amount.toDouble();
+    });
+    await _addTransaction(category, amount, note: result.transcript);
+  }
+
+  Future<void> _addTransaction(Category category, int amount, {String? note}) async {
+    final vm = context.read<ExpenseViewModel>();
+    try {
+      await vm.addTransaction(
+        amount: amount,
+        category: category.name,
+        categoryId: category.id,
+        emoji: category.emoji,
+        note: note ?? '',
+      );
+      if (!context.mounted) return;
+      if (vm.errorMessage != null) {
+        _showSnack(vm.errorMessage!, isError: true);
+      } else {
+        _showSnack('Đã thêm ${CurrencyFormatter.format(amount)} - ${category.name}');
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      debugPrint('Error quick input add: $e');
+      _showSnack('Không thể thực hiện thao tác. Vui lòng thử lại.', isError: true);
+    }
+  }
+
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red : null,
+        duration: Duration(seconds: isError ? 4 : 2),
       ),
     );
   }
 }
 
-class _CategoryCard extends StatefulWidget {
+class _CategoryCard extends StatelessWidget {
   final Category category;
   final double amount;
   final ValueChanged<double> onAmountChanged;
   final VoidCallback onAdd;
-  final ValueChanged<String> onVoiceInput;
+  final ValueChanged<VoiceResult> onVoiceInput;
 
   const _CategoryCard({
     required this.category,
@@ -225,87 +191,6 @@ class _CategoryCard extends StatefulWidget {
     required this.onAdd,
     required this.onVoiceInput,
   });
-
-  @override
-  State<_CategoryCard> createState() => _CategoryCardState();
-}
-
-class _CategoryCardState extends State<_CategoryCard> {
-  final _voiceService = VoiceInputService();
-  bool _isListening = false;
-  String _transcript = '';
-
-  @override
-  void dispose() {
-    _voiceService.dispose();
-    super.dispose();
-  }
-
-  void _startVoiceInput() async {
-    setState(() {
-      _isListening = true;
-      _transcript = '';
-    });
-
-    _showVoiceModal();
-
-    await _voiceService.startListening(
-      onResult: (transcript) {
-        setState(() {
-          _transcript = transcript;
-          _isListening = false;
-        });
-        // Rebuild modal to show input field with recognized text
-        Navigator.of(context).pop();
-        _showVoiceModal();
-      },
-      onError: (error) {
-        setState(() {
-          _isListening = false;
-          _transcript = 'Lỗi: $error';
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error)));
-      },
-    );
-  }
-
-  void _showVoiceModal() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => VoiceInputModal(
-        isListening: _isListening,
-        transcript: _transcript,
-        onClose: () {
-          _voiceService.stopListening();
-          setState(() => _isListening = false);
-          Navigator.of(context).pop();
-        },
-        onCancel: () {
-          _voiceService.cancel();
-          setState(() {
-            _isListening = false;
-            _transcript = '';
-          });
-          Navigator.of(context).pop();
-        },
-        onConfirm: (editedTranscript) {
-          final amount = VietnameseNumberParser.extractAmount(editedTranscript);
-          if (amount != null) {
-            widget.onVoiceInput(editedTranscript);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Không thể nhận diện số tiền từ giọng nói'),
-              ),
-            );
-          }
-        },
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -323,13 +208,13 @@ class _CategoryCardState extends State<_CategoryCard> {
             Row(
               children: [
                 Text(
-                  widget.category.emoji,
+                  category.emoji,
                   style: const TextStyle(fontSize: 24),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    widget.category.name,
+                    category.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 12,
@@ -347,19 +232,19 @@ class _CategoryCardState extends State<_CategoryCard> {
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
               ),
               child: Slider(
-                value: widget.amount,
-                min: widget.category.quickAmountMin.toDouble(),
-                max: widget.category.quickAmountMax.toDouble(),
+                value: amount,
+                min: category.quickAmountMin.toDouble(),
+                max: category.quickAmountMax.toDouble(),
                 onChanged: (value) {
                   // Round to nearest 1000
                   final rounded = (value / 1000).round() * 1000.0;
-                  widget.onAmountChanged(rounded);
+                  onAmountChanged(rounded);
                 },
                 activeColor: AppColors.primary,
               ),
             ),
             Text(
-              CurrencyFormatter.format(widget.amount.toInt()),
+              CurrencyFormatter.format(amount.toInt()),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
@@ -373,7 +258,7 @@ class _CategoryCardState extends State<_CategoryCard> {
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: widget.onAdd,
+                    onPressed: onAdd,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       textStyle: const TextStyle(fontSize: 11),
@@ -385,13 +270,24 @@ class _CategoryCardState extends State<_CategoryCard> {
                 SizedBox(
                   width: 32,
                   height: 32,
-                  child: IconButton(
-                    onPressed: _startVoiceInput,
-                    icon: const Icon(Icons.mic, size: 16),
-                    padding: EdgeInsets.zero,
-                    style: IconButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                      foregroundColor: Colors.white,
+                  // ADR-0083: dùng VoiceCoordinator thay vì duplicate
+                  // service instance + showDialog logic (xoá ~70 dòng
+                  // so với pre-v2). Coordinator handle toàn bộ state
+                  // machine + modal + STT lifecycle.
+                  child: VoiceCoordinator(
+                    onResult: onVoiceInput,
+                    categories:
+                        context.watch<CategoryViewModel>().quickInputCategories,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.mic,
+                        size: 16,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -410,7 +306,7 @@ class _CategoryCardState extends State<_CategoryCard> {
     final expenseVM = context.watch<ExpenseViewModel>();
     final engine = TransactionSuggestionEngine();
     final List<Transaction> recent = expenseVM.allTransactions;
-    final amounts = engine.getSuggestedAmounts(widget.category, recent);
+    final amounts = engine.getSuggestedAmounts(category, recent);
     if (amounts.isEmpty) return const SizedBox.shrink();
     return Wrap(
       spacing: 4,
@@ -425,7 +321,7 @@ class _CategoryCardState extends State<_CategoryCard> {
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: const EdgeInsets.symmetric(horizontal: 2),
           onPressed: () {
-            widget.onAmountChanged(a.toDouble());
+            onAmountChanged(a.toDouble());
           },
         );
       }).toList(),

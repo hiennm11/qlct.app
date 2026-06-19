@@ -1,5 +1,35 @@
 /// Utility class for parsing Vietnamese numbers from voice input
 class VietnameseNumberParser {
+  /// Strip trailing currency markers khỏi token trước khi int.tryParse.
+  ///
+  /// Voice transcript đôi khi có suffix currency:
+  ///   "50000đ" / "50000₫" — U+0111 (đ) hoặc U+20AB (₫) symbol
+  ///   "50000d"   — "đ" → "d" sau normalizeVietnameseSearchText (ADR-0022)
+  ///   "50000dong" / "50000vnd" — full word
+  ///
+  /// Phải strip TRƯỚC int.tryParse vì "50000đ" tryParse fail. Cũng xử lý
+  /// "k" suffix đặc biệt: "50kđ" → "50k" → 50*1000.
+  static String _stripCurrency(String token) {
+    var t = token;
+    // Multi-char suffixes first.
+    for (final suffix in const ['dong', 'vnd', 'đồng']) {
+      if (t.toLowerCase().endsWith(suffix) && t.length > suffix.length) {
+        t = t.substring(0, t.length - suffix.length);
+        break;
+      }
+    }
+    // Single-char suffixes (đ, ₫, d — last covers ADR-0022 normalize).
+    while (t.isNotEmpty) {
+      final last = t[t.length - 1].toLowerCase();
+      if (last == 'đ' || last == '₫' || last == 'd') {
+        t = t.substring(0, t.length - 1);
+      } else {
+        break;
+      }
+    }
+    return t;
+  }
+
   /// Number words mapping
   static const Map<String, int> _numberMap = {
     'không': 0,
@@ -55,8 +85,9 @@ class VietnameseNumberParser {
     final words = text.split(RegExp(r'\s+'));
 
     for (final word in words) {
-      // Clean up formatting characters
-      final cleaned = word.replaceAll(RegExp(r'[.,]'), '');
+      // Strip currency markers ("50000đ" → "50000") + thousands sep.
+      final noCurrency = _stripCurrency(word);
+      final cleaned = noCurrency.replaceAll(RegExp(r'[.,]'), '');
       final num = int.tryParse(cleaned);
 
       if (num != null && num > 0) {
@@ -124,9 +155,12 @@ class VietnameseNumberParser {
 
     for (int i = 0; i < words.length; i++) {
       final word = words[i];
-      final cleaned = word.replaceAll(RegExp(r'[.,]'), '');
+      // Strip trailing currency markers (đ, ₫, dong, vnd) trước khi
+      // clean thousands separator. "50000đ" → "50000" → 50000.
+      final noCurrency = _stripCurrency(word);
+      final cleaned = noCurrency.replaceAll(RegExp(r'[.,]'), '');
 
-      // "30k" pattern
+      // "30k" pattern (cũng cover "50kđ" sau khi strip currency → "50k").
       if (cleaned.length > 1 && cleaned.endsWith('k')) {
         final prefix = cleaned.substring(0, cleaned.length - 1);
         final num = int.tryParse(prefix);

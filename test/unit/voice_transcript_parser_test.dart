@@ -42,6 +42,39 @@ void main() {
       expect(result.amount, 50000);
     });
 
+    // ── Currency suffix (ADR-0083 hotfix 2026-06-19) ─────────────────
+
+    test('"50000đ" trailing đ symbol → 50000', () {
+      final result = parseVoiceTranscript('ăn ngoài 50000đ', categories);
+      expect(result.amount, 50000);
+    });
+
+    test('"50000₫" U+20AB symbol → 50000', () {
+      final result = parseVoiceTranscript('ăn ngoài 50000₫', categories);
+      expect(result.amount, 50000);
+    });
+
+    test('"50000dong" full word → 50000', () {
+      final result = parseVoiceTranscript('cà phê 50000dong', categories);
+      expect(result.amount, 50000);
+    });
+
+    test('"50kđ" k + đ → 50000', () {
+      final result = parseVoiceTranscript('ăn ngoài 50kđ', categories);
+      expect(result.amount, 50000);
+    });
+
+    test('"50000 đ" space-separated đ → 50000', () {
+      // STT có thể nhận "50000" và "đồng" riêng.
+      final result = parseVoiceTranscript('ăn ngoài 50000 đ', categories);
+      expect(result.amount, 50000);
+    });
+
+    test('"30k đồng" k + đồng → 30000', () {
+      final result = parseVoiceTranscript('cà phê 30k đồng', categories);
+      expect(result.amount, 30000);
+    });
+
     // ── Category matched ───────────────────────────────────────────────
 
     test('exact phrase match → correct category', () {
@@ -165,6 +198,83 @@ void main() {
     test('etf phrase → matches Đầu tư', () {
       final result = parseVoiceTranscript('etf 5 triệu', categories);
       expect(result.category?.name, 'Đầu tư');
+    });
+
+    // ── ADR-0083: 2-layer fuzzy + length-priority ─────────────────────
+
+    test('STT bỏ dấu → layer 2 strip diacritic match "ăn ngoài"', () {
+      // "an ngoai 50k" — exact layer miss (no dấu), layer 2 strips dấu
+      // từ cả transcript + phrase → "an ngoai" contains "an ngoai" → match.
+      final result = parseVoiceTranscript('an ngoai 50k', categories);
+      expect(result.category?.name, 'Ăn ngoài');
+      expect(result.amount, 50000);
+    });
+
+    test('STT bỏ dấu "ca phe 30k" → Cà phê', () {
+      final result = parseVoiceTranscript('ca phe 30k', categories);
+      expect(result.category?.name, 'Cà phê');
+    });
+
+    test('length-priority: "ăn nhà 50k" → Ăn nhà (NOT Ăn ngoài)', () {
+      // Both "ăn" (3 chars, Ăn ngoài) and "ăn nhà" (7 chars, Ăn nhà) match
+      // exact layer. Length DESC sort → "ăn nhà" thắng.
+      final result = parseVoiceTranscript('ăn nhà 50k', categories);
+      expect(result.category?.name, 'Ăn nhà');
+      expect(result.amount, 50000);
+    });
+
+    test('length-priority: "ăn 50k" → Ăn ngoài', () {
+      // Only "ăn" matches (3 chars) — no length conflict.
+      final result = parseVoiceTranscript('ăn 50k', categories);
+      expect(result.category?.name, 'Ăn ngoài');
+    });
+
+    test('"khác" category skip fuzzy layer', () {
+      // "xyz 50k" — no phrase match exact, no diacritic match. Skip
+      // "khác" → return null (caller xử lý fallback).
+      final result = parseVoiceTranscript('xyz 50k', categories);
+      expect(result.category, isNull);
+      expect(result.amount, 50000);
+    });
+
+    test('"chi tiêu 100k" → no category match, amount parsed', () {
+      // "chi tiêu" không có trong voicePhrases của bất kỳ category nào.
+      // Layer 1 + layer 2 miss → return null category.
+      final result = parseVoiceTranscript('chi tiêu 100k', categories);
+      expect(result.category, isNull);
+      expect(result.amount, 100000);
+    });
+
+    test('no amount → null amount, category still matched', () {
+      final result = parseVoiceTranscript('ăn ngoài', categories);
+      expect(result.amount, isNull);
+      expect(result.category?.name, 'Ăn ngoài');
+    });
+
+    test('multi-amount → first amount wins', () {
+      // "ăn ngoài 50 nghìn và 20k cà phê" — 2 amounts (50k, 20k).
+      // Parser returns first (50000). User tự tách NoteEntry nếu cần.
+      final result = parseVoiceTranscript(
+        'ăn ngoài 50 nghìn và 20k cà phê',
+        categories,
+      );
+      expect(result.amount, 50000);
+      expect(result.category?.name, 'Ăn ngoài');
+    });
+
+    test('diacritic + length-priority combined: "an nha 50k" → Ăn nhà', () {
+      // Layer 1 exact miss (no dấu). Layer 2 strip → "an nha" + "an".
+      // Length-priority DESC: "an nha" (6) > "an" (2) → match Ăn nhà.
+      final result = parseVoiceTranscript('an nha 50k', categories);
+      expect(result.category?.name, 'Ăn nhà');
+    });
+
+    test('case insensitive diacritic: "AN NGOAI 50K" → Ăn ngoài', () {
+      // normalizeVietnameseSearchText lowercases; layer 2 works on
+      // uppercase transcript too.
+      final result = parseVoiceTranscript('AN NGOAI 50K', categories);
+      expect(result.category?.name, 'Ăn ngoài');
+      expect(result.amount, 50000);
     });
   });
 }
